@@ -18,6 +18,7 @@ import {
   type ReceiptSizeChip,
 } from '@shared/receiptPrintGeometry';
 import { resolveReceiptImageSrc } from '@/utils/receiptLogo';
+import { ThermalReceiptLogoImage } from './ThermalReceiptLogoImage';
 
 interface CustomReceiptMockupProps {
   template: CustomReceiptTemplate;
@@ -46,44 +47,38 @@ interface CustomReceiptMockupProps {
   qrSizeChip?: ReceiptSizeChip;
 }
 
-const DEFAULT_SAMPLE_ITEMS = [
-  { productName: 'Basmati Rice 5kg', quantity: 1, unitPrice: 450, total: 450, unit: 'Bag', gstRate: 5 },
-  { productName: 'Sunflower Oil 1L', quantity: 2, unitPrice: 180, total: 360, unit: 'Btl', gstRate: 5 },
-  { productName: 'Whole Wheat Flour 5kg', quantity: 1, unitPrice: 280, total: 280, unit: 'Bag', gstRate: 0 },
-];
-
 export function CustomReceiptMockup({
   template,
   storeName,
-  storeAddress = '',
-  storePhone = '',
-  storeGstin = '',
+  storeAddress,
+  storePhone,
+  storeGstin,
   storeLogoUrl,
-  invoiceNumber = 'INV-2026-0042',
-  date = new Date().toLocaleDateString('en-GB'),
-  time = '12:45 PM',
-  customerName = 'Aarav Sharma',
-  customerPhone = '+91 99887 76655',
-  items = DEFAULT_SAMPLE_ITEMS,
-  subtotal = 1090,
-  totalDiscount = 50,
-  totalTax = 40.5,
-  grandTotal = 1080.5,
-  amountPaid = 1100,
-  changeReturned = 19.5,
-  paymentMethod = 'UPI',
-  upiId = 'store@upi',
-  footerMessage = '',
-  paperWidth,
-  logoSizeChip,
-  qrSizeChip,
+  invoiceNumber,
+  date,
+  time,
+  customerName,
+  customerPhone,
+  items = [],
+  subtotal = 0,
+  totalDiscount = 0,
+  totalTax = 0,
+  grandTotal = 0,
+  amountPaid = 0,
+  changeReturned = 0,
+  paymentMethod = 'CASH',
+  upiId,
+  footerMessage,
+  paperWidth = '58mm',
+  logoSizeChip = 'medium',
+  qrSizeChip = 'medium',
 }: CustomReceiptMockupProps) {
   const activePaperWidth = paperWidth || template.paperWidth || '58mm';
   const is80mm = activePaperWidth === '80mm';
   const paperMaxWidth = is80mm ? 360 : 280;
 
   const sampleBillPdfUrl = buildBillPdfUrl({ invoiceNumber: invoiceNumber || 'INV-2026-0042' });
-  const sampleUpiStr = buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber);
+  const sampleUpiStr = upiId ? buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber) : '';
 
   const replaceVars = (str?: string): string => {
     if (!str) return '';
@@ -202,18 +197,16 @@ export function CustomReceiptMockup({
             ]}
           >
             {logoSrc ? (
-              <Image
-                source={{ uri: logoSrc }}
-                style={[
-                  styles.thermalLogoImage,
-                  {
-                    maxWidth: logoDim.maxWidth,
-                    width: widthPct,
-                    maxHeight: logoDim.maxHeight,
-                    height: logoDim.maxHeight,
-                    resizeMode: 'contain',
-                  },
-                ]}
+              <ThermalReceiptLogoImage
+                uri={logoSrc}
+                paperWidth={activePaperWidth}
+                widthPercent={entry.widthPercent || RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT}
+                logoSizeChip={logoSizeChip}
+                style={styles.thermalLogoImage}
+                maxWidth={logoDim.maxWidth}
+                width={widthPct}
+                maxHeight={logoDim.maxHeight}
+                height={logoDim.maxHeight}
               />
             ) : (
               <View style={styles.imagePlaceholder}>

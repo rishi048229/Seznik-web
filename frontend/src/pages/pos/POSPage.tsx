@@ -16,7 +16,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
@@ -1180,8 +1180,8 @@ export const POSPage = () => {
               disabled={items.length === 0 || isCreating}
               className="w-full h-11 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400 shadow-md shadow-blue-500/25"
             >
-              <Printer size={18} className="mr-2" />
-              {t('pos.completeAndPrint')}
+              <CheckCircle2 size={18} className="mr-2" />
+              {t('pos.completeSale')}
             </Button>
 
             <Button
@@ -1211,8 +1211,8 @@ export const POSPage = () => {
             loading={isCreating}
             className="w-full py-3.5 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400"
           >
-            <Printer size={18} className="mr-2" />
-            {isComplete ? t('pos.completeAndPrint') : t('pos.insufficientAmount')}
+            <CheckCircle2 size={18} className="mr-2" />
+            {isComplete ? t('pos.completeSale') : t('pos.insufficientAmount')}
           </Button>
         }
       >
@@ -1381,12 +1381,12 @@ export const POSPage = () => {
       <Modal
         isOpen={isPrintModalOpen}
         onClose={finishPrintFlow}
-        title={t('pos.completeAndPrint')}
+        title={t('pos.saleCompleted')}
         size="md"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Sale saved. Choose how to print this bill.
+            Sale saved successfully. Choose how to print this bill, or skip printing.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -1429,8 +1429,12 @@ export const POSPage = () => {
               {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
             </Button>
           )}
-          <Button variant="ghost" className="w-full" onClick={finishPrintFlow}>
-            {t('action.cancel')}
+          <Button
+            variant="outline"
+            className="w-full py-2.5 font-medium text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+            onClick={finishPrintFlow}
+          >
+            {t('pos.skipPrinting')}
           </Button>
         </div>
       </Modal>

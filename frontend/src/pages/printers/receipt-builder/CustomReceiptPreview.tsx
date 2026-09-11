@@ -55,7 +55,7 @@ function ReceiptLogoImage({
       src={activeSrc}
       alt="Logo"
       className="object-contain max-h-16 min-h-8"
-      style={{ width: w, maxWidth: '100%' }}
+      style={{ width: w, maxWidth: '100%', filter: 'grayscale(100%) contrast(250%)' }}
       onError={() => {
         if (activeSrc) {
           setFailedSrcs((prev) => new Set(prev).add(activeSrc))

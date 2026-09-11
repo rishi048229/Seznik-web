@@ -199,6 +199,7 @@ export const ReceiptLivePreview = ({
                         style={{
                           maxHeight: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxHeight}px`,
                           maxWidth: `${receiptLogoHtmlMaxPxFromChip(receiptConfig.receiptLogoSize).maxWidth}px`,
+                          filter: 'grayscale(100%) contrast(250%)',
                         }}
                       />
                     </div>

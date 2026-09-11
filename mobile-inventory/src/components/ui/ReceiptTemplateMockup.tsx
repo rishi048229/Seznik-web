@@ -10,6 +10,7 @@ import {
   receiptStandardQrHtmlPxFromChip,
   type ReceiptSizeChip,
 } from '@shared/receiptPrintGeometry';
+import { ThermalReceiptLogoImage } from '@/components/ui/ThermalReceiptLogoImage';
 
 interface MockupItem {
   productName: string;
@@ -114,9 +115,14 @@ export function ReceiptTemplateMockup({
     <View style={styles.paper}>
       {storeLogoUrl ? (
         <View style={styles.logoContainer}>
-          <Image
-            source={{ uri: storeLogoUrl }}
-            style={[styles.storeLogo, { maxWidth: logoDim.maxWidth, maxHeight: logoDim.maxHeight, width: logoDim.maxWidth, height: logoDim.maxHeight }]}
+          <ThermalReceiptLogoImage
+            uri={storeLogoUrl}
+            logoSizeChip={logoSizeChip}
+            maxWidth={logoDim.maxWidth}
+            maxHeight={logoDim.maxHeight}
+            width={logoDim.maxWidth}
+            height={logoDim.maxHeight}
+            style={styles.storeLogo}
             resizeMode="contain"
           />
         </View>

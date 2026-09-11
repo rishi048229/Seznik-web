@@ -15,6 +15,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { removeImageBackground, analyzeLogoForThermal, type LogoProcessMode, type LogoThermalAnalysis } from '@/utils/imageBackgroundRemoval';
 import { useTranslation } from '@/store/useLanguageStore';
+import { ThermalReceiptLogoImage } from '@/components/ui/ThermalReceiptLogoImage';
 
 export interface LogoBackgroundModalProps {
   visible: boolean;
@@ -33,14 +34,14 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
   const { t } = useTranslation();
 
   const [selectedMode, setSelectedMode] = useState<LogoProcessMode>('white_clean');
-  const [invertColors, setInvertColors] = useState<boolean>(false);
+  const [isReceiptBw, setIsReceiptBw] = useState<boolean>(true);
   const [tolerance, setTolerance] = useState<number>(45);
   const [processedUri, setProcessedUri] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [previewTheme, setPreviewTheme] = useState<'receipt' | 'transparent'>('receipt');
   const [analysis, setAnalysis] = useState<LogoThermalAnalysis | null>(null);
 
-  const reprocess = (uri: string, mode: LogoProcessMode, inv: boolean, tol: number) => {
+  const reprocess = (uri: string, mode: LogoProcessMode, tol: number) => {
     if (mode === 'keep_bg') {
       setProcessedUri(uri);
       setIsProcessing(false);
@@ -53,7 +54,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
       tolerance: tol,
       softness: 16,
       trimPadding: true,
-      invert: inv,
+      invert: false,
     })
       .then((res) => {
         setProcessedUri(res.uri);
@@ -71,7 +72,6 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
 
     let cancelled = false;
     setSelectedMode('white_clean');
-    setInvertColors(false);
     setTolerance(45);
     setAnalysis(null);
     setIsProcessing(true);
@@ -80,16 +80,14 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
       .then((result) => {
         if (cancelled) return;
         const mode = result?.recommendedMode ?? 'white_clean';
-        const inv = result?.recommendedInvert ?? false;
         setAnalysis(result);
         setSelectedMode(mode);
-        setInvertColors(inv);
-        reprocess(imageUri, mode, inv, 45);
+        reprocess(imageUri, mode, 45);
       })
       .catch(() => {
         if (cancelled) return;
         setSelectedMode('white_clean');
-        reprocess(imageUri, 'white_clean', false, 45);
+        reprocess(imageUri, 'white_clean', 45);
       });
 
     return () => {
@@ -103,18 +101,12 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
 
   const handleModeChange = (mode: LogoProcessMode) => {
     setSelectedMode(mode);
-    reprocess(imageUri, mode, invertColors, tolerance);
-  };
-
-  const handleInvertToggle = () => {
-    const nextInv = !invertColors;
-    setInvertColors(nextInv);
-    reprocess(imageUri, selectedMode, nextInv, tolerance);
+    reprocess(imageUri, mode, tolerance);
   };
 
   const handleToleranceChange = (tol: number) => {
     setTolerance(tol);
-    reprocess(imageUri, selectedMode, invertColors, tol);
+    reprocess(imageUri, selectedMode, tol);
   };
 
   const handleConfirm = () => {
@@ -304,15 +296,18 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
                 </View>
 
                 <TouchableOpacity
-                  onPress={handleInvertToggle}
+                  onPress={() => setIsReceiptBw((v) => !v)}
                   style={[
                     styles.invertBtn,
-                    { borderColor: invertColors ? '#10B981' : theme.borderColor, backgroundColor: invertColors ? 'rgba(16, 185, 129, 0.1)' : 'transparent' },
+                    {
+                      borderColor: isReceiptBw ? (theme.isDark ? '#38BDF8' : '#0284C7') : theme.borderColor,
+                      backgroundColor: isReceiptBw ? (theme.isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : 'transparent',
+                    },
                   ]}
                 >
-                  <RefreshCw size={12} color={invertColors ? '#10B981' : theme.textSecondary} />
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: invertColors ? '#10B981' : theme.textPrimary, marginLeft: 6 }}>
-                    Invert Colors: {invertColors ? 'ON (Black ⇄ White)' : 'OFF'}
+                  <Receipt size={13} color={isReceiptBw ? (theme.isDark ? '#38BDF8' : '#0284C7') : theme.textSecondary} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isReceiptBw ? (theme.isDark ? '#38BDF8' : '#0284C7') : theme.textPrimary, marginLeft: 6 }}>
+                    Receipt B&amp;W View: {isReceiptBw ? 'ON (Thermal Print Preview)' : 'OFF (Color Preview)'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -365,11 +360,19 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
                 ) : (
                   <View style={styles.logoWrapper}>
                     <View style={styles.logoCanvasBacking}>
-                      <Image
-                        source={{ uri: currentPreviewUri }}
-                        style={styles.previewImage}
-                        resizeMode="contain"
-                      />
+                      {isReceiptBw ? (
+                        <ThermalReceiptLogoImage
+                          uri={currentPreviewUri}
+                          style={styles.previewImage}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <Image
+                          source={{ uri: currentPreviewUri }}
+                          style={styles.previewImage}
+                          resizeMode="contain"
+                        />
+                      )}
                     </View>
                     {previewTheme === 'receipt' && (
                       <View style={styles.receiptSimText}>

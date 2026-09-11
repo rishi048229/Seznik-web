@@ -29,6 +29,7 @@ import {
   Ticket,
   UtensilsCrossed,
   LayoutGrid,
+  ChevronRight,
 } from 'lucide-react'
 import { FeedbackModal } from '@/components/common/FeedbackModal'
 import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
@@ -422,31 +423,47 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         </div>
 
         {/* User Card */}
-        <div className={clsx('pb-2 pt-0.5 flex-shrink-0', collapsed ? 'px-2' : 'px-3')}>
+        <div className={clsx('pb-3 pt-1 flex-shrink-0', collapsed ? 'px-2' : 'px-3')}>
           <button
             type="button"
             onClick={() => { navigate(ROUTES.PROFILE); onClose() }}
             title={collapsed ? `${displayName} — ${t('profile.viewProfile')}` : t('profile.viewProfile')}
             className={clsx(
-              'w-full text-left bg-white dark:bg-dark-card rounded-lg shadow-sm border border-gray-100 dark:border-dark-border',
-              'hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md transition-all active:scale-[0.98]',
-              collapsed ? 'p-1.5' : 'p-2'
+              'w-full text-left bg-white dark:bg-dark-card rounded-xl shadow-xs border border-gray-200/80 dark:border-dark-border',
+              'hover:border-blue-300 dark:hover:border-blue-700/60 hover:shadow-md transition-all duration-200 group active:scale-[0.98]',
+              collapsed ? 'p-2' : 'p-2.5 sm:p-3'
             )}
           >
-            <div className={clsx('flex items-center gap-2.5', collapsed && 'lg:justify-center lg:gap-0')}>
+            <div className={clsx('flex items-center gap-3', collapsed && 'lg:justify-center lg:gap-0')}>
               <img
                 src={logoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=2563eb&color=fff`}
                 alt={displayName}
                 title={collapsed ? `${displayName} (${userProfile?.role?.toUpperCase() || 'USER'})` : undefined}
-                className="w-7 h-7 rounded-full object-cover border border-gray-200 dark:border-dark-border bg-white flex-shrink-0"
+                className={clsx(
+                  'rounded-xl object-cover border border-gray-200/80 dark:border-dark-border bg-white flex-shrink-0 shadow-xs transition-transform duration-200 group-hover:scale-105',
+                  collapsed ? 'w-9 h-9' : 'w-11 h-11'
+                )}
               />
               <div className={clsx('flex-1 min-w-0', collapsed && 'lg:hidden')}>
-                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate leading-tight">
-                  {displayName}
+                <div className="flex items-center justify-between gap-1.5">
+                  <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate leading-snug">
+                    {displayName}
+                  </p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold tracking-wider uppercase bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 flex-shrink-0">
+                    {userProfile?.role?.toUpperCase() || 'USER'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 leading-snug font-medium">
+                  {userProfile?.email || user?.email || ''}
                 </p>
-                <p className="text-[10px] text-gray-500 truncate leading-tight">{userProfile?.email || user?.email || ''}</p>
-                <p className="text-[9.5px] text-gray-400 font-medium leading-tight">{userProfile?.role?.toUpperCase() || 'USER'}</p>
               </div>
+              <ChevronRight
+                size={16}
+                className={clsx(
+                  'text-gray-400 dark:text-gray-500 flex-shrink-0 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all',
+                  collapsed && 'lg:hidden'
+                )}
+              />
             </div>
           </button>
         </div>

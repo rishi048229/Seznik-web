@@ -35,7 +35,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
   const { t } = useLanguage();
 
   const [selectedMode, setSelectedMode] = useState<LogoProcessMode>('white_clean');
-  const [invertColors, setInvertColors] = useState<boolean>(false);
+  const [isReceiptBw, setIsReceiptBw] = useState<boolean>(true);
   const [tolerance, setTolerance] = useState<number>(45);
   const [processedUrl, setProcessedUrl] = useState<string | null>(null);
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
@@ -60,7 +60,6 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
   const reprocess = (
     src: string | File,
     mode: LogoProcessMode,
-    inv: boolean,
     tol: number
   ) => {
     if (mode === 'keep_bg') {
@@ -81,7 +80,7 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
       tolerance: tol,
       softness: 16,
       trimPadding: true,
-      invert: inv,
+      invert: false,
     })
       .then((res) => {
         setProcessedUrl(res.dataUrl);
@@ -105,7 +104,6 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
 
     let cancelled = false;
     setSelectedMode('white_clean');
-    setInvertColors(false);
     setTolerance(45);
     setAnalysis(null);
     setIsProcessing(true);
@@ -114,16 +112,14 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
       .then((result) => {
         if (cancelled) return;
         const mode = result?.recommendedMode ?? 'white_clean';
-        const inv = result?.recommendedInvert ?? false;
         setAnalysis(result);
         setSelectedMode(mode);
-        setInvertColors(inv);
-        reprocess(imageSrc, mode, inv, 45);
+        reprocess(imageSrc, mode, 45);
       })
       .catch(() => {
         if (cancelled) return;
         setSelectedMode('white_clean');
-        reprocess(imageSrc, 'white_clean', false, 45);
+        reprocess(imageSrc, 'white_clean', 45);
       });
 
     return () => {
@@ -140,18 +136,12 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
 
   const handleModeChange = (mode: LogoProcessMode) => {
     setSelectedMode(mode);
-    reprocess(imageSrc, mode, invertColors, tolerance);
-  };
-
-  const handleInvertToggle = () => {
-    const nextInv = !invertColors;
-    setInvertColors(nextInv);
-    reprocess(imageSrc, selectedMode, nextInv, tolerance);
+    reprocess(imageSrc, mode, tolerance);
   };
 
   const handleToleranceChange = (tol: number) => {
     setTolerance(tol);
-    reprocess(imageSrc, selectedMode, invertColors, tol);
+    reprocess(imageSrc, selectedMode, tol);
   };
 
   const handleConfirm = () => {
@@ -372,21 +362,22 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
               <div className="pt-2 border-t border-gray-200 dark:border-dark-border flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={handleInvertToggle}
+                  onClick={() => setIsReceiptBw((prev) => !prev)}
                   className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
-                    invertColors
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                    isReceiptBw
+                      ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-800'
                       : 'bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border-strong hover:bg-gray-100'
                   }`}
                 >
-                  <RefreshCw size={12} className={invertColors ? 'text-emerald-600' : 'text-gray-500'} />
+                  <Receipt size={13} className={isReceiptBw ? 'text-white dark:text-zinc-900' : 'text-gray-500'} />
                   <span>
-                    {t('image.invertColors')}:{' '}
-                    <strong className={invertColors ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500'}>
-                      {invertColors ? t('image.invertOn') : t('image.invertOff')}
-                    </strong>
+                    Receipt B&amp;W View:{' '}
+                    <strong>{isReceiptBw ? 'ON (Thermal Print Preview)' : 'OFF (Original Color)'}</strong>
                   </span>
                 </button>
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Preview how logo prints on thermal receipt
+                </span>
               </div>
             </div>
           )}
@@ -445,7 +436,8 @@ export const LogoBackgroundModal: React.FC<LogoBackgroundModalProps> = ({
                       <img
                         src={currentPreview}
                         alt="Logo preview"
-                        className="max-h-20 max-w-full object-contain filter drop-shadow-xs"
+                        style={isReceiptBw ? { filter: 'grayscale(100%) contrast(250%)' } : undefined}
+                        className="max-h-20 max-w-full object-contain filter drop-shadow-xs transition-all"
                       />
                     </div>
                   )}

@@ -50,6 +50,7 @@ import {
   receiptStandardQrHtmlPxFromChip,
 } from '@shared/receiptPrintGeometry';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
+import { ThermalReceiptLogoImage } from '@/components/ui/ThermalReceiptLogoImage';
 
 interface ReceiptPreviewModalProps {
   visible: boolean;
@@ -646,17 +647,15 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                       {/* Store Header */}
                       <View style={styles.receiptHeader}>
                         {editableSale.storeLogoUrl ? (
-                          <Image
-                            source={{ uri: editableSale.storeLogoUrl }}
-                            style={[
-                              styles.storeLogo,
-                              {
-                                maxWidth: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxWidth,
-                                maxHeight: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxHeight,
-                                width: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxWidth,
-                                height: receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxHeight,
-                              },
-                            ]}
+                          <ThermalReceiptLogoImage
+                            uri={editableSale.storeLogoUrl}
+                            paperWidth={paperWidth}
+                            logoSizeChip={receiptLogoSize}
+                            maxWidth={receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxWidth}
+                            maxHeight={receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxHeight}
+                            width={receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxWidth}
+                            height={receiptLogoHtmlMaxPxFromChip(receiptLogoSize).maxHeight}
+                            style={styles.storeLogo}
                             resizeMode="contain"
                           />
                         ) : null}

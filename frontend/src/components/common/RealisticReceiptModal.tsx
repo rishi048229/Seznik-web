@@ -662,7 +662,7 @@ export const RealisticReceiptModal = ({
               <div className="text-center pb-3 mb-3 border-b-2 border-dashed border-slate-400">
                 {receipt.logoURL && (
                   <div className="flex justify-center mb-2">
-                    <img src={receipt.logoURL} alt="Logo" className="max-h-14 max-w-[180px] object-contain filter grayscale contrast-150" />
+                    <img src={receipt.logoURL} alt="Logo" className="max-h-14 max-w-[180px] object-contain" style={{ filter: 'grayscale(100%) contrast(250%)' }} />
                   </div>
                 )}
                 <h2 className="font-extrabold text-base tracking-wider uppercase text-slate-950 font-sans leading-tight">
