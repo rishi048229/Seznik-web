@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
@@ -84,7 +85,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { AiProductImportModal } from '@/components/products/AiProductImportModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { SeznikPrinterGrid } from '@/components/printers/SeznikPrinterGrid';
-import { SeznikPrinterModel, SeznikPrinterModelId, SEZNIK_PRINTER_MODELS } from '@/constants/printerModels';
+import { SeznikPrinterModel, SeznikPrinterModelId, SEZNIK_PRINTER_MODELS, PRINTER_MODEL_LIST } from '@/constants/printerModels';
 import { FeatureGridTile } from '@/components/ui/FeatureGridTile';
 import { DashboardSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
@@ -791,10 +792,78 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
+                {/* 4 PRINTER MODEL SELECTOR ROW */}
+                <View style={styles.dashboardModelSelectorContainer}>
+                  {PRINTER_MODEL_LIST.map((model) => {
+                    const isSelected = selectedPrinterModalModel === model.id;
+                    const isConn =
+                      (model.id === 'josh' && joshConnected) ||
+                      (model.id === 'tej' && tejConnected) ||
+                      ((model.id === 'dev' || model.id === 'veer') &&
+                        connectionState === 'connected' &&
+                        (connectedPrinterModel === model.id || (!connectedPrinterModel && model.id === 'dev')));
+
+                    return (
+                      <TouchableOpacity
+                        key={model.id}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          setSelectedPrinterModalModel(model.id);
+                          setShowDirectPrinterModal(true);
+                        }}
+                        style={[
+                          styles.dashboardModelTab,
+                          {
+                            backgroundColor: isSelected
+                              ? (theme.isDark ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.08)')
+                              : (theme.isDark ? '#1E293B' : '#F8FAFC'),
+                            borderColor: isConn
+                              ? '#10B981'
+                              : isSelected
+                              ? BRAND_COLORS.blue600
+                              : theme.borderColor,
+                            borderWidth: isSelected || isConn ? 2 : 1,
+                          },
+                        ]}
+                      >
+                        <View style={styles.dashboardTabImageWrap}>
+                          <Image source={model.image} style={styles.dashboardTabImage} resizeMode="contain" />
+                          {isConn && (
+                            <View style={styles.dashboardConnectedDotBadge}>
+                              <View style={styles.dashboardConnectedDot} />
+                            </View>
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.dashboardTabName,
+                            {
+                              color: isSelected ? (theme.isDark ? '#60A5FA' : BRAND_COLORS.blue600) : theme.textPrimary,
+                              fontWeight: isSelected ? '800' : '700',
+                            },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {model.name.replace('SEZNIK ', '')}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.dashboardTabType,
+                            { color: model.id === 'veer' ? '#D97706' : '#10B981' },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {model.id === 'veer' ? 'Receipt Only' : '2-in-1'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
                 <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
                   {isPrinterConnected 
                     ? `${activePrinterDisplayName} • ${paperWidth} ${t('printerReady', 'Ready')}` 
-                    : t('noBluetoothFound', 'No Bluetooth device linked. Tap Scan & Connect to link receipt or label printer.')}
+                    : `Tap your model above to connect (${selectedPrinterModalModel.toUpperCase()} selected)`}
                 </Text>
 
                 {/* Action Buttons: Connect, paper width, then test/disconnect when linked */}
@@ -807,7 +876,7 @@ export default function DashboardScreen() {
                     >
                       <Bluetooth size={14} color="#FFF" style={styles.printerConnectBtnIcon} />
                       <Text style={styles.printerConnectBtnText} numberOfLines={1}>
-                        {isPrinterConnected ? t('changeReconnect', 'Change / Reconnect') : t('scanAndConnect', 'Scan & Connect')}
+                        {isPrinterConnected ? t('changeReconnect', 'Change / Reconnect') : `Connect ${selectedPrinterModalModel.toUpperCase()}`}
                       </Text>
                     </TouchableOpacity>
 
@@ -1423,6 +1492,62 @@ const styles = StyleSheet.create({
   },
   paperToggleTextActive: {
     color: '#FFFFFF',
+  },
+  dashboardModelSelectorContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  dashboardModelTab: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dashboardTabImageWrap: {
+    width: 44,
+    height: 44,
+    position: 'relative',
+    marginBottom: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dashboardTabImage: {
+    width: 38,
+    height: 38,
+  },
+  dashboardConnectedDotBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dashboardConnectedDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFF',
+  },
+  dashboardTabName: {
+    fontSize: 12,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  dashboardTabType: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    marginTop: 2,
+    textAlign: 'center',
   },
 
   // Executive KPI Grid
