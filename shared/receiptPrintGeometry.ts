@@ -197,3 +197,91 @@ export function receiptQrHtmlPx(size: ReceiptQrSize = 'medium'): number {
   return 165
 }
 
+/**
+ * Word-boundary text wrapping for thermal receipts.
+ * Shifts whole words to the next line when they exceed the column width.
+ * Never cuts a word in between unless a single continuous token exceeds maxCols.
+ */
+export function wrapReceiptWords(text: string, maxCols: number): string[] {
+  if (!text) return []
+  const paragraphs = String(text).split('\n')
+  const result: string[] = []
+
+  for (const para of paragraphs) {
+    const trimmed = para.trim()
+    if (!trimmed) {
+      result.push('')
+      continue
+    }
+    const words = trimmed.split(/\s+/).filter(Boolean)
+    let current = ''
+
+    for (const word of words) {
+      if (!current) {
+        if (word.length <= maxCols) {
+          current = word
+        } else {
+          // Word itself exceeds maxCols — slice only this oversized word
+          let rem = word
+          while (rem.length > maxCols) {
+            result.push(rem.slice(0, maxCols))
+            rem = rem.slice(maxCols)
+          }
+          current = rem
+        }
+      } else {
+        const candidate = `${current} ${word}`
+        if (candidate.length <= maxCols) {
+          current = candidate
+        } else {
+          result.push(current)
+          if (word.length <= maxCols) {
+            current = word
+          } else {
+            let rem = word
+            while (rem.length > maxCols) {
+              result.push(rem.slice(0, maxCols))
+              rem = rem.slice(maxCols)
+            }
+            current = rem
+          }
+        }
+      }
+    }
+    if (current) {
+      result.push(current)
+    }
+  }
+
+  return result
+}
+
+/** Align a single wrapped line within a given character width. */
+export function alignReceiptLine(
+  line: string,
+  width: number,
+  align: 'left' | 'center' | 'right' = 'left'
+): string {
+  const trimmed = line.trim()
+  if (!trimmed) return ''
+  if (trimmed.length >= width) return trimmed
+  if (align === 'center') {
+    const pad = Math.floor((width - trimmed.length) / 2)
+    return ' '.repeat(pad) + trimmed
+  }
+  if (align === 'right') {
+    return ' '.repeat(width - trimmed.length) + trimmed
+  }
+  return trimmed
+}
+
+/** Wrap text by words and apply alignment to each resulting line. */
+export function wrapReceiptAligned(
+  text: string,
+  width: number,
+  align: 'left' | 'center' | 'right' = 'left'
+): string[] {
+  const wrapped = wrapReceiptWords(text, width)
+  return wrapped.map((line) => alignReceiptLine(line, width, align))
+}
+

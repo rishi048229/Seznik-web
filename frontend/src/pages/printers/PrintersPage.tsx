@@ -232,8 +232,12 @@ export const PrintersPage = () => {
         }
       }
     }
+    tpl = {
+      ...tpl,
+      paperWidth: config.paperSize === '80mm' ? '80mm' : '58mm',
+    }
     return tpl
-  }, [activeCustomTemplate, receiptConfig, settings?.businessLogoURL])
+  }, [activeCustomTemplate, receiptConfig, settings?.businessLogoURL, config.paperSize])
 
   // Real product data to preview/print the label
   const [previewProductId, setPreviewProductId] = useState<string>('')

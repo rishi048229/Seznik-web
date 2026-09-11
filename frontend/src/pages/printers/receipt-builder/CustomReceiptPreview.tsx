@@ -17,13 +17,14 @@ import { getCols } from '@/utils/receiptEngine'
 import { buildUpiPayLink, getUpiQrImageUrl, isValidUpiVpa } from '@/utils/upiQr'
 import { getReceiptPreviewFontStyle, getReceiptPreviewMaxWidth } from './receiptPreviewStyles'
 import { isReceiptEntryEnabled, resolveReceiptImageSrc } from '@/utils/receiptLogo'
-import { receiptQrPreviewPx, receiptStandardQrHtmlPxFromChip } from '@shared/receiptPrintGeometry'
+import { receiptQrPreviewPx, receiptStandardQrHtmlPxFromChip, wrapReceiptWords } from '@shared/receiptPrintGeometry'
 
 interface CustomReceiptPreviewProps {
   template: CustomReceiptTemplate
   context: ReceiptPrintContext
   gstOpts?: CustomReceiptGstOpts
   className?: string
+  paperWidth?: '58mm' | '80mm'
 }
 
 const isDiscountEntry = (e: CustomReceiptEntry) =>
@@ -65,9 +66,16 @@ function ReceiptLogoImage({
   )
 }
 
-export function CustomReceiptPreview({ template, context, gstOpts, className = '' }: CustomReceiptPreviewProps) {
-  const paperWidth = template.paperWidth || '58mm'
+export function CustomReceiptPreview({
+  template,
+  context,
+  gstOpts,
+  className = '',
+  paperWidth: propPaperWidth,
+}: CustomReceiptPreviewProps) {
+  const paperWidth = propPaperWidth || template.paperWidth || '58mm'
   const paperMax = getReceiptPreviewMaxWidth(paperWidth)
+  const cols = getCols(paperWidth, undefined, gstOpts?.receiptFont)
   const fontStyle = getReceiptPreviewFontStyle(paperWidth, gstOpts?.receiptFont)
   const logoUrl = context.storeLogoUrl
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
@@ -91,14 +99,26 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
                 ? '0.92em'
                 : '1em'
         const rawText = vars(entry.text)
-        const cleaned = rawText
-          .split('\n')
-          .filter((l) => l.trim().length > 0)
-          .join('\n')
-        if (!cleaned.trim()) return null
+        const isDouble = entry.type === 'text_special' || entry.size === 'large'
+        const effectiveCols = isDouble ? Math.floor(cols / 2) : cols
+        const wrappedLines = wrapReceiptWords(rawText, effectiveCols)
+        if (!wrappedLines.length) return null
         return (
-          <div key={entry.id || idx} className={`text-black whitespace-pre-wrap ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`} style={{ fontSize: size, fontWeight: entry.bold ? 700 : 500, fontFamily: 'inherit' }}>
-            {cleaned}
+          <div
+            key={entry.id || idx}
+            className={`text-black ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`}
+            style={{
+              fontSize: size,
+              fontWeight: entry.bold ? 700 : 500,
+              fontFamily: 'inherit',
+              overflowWrap: 'break-word',
+              wordBreak: 'normal',
+              lineHeight: 1.35,
+            }}
+          >
+            {wrappedLines.map((line, lIdx) => (
+              <div key={lIdx}>{line || '\u00A0'}</div>
+            ))}
           </div>
         )
       }
@@ -210,7 +230,6 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
           const itemCol = entry.columnHeaders?.item || 'ITEM'
           const qtyCol = entry.columnHeaders?.qty || 'QTY'
           const totalCol = entry.columnHeaders?.total || 'AMT'
-          const cols = getCols(template.paperWidth)
           const nameWidth = compactTableNameWidth(cols)
           return (
             <div key={entry.id || idx} className="my-1 text-black" style={{ fontFamily: 'inherit' }}>
@@ -255,18 +274,26 @@ export function CustomReceiptPreview({ template, context, gstOpts, className = '
               <span>{entry.columnHeaders?.item || 'Item'}</span>
               <span>{entry.columnHeaders?.total || 'Total'}</span>
             </div>
-            {context.items.map((it, sIdx) => (
-              <div key={sIdx} className="mb-1.5">
-                <div className="font-bold" style={{ fontSize: '0.95em' }}>{showItemNumbers ? `${sIdx + 1}. ` : ''}{it.productName}</div>
-                {showTaxColumn && it.gstRate ? (
-                  <div className="text-gray-700 ml-3" style={{ fontSize: '0.85em' }}>{it.gstRate}% GST</div>
-                ) : null}
-                <div className="flex justify-between ml-3" style={{ fontSize: '0.9em' }}>
-                  <span>{it.quantity} {it.unit || 'Pc'} x {it.unitPrice.toFixed(2)}</span>
-                  <span className="font-bold">{it.total.toFixed(2)}</span>
+            {context.items.map((it, sIdx) => {
+              const fullName = `${showItemNumbers ? `${sIdx + 1}. ` : ''}${it.productName}`
+              const nameLines = wrapReceiptWords(fullName, cols)
+              return (
+                <div key={sIdx} className="mb-1.5">
+                  <div className="font-bold leading-tight" style={{ fontSize: '0.95em' }}>
+                    {nameLines.map((line, nIdx) => (
+                      <div key={nIdx}>{line}</div>
+                    ))}
+                  </div>
+                  {showTaxColumn && it.gstRate ? (
+                    <div className="text-gray-700 ml-3" style={{ fontSize: '0.85em' }}>{it.gstRate}% GST</div>
+                  ) : null}
+                  <div className="flex justify-between ml-3" style={{ fontSize: '0.9em' }}>
+                    <span>{it.quantity} {it.unit || 'Pc'} x {it.unitPrice.toFixed(2)}</span>
+                    <span className="font-bold">{it.total.toFixed(2)}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )
       }

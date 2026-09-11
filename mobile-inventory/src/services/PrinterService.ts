@@ -30,6 +30,8 @@ import {
   receiptStandardQrHtmlPxFromChip,
   type ReceiptQrSize,
   type ReceiptSizeChip,
+  wrapReceiptWords,
+  wrapReceiptAligned,
 } from '@shared/receiptPrintGeometry';
 import {
   receiptFontCols,
@@ -1232,23 +1234,12 @@ class ThermalPrinterServiceManager {
       const rightStr = String(right ?? '').trim();
       if (!leftStr && !rightStr) return [];
       if (!leftStr) return [rightStr.padStart(width, ' ')];
-      if (!rightStr) return [leftStr];
+      if (!rightStr) return wrapReceiptWords(leftStr, width);
       if (leftStr.length + rightStr.length + 1 <= width) {
         return [leftStr + ' '.repeat(width - leftStr.length - rightStr.length) + rightStr];
       }
-      const res: string[] = [];
-      if (leftStr.length <= width) {
-        res.push(leftStr);
-      } else {
-        let rem = leftStr;
-        while (rem.length > width) {
-          res.push(rem.slice(0, width));
-          rem = rem.slice(width);
-        }
-        if (rem.length > 0) res.push(rem);
-      }
-      res.push(rightStr.padStart(width, ' '));
-      return res;
+      const leftLines = wrapReceiptWords(leftStr, width);
+      return [...leftLines, rightStr.padStart(width, ' ')];
     };
 
     const padLine = (left: string, right: string) => {
@@ -1256,18 +1247,8 @@ class ThermalPrinterServiceManager {
       return res[0] || '';
     };
 
-    const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
-      const trimmed = str.trim();
-      if (!trimmed) return '';
-      if (trimmed.length >= width) return trimmed.slice(0, width);
-      if (align === 'center') {
-        const padLeft = Math.floor((width - trimmed.length) / 2);
-        return ' '.repeat(padLeft) + trimmed;
-      }
-      if (align === 'right') {
-        return ' '.repeat(width - trimmed.length) + trimmed;
-      }
-      return trimmed;
+    const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left'): string[] => {
+      return wrapReceiptAligned(str, width, align).filter((l) => l.trim().length > 0);
     };
 
     const receiptEntries = enrichCustomReceiptEntries(
@@ -1280,10 +1261,7 @@ class ThermalPrinterServiceManager {
         case 'text':
         case 'text_special': {
           const rawText = this.interpolateReceiptVariables(entry.text, data);
-          const splitted = rawText.split('\n').filter((line) => line.trim().length > 0);
-          splitted.forEach((line) => {
-            lines.push(alignText(line, entry.align || 'left'));
-          });
+          alignText(rawText, entry.align || 'left').forEach((l) => lines.push(l));
           break;
         }
 
@@ -1322,14 +1300,8 @@ class ThermalPrinterServiceManager {
           data.items.forEach((item, idx) => {
             const namePrefix = resolveShowItemNumbers(entry, isRestaurant) ? `${idx + 1}. ` : '';
             const rawName = String(item.productName || 'Item');
-            if (namePrefix.length + rawName.length <= width) {
-              lines.push(namePrefix + rawName);
-            } else {
-              const maxFirst = Math.max(1, width - namePrefix.length);
-              lines.push(namePrefix + rawName.slice(0, maxFirst));
-              const rem = rawName.slice(maxFirst);
-              if (rem) lines.push('   ' + rem.slice(0, Math.max(1, width - 3)));
-            }
+            const fullName = namePrefix + rawName;
+            wrapReceiptWords(fullName, width).forEach((l) => lines.push(l));
 
             if ((showItemGst || entry.showTaxColumn) && item.gstRate) {
               const gstLabel = formatItemGstRate(item.gstRate);
@@ -1355,24 +1327,24 @@ class ThermalPrinterServiceManager {
             .map((seg) => this.interpolateReceiptVariables(seg.text, data))
             .filter(Boolean)
             .join(' ');
-          lines.push(alignText(joined, entry.align || 'left'));
+          alignText(joined, entry.align || 'left').forEach((l) => lines.push(l));
           break;
         }
 
         case 'barcode': {
           const val = this.interpolateReceiptVariables(entry.value, data);
           if (entry.format === 'qr' || entry.codeType === 'qr_code') {
-            lines.push(alignText(`[QR: ${val}]`, entry.align || 'center'));
+            alignText(`[QR: ${val}]`, entry.align || 'center').forEach((l) => lines.push(l));
           } else {
-            lines.push(alignText(`* ${val} *`, entry.align || 'center'));
+            alignText(`* ${val} *`, entry.align || 'center').forEach((l) => lines.push(l));
           }
           break;
         }
 
         case 'files_note': {
-          if (entry.title) lines.push(alignText(entry.title, entry.align || 'left'));
+          if (entry.title) alignText(entry.title, entry.align || 'left').forEach((l) => lines.push(l));
           const text = this.interpolateReceiptVariables(entry.content, data);
-          text.split('\n').forEach((l) => lines.push(alignText(l, entry.align || 'left')));
+          alignText(text, entry.align || 'left').forEach((l) => lines.push(l));
           break;
         }
 

@@ -16,6 +16,7 @@ import {
   receiptLogoHtmlMaxPxFromChip,
   receiptStandardQrHtmlPxFromChip,
   type ReceiptSizeChip,
+  wrapReceiptWords,
 } from '@shared/receiptPrintGeometry';
 import { resolveReceiptImageSrc } from '@/utils/receiptLogo';
 import { ThermalReceiptLogoImage } from './ThermalReceiptLogoImage';
@@ -76,6 +77,7 @@ export function CustomReceiptMockup({
   const activePaperWidth = paperWidth || template.paperWidth || '58mm';
   const is80mm = activePaperWidth === '80mm';
   const paperMaxWidth = is80mm ? 360 : 280;
+  const cols = is80mm ? 48 : 32;
 
   const sampleBillPdfUrl = buildBillPdfUrl({ invoiceNumber: invoiceNumber || 'INV-2026-0042' });
   const sampleUpiStr = upiId ? buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber) : '';
@@ -124,29 +126,31 @@ export function CustomReceiptMockup({
       case 'text': {
         const align = entry.align || 'left';
         const fontSize = entry.size === 'large' ? 14 : entry.size === 'small' ? 9.5 : 11;
-        const replaced = replaceVars(entry.text)
-          .split('\n')
-          .filter((l) => l.trim().length > 0)
-          .join('\n');
-        if (!replaced.trim()) return null;
+        const rawText = replaceVars(entry.text);
+        const effectiveCols = entry.size === 'large' ? Math.floor(cols / 2) : cols;
+        const wrappedLines = wrapReceiptWords(rawText, effectiveCols);
+        if (!wrappedLines.length) return null;
         return (
           <View key={entry.id || idx} style={styles.entryBlock}>
-            <Text
-              style={[
-                styles.thermalText,
-                {
-                  textAlign: align,
-                  fontSize,
-                  fontWeight: entry.bold ? '800' : '500',
-                  fontStyle: (entry as any).italic ? 'italic' : 'normal',
-                  textDecorationLine: (entry as any).underline ? 'underline' : 'none',
-                  color: '#000000',
-                  lineHeight: fontSize + 4,
-                },
-              ]}
-            >
-              {replaced}
-            </Text>
+            {wrappedLines.map((line, lIdx) => (
+              <Text
+                key={lIdx}
+                style={[
+                  styles.thermalText,
+                  {
+                    textAlign: align,
+                    fontSize,
+                    fontWeight: entry.bold ? '800' : '500',
+                    fontStyle: (entry as any).italic ? 'italic' : 'normal',
+                    textDecorationLine: (entry as any).underline ? 'underline' : 'none',
+                    color: '#000000',
+                    lineHeight: fontSize + 4,
+                  },
+                ]}
+              >
+                {line || ' '}
+              </Text>
+            ))}
           </View>
         );
       }
@@ -154,29 +158,31 @@ export function CustomReceiptMockup({
       case 'text_special': {
         const align = entry.align || 'center';
         const fontSize = Math.min(Math.max(entry.fontSizePt || 14, 10), 22);
-        const replaced = replaceVars(entry.text)
-          .split('\n')
-          .filter((l) => l.trim().length > 0)
-          .join('\n');
-        if (!replaced.trim()) return null;
+        const rawText = replaceVars(entry.text);
+        const effectiveCols = Math.floor(cols / 2);
+        const wrappedLines = wrapReceiptWords(rawText, effectiveCols);
+        if (!wrappedLines.length) return null;
         return (
           <View key={entry.id || idx} style={styles.entryBlock}>
-            <Text
-              style={[
-                styles.thermalText,
-                {
-                  textAlign: align,
-                  fontSize,
-                  fontWeight: entry.bold ? '800' : '600',
-                  fontStyle: entry.italic ? 'italic' : 'normal',
-                  textDecorationLine: entry.underline ? 'underline' : 'none',
-                  color: '#000000',
-                  lineHeight: fontSize + 4,
-                },
-              ]}
-            >
-              {replaceVars(entry.text)}
-            </Text>
+            {wrappedLines.map((line, lIdx) => (
+              <Text
+                key={lIdx}
+                style={[
+                  styles.thermalText,
+                  {
+                    textAlign: align,
+                    fontSize,
+                    fontWeight: entry.bold ? '800' : '600',
+                    fontStyle: entry.italic ? 'italic' : 'normal',
+                    textDecorationLine: entry.underline ? 'underline' : 'none',
+                    color: '#000000',
+                    lineHeight: fontSize + 4,
+                  },
+                ]}
+              >
+                {line || ' '}
+              </Text>
+            ))}
           </View>
         );
       }
@@ -357,11 +363,16 @@ export function CustomReceiptMockup({
             </View>
 
             {/* Table Items */}
-            {items.map((it, sIdx) => (
-              <View key={sIdx} style={{ marginVertical: 2.5 }}>
-                <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000' }]}>
-                  {sIdx + 1}. {it.productName}
-                </Text>
+            {items.map((it, sIdx) => {
+              const fullName = `${sIdx + 1}. ${it.productName}`;
+              const nameLines = wrapReceiptWords(fullName, cols);
+              return (
+                <View key={sIdx} style={{ marginVertical: 2.5 }}>
+                  {nameLines.map((line, nlIdx) => (
+                    <Text key={nlIdx} style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000', lineHeight: 15 }]}>
+                      {line}
+                    </Text>
+                  ))}
                 {showTax && it.gstRate ? (
                   <Text style={[styles.thermalText, { fontSize: 9, color: '#333333', marginLeft: 12 }]}>
                     {it.gstRate}% GST
@@ -381,7 +392,8 @@ export function CustomReceiptMockup({
                   </Text>
                 ) : null}
               </View>
-            ))}
+            );
+          })}
           </View>
         );
       }

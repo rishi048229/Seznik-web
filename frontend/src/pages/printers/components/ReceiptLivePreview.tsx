@@ -187,6 +187,7 @@ export const ReceiptLivePreview = ({
                   template={activeTemplate}
                   context={previewContext}
                   gstOpts={{ receiptFont: effectiveFont, receiptQrSize: receiptConfig.receiptQrSize }}
+                  paperWidth={paperSize}
                 />
               ) : (
                 <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">

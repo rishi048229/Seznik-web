@@ -19,7 +19,12 @@ import {
   receiptQrHtmlPx,
   receiptStandardQrHtmlPxFromChip,
   type ReceiptSizeChip,
+  wrapReceiptWords,
+  alignReceiptLine,
+  wrapReceiptAligned,
 } from '@shared/receiptPrintGeometry'
+
+export { wrapReceiptWords, alignReceiptLine, wrapReceiptAligned }
 
 export interface ReceiptPrintContext {
   storeName: string
@@ -263,28 +268,15 @@ export function padTwoColLines(left: string, right: string, width: number): stri
   const rightStr = String(right ?? '').trim()
   if (!leftStr && !rightStr) return []
   if (!leftStr) return [rightStr.padStart(width, ' ')]
-  if (!rightStr) return [leftStr]
+  if (!rightStr) return wrapReceiptWords(leftStr, width)
 
   if (leftStr.length + rightStr.length + 1 <= width) {
     const spaces = width - leftStr.length - rightStr.length
     return [leftStr + ' '.repeat(spaces) + rightStr]
   }
 
-  const lines: string[] = []
-  if (leftStr.length <= width) {
-    lines.push(leftStr)
-  } else {
-    let remaining = leftStr
-    while (remaining.length > width) {
-      lines.push(remaining.slice(0, width))
-      remaining = remaining.slice(width)
-    }
-    if (remaining.length > 0) {
-      lines.push(remaining)
-    }
-  }
-  lines.push(rightStr.padStart(width, ' '))
-  return lines
+  const leftLines = wrapReceiptWords(leftStr, width)
+  return [...leftLines, rightStr.padStart(width, ' ')]
 }
 
 function htmlTwoColRow(left: string, right: string, fontSize: string, bold = false): string {
@@ -468,11 +460,8 @@ function renderTableItemLines(
   const name = String(item.productName || 'Item')
   const fullName = prefix + name
 
-  let remaining = fullName
-  while (remaining.length > 0) {
-    lines.push(remaining.slice(0, width))
-    remaining = remaining.slice(width)
-  }
+  const nameLines = wrapReceiptWords(fullName, width)
+  lines.push(...nameLines)
 
   if (showTaxColumn && item.gstRate) {
     const gstLabel = formatItemGstRate(item.gstRate)
@@ -584,12 +573,7 @@ export function compileCustomReceiptTextLines(
   const wrapCompactNames = resolveCompactTableWrap(opts, template)
 
   const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
-    const trimmed = str.trim()
-    if (!trimmed) return ''
-    if (trimmed.length >= width) return trimmed.slice(0, width)
-    if (align === 'center') return ' '.repeat(Math.floor((width - trimmed.length) / 2)) + trimmed
-    if (align === 'right') return ' '.repeat(width - trimmed.length) + trimmed
-    return trimmed
+    return alignReceiptLine(str, width, align)
   }
 
   const padLine = (left: string, right: string) => padTwoCol(left, right, width)
@@ -598,14 +582,12 @@ export function compileCustomReceiptTextLines(
   for (const entry of template.entries.filter(isReceiptEntryEnabled)) {
     switch (entry.type) {
       case 'text':
-      case 'text_special':
-        interpolateReceiptVariables(entry.text, data, thermal)
-          .split('\n')
-          .filter((line) => line.trim().length > 0)
-          .forEach((line) => {
-            lines.push(alignText(line, entry.align || 'left'))
-          })
+      case 'text_special': {
+        const raw = interpolateReceiptVariables(entry.text, data, thermal)
+        const wrapped = wrapReceiptAligned(raw, width, entry.align || 'left')
+        lines.push(...wrapped.filter((l) => l.trim().length > 0))
         break
+      }
       case 'horizontal_line': {
         const char = entry.lineStyle === 'double' ? '=' : entry.lineStyle === 'dotted' ? '.' : '-'
         lines.push(char.repeat(width))
@@ -935,14 +917,12 @@ export async function appendCustomTemplateToEscPos(
   }
 
   const alignText = (str: string, align: 'left' | 'center' | 'right' = 'left') => {
-    const trimmed = str.trim()
-    if (!trimmed) return
-    if (trimmed.length >= width) {
-      b.line(trimmed.slice(0, width))
-      return
-    }
+    const wrapped = wrapReceiptWords(str, width)
+    if (!wrapped.length) return
     b.align(toEscPosAlign(align))
-    b.line(trimmed)
+    wrapped.forEach((line) => {
+      if (line.trim()) b.line(line.trim())
+    })
     b.align('left')
   }
 
@@ -955,12 +935,17 @@ export async function appendCustomTemplateToEscPos(
     switch (entry.type) {
       case 'text':
       case 'text_special': {
-        const lines = interpolateReceiptVariables(entry.text, data, thermal).split('\n')
+        const isDouble = entry.type === 'text_special' || entry.size === 'large'
+        const effectiveCols = isDouble ? Math.floor(width / 2) : width
+        const raw = interpolateReceiptVariables(entry.text, data, thermal)
+        const wrapped = wrapReceiptWords(raw, effectiveCols)
         b.align(toEscPosAlign(entry.align || 'left'))
         if (entry.bold) b.bold(true)
-        if (entry.type === 'text_special' || entry.size === 'large') b.doubleSize(true)
-        lines.forEach((line) => b.line(line.trim()))
-        if (entry.type === 'text_special' || entry.size === 'large') b.doubleSize(false)
+        if (isDouble) b.doubleSize(true)
+        wrapped.forEach((line) => {
+          if (line.trim()) b.line(line.trim())
+        })
+        if (isDouble) b.doubleSize(false)
         if (entry.bold) b.bold(false)
         b.align('left')
         break
