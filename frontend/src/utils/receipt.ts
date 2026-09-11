@@ -913,7 +913,7 @@ export const generateReceiptEscPos = async ({
       receiptQrSize: effectiveConfig?.receiptQrSize,
       receiptFont: effectiveReceiptFont,
     })
-    b.feed(2)
+    b.feed(5)
     b.cut()
     return b.toBytes()
   }
@@ -995,7 +995,7 @@ export const generateReceiptEscPos = async ({
     b.qr(billPdfUrl, receiptQrEscPosModuleSize(effectivePaper))
   }
 
-  b.feed(2)
+  b.feed(5)
   b.cut()
 
   return b.toBytes()
