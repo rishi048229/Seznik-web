@@ -192,7 +192,7 @@ export const ReceiptLivePreview = ({
               ) : (
                 <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">
                   {showLogo && logoSrc && (
-                    <div className="flex justify-center px-2 pt-2.5 pb-2 border-b border-dashed border-gray-300">
+                    <div className="flex justify-center px-2 pt-2.5 pb-2">
                       <img
                         src={logoSrc}
                         alt="Store Logo"

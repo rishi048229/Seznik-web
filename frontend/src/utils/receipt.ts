@@ -73,7 +73,7 @@ function receiptLogoImgHtml(
   if (!isBrowserLoadableImageSrc(src)) return ''
   const escaped = escapeHtmlAttr(src!.trim())
   const textAlign = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center'
-  return `<div style="text-align:${textAlign};margin:0 auto 8px auto;padding-bottom:4px;border-bottom:1px dashed #000;display:block;overflow:visible;"><img src="${escaped}" alt="Store Logo" style="max-height:${maxHeightPx}px;max-width:${maxWidthPx}px;width:auto;height:auto;object-fit:contain;margin:0 auto;display:block;" /></div>`
+  return `<div style="text-align:${textAlign};margin:0 auto 8px auto;padding-bottom:2px;display:block;overflow:visible;"><img src="${escaped}" alt="Store Logo" style="max-height:${maxHeightPx}px;max-width:${maxWidthPx}px;width:auto;height:auto;object-fit:contain;margin:0 auto;display:block;" /></div>`
 }
 
 function withPrintableLogo(
