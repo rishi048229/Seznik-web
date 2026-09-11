@@ -97,6 +97,15 @@ interface PrinterState {
   labelWidthMm: number;
   labelHeightMm: number;
   labelGapMm: number;
+  /**
+   * Residual vertical alignment trim, in mm, applied to the rendered label image.
+   * Positive nudges content down the label, negative up. Only printers with no
+   * gap/black-mark sensor in the loop need this — Josh, YX and TSPL all hand the
+   * label size to firmware, which re-positions at the sensed gap on every label.
+   * The blind ESC/POS raster path cannot re-synchronise, so a fixed head/sensor
+   * phase offset there stays constant on every label until it is trimmed out here.
+   */
+  labelOffsetMm: number;
   /** User-designed label layouts from Label Studio (Printers > Label > Open Label Studio). */
   labelTemplates: LabelTemplate[];
   /** Which saved template (if any) real label prints use — see PrinterService.printLabelFromTemplate.
@@ -134,6 +143,7 @@ interface PrinterState {
   setLabelWidthMm: (mm: number) => void;
   setLabelHeightMm: (mm: number) => void;
   setLabelGapMm: (mm: number) => void;
+  setLabelOffsetMm: (mm: number) => void;
   /** Upserts by id (existing id -> replace, new id -> append) and persists the whole templates array. */
   saveLabelTemplate: (template: LabelTemplate) => Promise<void>;
   deleteLabelTemplate: (id: string) => Promise<void>;
@@ -162,6 +172,7 @@ interface PrinterState {
     labelWidthMm: number;
     labelHeightMm: number;
     labelGapMm: number;
+    labelOffsetMm?: number;
     receiptLogoSize?: ReceiptSizeChip;
     receiptQrSize?: ReceiptSizeChip;
   }) => Promise<void>;
@@ -206,6 +217,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   labelWidthMm: 50,
   labelHeightMm: 30,
   labelGapMm: 2,
+  labelOffsetMm: 0,
   labelTemplates: [],
   activeLabelTemplateId: null,
   isHydrated: false,
@@ -468,10 +480,32 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   setAutoCut: (autoCut) => set({ autoCut }),
   setPrintCopies: (printCopies) => set({ printCopies }),
   setTopMargin: (topMargin) => set({ topMargin }),
-  setLabelPaperMode: (labelPaperMode) => set({ labelPaperMode }),
+  setLabelPaperMode: (labelPaperMode) => {
+    set({ labelPaperMode });
+    setStoredPrinterCalibration({
+      paperWidth: get().paperWidth,
+      printDensity: get().printDensity,
+      topMargin: get().topMargin,
+      autoCut: get().autoCut,
+      printCopies: get().printCopies,
+      fontSize: get().fontSize,
+      receiptFont: get().receiptFont,
+      receiptLogoSize: get().receiptLogoSize,
+      receiptQrSize: get().receiptQrSize,
+      labelPaperMode,
+      labelWidthMm: get().labelWidthMm,
+      labelHeightMm: get().labelHeightMm,
+      labelGapMm: get().labelGapMm,
+      labelOffsetMm: get().labelOffsetMm,
+    }).catch(() => {});
+    settingsApi.updatePrinterConfig({
+      labelPaperMode,
+    }).catch(() => {});
+  },
   setLabelWidthMm: (labelWidthMm) => set({ labelWidthMm }),
   setLabelHeightMm: (labelHeightMm) => set({ labelHeightMm }),
   setLabelGapMm: (labelGapMm) => set({ labelGapMm }),
+  setLabelOffsetMm: (labelOffsetMm) => set({ labelOffsetMm }),
 
   saveLabelTemplate: async (template) => {
     const existing = get().labelTemplates;
@@ -655,6 +689,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       labelWidthMm: config.labelWidthMm,
       labelHeightMm: config.labelHeightMm,
       labelGapMm: config.labelGapMm,
+      labelOffsetMm: typeof config.labelOffsetMm === 'number' ? config.labelOffsetMm : get().labelOffsetMm,
     }).catch(() => {});
     await settingsApi.updatePrinterConfig({
       paperWidth: config.paperWidth,
@@ -757,6 +792,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
           labelWidthMm: typeof localCalibration.labelWidthMm === 'number' ? localCalibration.labelWidthMm : get().labelWidthMm,
           labelHeightMm: typeof localCalibration.labelHeightMm === 'number' ? localCalibration.labelHeightMm : get().labelHeightMm,
           labelGapMm: typeof localCalibration.labelGapMm === 'number' ? localCalibration.labelGapMm : get().labelGapMm,
+          labelOffsetMm: typeof localCalibration.labelOffsetMm === 'number' ? localCalibration.labelOffsetMm : get().labelOffsetMm,
         } : {}),
       });
 

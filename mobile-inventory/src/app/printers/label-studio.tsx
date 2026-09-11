@@ -37,7 +37,10 @@ import {
   Star,
   Printer,
   AlertTriangle,
+  Tag,
+  ScrollText,
 } from 'lucide-react-native';
+import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import QRCodeSVG from 'react-native-qrcode-svg';
@@ -98,14 +101,14 @@ function makeBlankTemplate(widthMm: number, heightMm: number): LabelTemplate {
   const now = new Date().toISOString();
   return {
     id: `label-${Date.now()}`,
-    name: 'New Label',
+    name: 'Custom Template',
     widthMm,
     heightMm,
     orientation: widthMm >= heightMm ? 'landscape' : 'portrait',
     elements: [
-      { id: newId(), type: 'text', binding: 'productName', xMm: 4, yMm: 3, widthMm: widthMm - 8, heightMm: 6, fontSizePt: 3, align: 'center' },
-      { id: newId(), type: 'text', binding: 'price', xMm: 4, yMm: 10, widthMm: widthMm - 8, heightMm: 5, fontSizePt: 3, bold: true, align: 'center' },
-      { id: newId(), type: 'barcode', format: 'ean13', binding: 'barcode', xMm: 6, yMm: 17, widthMm: widthMm - 12, heightMm: heightMm - 20 },
+      { id: newId(), type: 'text', binding: 'productName', xMm: 3, yMm: 2, widthMm: widthMm - 6, heightMm: 4.5, fontSizePt: 3, align: 'center' },
+      { id: newId(), type: 'text', binding: 'price', xMm: 3, yMm: 7.5, widthMm: widthMm - 6, heightMm: 4, fontSizePt: 3, bold: true, align: 'center' },
+      { id: newId(), type: 'barcode', format: 'code128', binding: 'barcode', xMm: 5, yMm: 12.5, widthMm: widthMm - 10, heightMm: Math.max(5, Math.min(7, heightMm - 18)) },
     ],
     createdAt: now,
     updatedAt: now,
@@ -180,9 +183,24 @@ export default function LabelStudioScreen() {
     labelHeightMm,
     labelGapMm,
     labelPaperMode,
+    setLabelPaperMode,
     paperWidth,
+    connectedPrinterModel,
   } = usePrinterStore();
   const labelPrinter = useLabelPrinterStatus();
+  const [showConnectModal, setShowConnectModal] = useState(false);
+
+  const isDev2in1 = useMemo(() => {
+    const name = (labelPrinter.name || '').toLowerCase();
+    return (
+      connectedPrinterModel === 'dev' ||
+      connectedPrinterModel === 'tej' ||
+      name.includes('2in1') ||
+      name.includes('dev') ||
+      name.includes('tej') ||
+      name.includes('seznik')
+    );
+  }, [labelPrinter.name, connectedPrinterModel]);
 
   // Opening Label Studio from the Printers screen carries no id param. Previously
   // that always started a brand-new blank template, so the saved/default design was
@@ -451,6 +469,30 @@ export default function LabelStudioScreen() {
     }
   };
 
+  const handleRunAlignmentSelfTest = async () => {
+    setIsTestPrinting(true);
+    try {
+      const ok = await ThermalPrinterService.printAlignmentSelfTest(
+        3,
+        template.widthMm,
+        template.heightMm,
+        labelGapMm
+      );
+      if (ok) {
+        Alert.alert(
+          'Alignment Self-Test Sent!',
+          'Printing 3 test labels with border box and center crosshairs.\n\nInspect the printed labels:\n• Outer rectangle should fit squarely inside the die-cut label.\n• Center crosshair should be in the middle of each label.\n• Consecutive labels should feed accurately across gaps.'
+        );
+      } else {
+        Alert.alert('Self-Test Failed', 'Could not send test pattern to printer. Verify printer is connected.');
+      }
+    } catch (e: any) {
+      Alert.alert('Self-Test Error', e?.message || 'Failed to print alignment test.');
+    } finally {
+      setIsTestPrinting(false);
+    }
+  };
+
   const filteredProducts = useMemo(
     () => products.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase())),
     [products, productSearch]
@@ -555,6 +597,63 @@ export default function LabelStudioScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Quick Studio Control Bar: Printer Search & Paper Mode */}
+          <View style={styles.studioControlBar}>
+            {/* Printer Search / Connect Button */}
+            <TouchableOpacity
+              onPress={() => setShowConnectModal(true)}
+              style={[
+                styles.printerConnectBarBtn,
+                {
+                  backgroundColor: theme.cardBg,
+                  borderColor: labelPrinter.isConnected ? '#10B981' : theme.borderColor,
+                },
+              ]}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.statusDot, { backgroundColor: labelPrinter.isConnected ? '#10B981' : '#EF4444' }]} />
+              <Printer size={14} color={labelPrinter.isConnected ? '#10B981' : theme.textSecondary} style={{ marginLeft: 6, marginRight: 5 }} />
+              <Text style={[styles.printerBarBtnText, { color: theme.textPrimary }]} numberOfLines={1}>
+                {labelPrinter.isConnected ? labelPrinter.name || 'Printer' : 'No Printer'}
+              </Text>
+              <View style={[styles.searchPill, { backgroundColor: BRAND_COLORS.blue600 }]}>
+                <Search size={11} color="#FFFFFF" style={{ marginRight: 3 }} />
+                <Text style={styles.searchPillText}>{labelPrinter.isConnected ? 'Switch' : 'Search'}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Label Paper Mode Toggle */}
+            <View style={[styles.paperModeToggleRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  setLabelPaperMode('gap');
+                  ThermalPrinterService.yxCalibrate(2).catch(() => {});
+                }}
+                style={[styles.paperModeChip, labelPaperMode === 'gap' && styles.paperModeChipActive]}
+                activeOpacity={0.8}
+              >
+                <Tag size={12} color={labelPaperMode === 'gap' ? '#FFFFFF' : theme.textSecondary} style={{ marginRight: 4 }} />
+                <Text style={[styles.paperModeChipText, labelPaperMode === 'gap' && styles.paperModeChipTextActive]}>
+                  Die-Cut (Gap)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setLabelPaperMode('continuous');
+                  ThermalPrinterService.yxCalibrate(0).catch(() => {});
+                }}
+                style={[styles.paperModeChip, labelPaperMode === 'continuous' && styles.paperModeChipActive]}
+                activeOpacity={0.8}
+              >
+                <ScrollText size={12} color={labelPaperMode === 'continuous' ? '#FFFFFF' : theme.textSecondary} style={{ marginRight: 4 }} />
+                <Text style={[styles.paperModeChipText, labelPaperMode === 'continuous' && styles.paperModeChipTextActive]}>
+                  Continuous
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Default Template Action Banner */}
           <View style={{ marginHorizontal: 12, marginBottom: 8 }}>
             {isCurrentTemplateDefault ? (
@@ -578,8 +677,31 @@ export default function LabelStudioScreen() {
             )}
           </View>
 
-          {/* Receipt-only Printer Warning Banner (when Veer or other ESC/POS printer is connected in gap sticker mode) */}
-          {labelPrinter.isConnected && labelPrinter.kind === 'thermal' && labelPaperMode === 'gap' && (
+          {/* 2-in-1 POS & Label Connected Banner */}
+          {labelPrinter.isConnected && isDev2in1 && (
+            <View
+              style={[
+                styles.dualModeCallout,
+                {
+                  backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.12)' : '#EFF6FF',
+                  borderColor: theme.isDark ? 'rgba(37, 99, 235, 0.25)' : '#BFDBFE',
+                  marginHorizontal: 12,
+                  marginBottom: 8,
+                },
+              ]}
+            >
+              <Sparkles size={14} color="#2563EB" style={{ marginRight: 6 }} />
+              <Text style={[styles.dualModeCalloutText, { color: theme.isDark ? '#93C5FD' : '#1D4ED8' }]}>
+                SEZNIK {connectedPrinterModel === 'tej' || (labelPrinter.name || '').toUpperCase().includes('TEJ') ? 'TEJ' : 'DEV'} 2-in-1 POS & Label Printer connected ({labelPrinter.name}) • Ready for die-cut sticker rolls
+              </Text>
+            </View>
+          )}
+
+          {/* Genuine Receipt-only Printer Warning Banner (VEER or dedicated receipt-only printer) */}
+          {labelPrinter.isConnected &&
+            labelPrinter.kind === 'thermal' &&
+            labelPaperMode === 'gap' &&
+            !isDev2in1 && (
             <View
               style={[
                 styles.warningBanner,
@@ -595,7 +717,7 @@ export default function LabelStudioScreen() {
                   Receipt Printer Connected ({labelPrinter.name})
                 </Text>
                 <Text style={[styles.warningBannerText, { color: theme.isDark ? '#FCD34D' : '#B45309' }]}>
-                  Your printer is a continuous receipt printer, not an adhesive sticker printer. Labels will print on continuous receipt paper. To print on sticker rolls, connect a Josh Dual-Mode printer or switch Paper Mode to Continuous.
+                  Your printer is currently operating as a continuous receipt printer. To print on sticker rolls, switch Paper Mode to Continuous or connect a 2-in-1 Label printer.
                 </Text>
               </View>
             </View>
@@ -1061,6 +1183,37 @@ export default function LabelStudioScreen() {
                     </View>
                   </View>
 
+                  {/* QUICK ALIGNMENT CONTROLS */}
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: theme.textSecondary, marginBottom: 4 }}>Align Element:</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                      <TouchableOpacity
+                        onPress={() => updateElementProps(selectedElement.id, { xMm: Math.max(0, Math.round((template.widthMm - selectedElement.widthMm) / 2)) })}
+                        style={[styles.chip, { borderColor: theme.borderColor, backgroundColor: theme.bg, paddingVertical: 4, paddingHorizontal: 8 }]}
+                      >
+                        <Text style={[styles.chipText, { color: theme.textPrimary, fontSize: 10 }]}>Center X</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => updateElementProps(selectedElement.id, { yMm: Math.max(0, Math.round((template.heightMm - selectedElement.heightMm) / 2)) })}
+                        style={[styles.chip, { borderColor: theme.borderColor, backgroundColor: theme.bg, paddingVertical: 4, paddingHorizontal: 8 }]}
+                      >
+                        <Text style={[styles.chipText, { color: theme.textPrimary, fontSize: 10 }]}>Center Y</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => updateElementProps(selectedElement.id, { yMm: 0 })}
+                        style={[styles.chip, { borderColor: theme.borderColor, backgroundColor: theme.bg, paddingVertical: 4, paddingHorizontal: 8 }]}
+                      >
+                        <Text style={[styles.chipText, { color: theme.textPrimary, fontSize: 10 }]}>Align Top (Y:0)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => updateElementProps(selectedElement.id, { xMm: 0 })}
+                        style={[styles.chip, { borderColor: theme.borderColor, backgroundColor: theme.bg, paddingVertical: 4, paddingHorizontal: 8 }]}
+                      >
+                        <Text style={[styles.chipText, { color: theme.textPrimary, fontSize: 10 }]}>Align Left (X:0)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
                   {/* Quick Scale Presets for Image */}
                   {selectedElement.type === 'image' && (
                     <View style={{ marginTop: 8 }}>
@@ -1304,22 +1457,28 @@ export default function LabelStudioScreen() {
                 marginTop: 10,
                 marginBottom: 8,
                 backgroundColor: labelPrinter.isConnected
-                  ? labelPrinter.kind === 'thermal'
-                    ? theme.isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7'
-                    : theme.isDark ? 'rgba(99, 102, 241, 0.12)' : '#EEF2FF'
+                  ? isDev2in1
+                    ? theme.isDark ? 'rgba(37, 99, 235, 0.12)' : '#EFF6FF'
+                    : labelPrinter.kind === 'label'
+                    ? theme.isDark ? 'rgba(99, 102, 241, 0.12)' : '#EEF2FF'
+                    : theme.isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7'
                   : theme.isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEE2E2',
                 borderColor: labelPrinter.isConnected
-                  ? labelPrinter.kind === 'thermal'
-                    ? theme.isDark ? 'rgba(245, 158, 11, 0.28)' : '#FDE68A'
-                    : theme.isDark ? 'rgba(99, 102, 241, 0.25)' : '#C7D2FE'
+                  ? isDev2in1
+                    ? theme.isDark ? 'rgba(37, 99, 235, 0.25)' : '#BFDBFE'
+                    : labelPrinter.kind === 'label'
+                    ? theme.isDark ? 'rgba(99, 102, 241, 0.25)' : '#C7D2FE'
+                    : theme.isDark ? 'rgba(245, 158, 11, 0.28)' : '#FDE68A'
                   : theme.isDark ? 'rgba(239, 68, 68, 0.25)' : '#FECACA',
               }}
             >
               {labelPrinter.isConnected ? (
-                labelPrinter.kind === 'thermal' ? (
-                  <AlertTriangle size={16} color="#D97706" style={{ marginTop: 2, marginRight: 8 }} />
-                ) : (
+                isDev2in1 ? (
+                  <Sparkles size={16} color="#2563EB" style={{ marginTop: 2, marginRight: 8 }} />
+                ) : labelPrinter.kind === 'label' ? (
                   <Sparkles size={16} color="#6366F1" style={{ marginTop: 2, marginRight: 8 }} />
+                ) : (
+                  <AlertTriangle size={16} color="#D97706" style={{ marginTop: 2, marginRight: 8 }} />
                 )
               ) : (
                 <Printer size={16} color="#EF4444" style={{ marginTop: 2, marginRight: 8 }} />
@@ -1330,17 +1489,21 @@ export default function LabelStudioScreen() {
                     fontSize: 12,
                     fontWeight: '800',
                     color: labelPrinter.isConnected
-                      ? labelPrinter.kind === 'thermal'
-                        ? theme.isDark ? '#FDE68A' : '#92400E'
-                        : theme.isDark ? '#A5B4FC' : '#4F46E5'
+                      ? isDev2in1
+                        ? theme.isDark ? '#93C5FD' : '#1D4ED8'
+                        : labelPrinter.kind === 'label'
+                        ? theme.isDark ? '#A5B4FC' : '#4F46E5'
+                        : theme.isDark ? '#FDE68A' : '#92400E'
                       : theme.isDark ? '#FCA5A5' : '#991B1B',
                     marginBottom: 2,
                   }}
                 >
                   {labelPrinter.isConnected
-                    ? labelPrinter.kind === 'thermal'
-                      ? `Receipt Printer Connected (${labelPrinter.name})`
-                      : `Josh Dual-Mode Smart Printer (${labelPrinter.name})`
+                    ? isDev2in1
+                      ? `SEZNIK ${connectedPrinterModel === 'tej' || (labelPrinter.name || '').toUpperCase().includes('TEJ') ? 'TEJ' : 'DEV'} 2-in-1 POS & Label Printer (${labelPrinter.name})`
+                      : labelPrinter.kind === 'label'
+                      ? `Josh Dual-Mode Smart Printer (${labelPrinter.name})`
+                      : `Receipt Printer Connected (${labelPrinter.name})`
                     : 'No Printer Connected'}
                 </Text>
                 <Text
@@ -1348,19 +1511,39 @@ export default function LabelStudioScreen() {
                     fontSize: 11,
                     lineHeight: 15,
                     color: labelPrinter.isConnected
-                      ? labelPrinter.kind === 'thermal'
-                        ? theme.isDark ? '#FCD34D' : '#B45309'
-                        : theme.isDark ? '#C7D2FE' : '#4338CA'
+                      ? isDev2in1
+                        ? theme.isDark ? '#BFDBFE' : '#1E40AF'
+                        : labelPrinter.kind === 'label'
+                        ? theme.isDark ? '#C7D2FE' : '#4338CA'
+                        : theme.isDark ? '#FCD34D' : '#B45309'
                       : theme.isDark ? '#FECACA' : '#B91C1C',
                   }}
                 >
                   {labelPrinter.isConnected
-                    ? labelPrinter.kind === 'thermal'
-                      ? 'This printer uses continuous receipt roll, not adhesive sticker labels. The label will print on receipt paper. For adhesive stickers, connect a Josh Dual-Mode printer.'
-                      : 'Connected in Dual-Mode. Prints on adhesive sticker label stock.'
-                    : 'Connect a thermal receipt printer or Josh Dual-Mode printer to print labels.'}
+                    ? isDev2in1
+                      ? 'Connected in 2-in-1 Mode. Calibrated with hardware gap sensing for die-cut sticker rolls.'
+                      : labelPrinter.kind === 'label'
+                      ? 'Connected in Dual-Mode. Prints on adhesive sticker label stock.'
+                      : 'This printer uses continuous receipt roll, not adhesive sticker labels. The label will print on receipt paper. For adhesive stickers, connect a Josh or DEV 2-in-1 printer.'
+                    : 'Connect a thermal receipt printer or 2-in-1 Label printer to print labels.'}
                 </Text>
               </View>
+              <TouchableOpacity
+                onPress={() => setShowConnectModal(true)}
+                style={{
+                  paddingVertical: 5,
+                  paddingHorizontal: 8,
+                  borderRadius: 8,
+                  backgroundColor: BRAND_COLORS.blue600,
+                  marginLeft: 8,
+                  alignSelf: 'center',
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFF' }}>
+                  {labelPrinter.isConnected ? 'Switch' : 'Search'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* PRINTING & SEQUENCE ACTIONS */}
@@ -1376,6 +1559,24 @@ export default function LabelStudioScreen() {
                   <BarcodeIcon size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                 )}
                 <Text style={styles.actionPrintBtnText}>Print {printCopies} Label{printCopies > 1 ? 's' : ''} 🖨️</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleRunAlignmentSelfTest}
+                disabled={isTestPrinting}
+                style={[
+                  styles.actionPrintBtn,
+                  {
+                    backgroundColor: theme.isDark ? 'rgba(99, 102, 241, 0.12)' : '#EEF2FF',
+                    borderWidth: 1.5,
+                    borderColor: '#6366F1',
+                  },
+                ]}
+              >
+                <Layers size={18} color="#6366F1" style={{ marginRight: 8 }} />
+                <Text style={[styles.actionPrintBtnText, { color: '#6366F1' }]}>
+                  Print Alignment Self-Test (3 Labels) 📐
+                </Text>
               </TouchableOpacity>
 
               {hasSequenceElement && (
@@ -1589,6 +1790,11 @@ export default function LabelStudioScreen() {
           dismissPermanently();
         }}
       />
+
+      <DirectPrinterConnectModal
+        visible={showConnectModal}
+        onClose={() => setShowConnectModal(false)}
+      />
     </ScreenBackground>
   );
 }
@@ -1596,6 +1802,71 @@ export default function LabelStudioScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+  studioControlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  printerConnectBarBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  printerBarBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
+  },
+  searchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  searchPillText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  paperModeToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 3,
+  },
+  paperModeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 7,
+  },
+  paperModeChipActive: {
+    backgroundColor: BRAND_COLORS.blue600,
+  },
+  paperModeChipText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  paperModeChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   backBtn: { padding: 8, borderRadius: 10 },
   nameInput: { flex: 1, height: 38, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, fontSize: 13, fontWeight: '700' },
   headerIconBtn: { padding: 9, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

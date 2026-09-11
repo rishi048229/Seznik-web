@@ -10,7 +10,7 @@ import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '.
 import { playPrinterConnectFeedback } from '../utils/printerConnectFeedback';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement, JoshLabelSpec } from '../../modules/josh-label-printer';
 import YxLabelPrinter, { isYxPrinterSupported } from '../../modules/yx-label-printer';
-import { getStoredJoshPrinter, setStoredJoshPrinter } from './secureStore';
+import { getStoredJoshPrinter, setStoredJoshPrinter, getStoredTejPrinter, setStoredTejPrinter } from './secureStore';
 import {
   enrichCustomReceiptEntries,
   isDiscountReceiptEntry,
@@ -3209,45 +3209,160 @@ class ThermalPrinterServiceManager {
     return isYxPrinterSupported();
   }
 
-  public async yxIsConnected(): Promise<boolean> {
-    if (!YxLabelPrinter) return false;
-    try {
-      return await YxLabelPrinter.isConnected();
-    } catch {
-      return false;
-    }
+  private tejReconnectInFlight: Promise<boolean> | null = null;
+  private tejReconnectFailedAt = 0;
+  private static readonly TEJ_RECONNECT_COOLDOWN_MS = 30000;
+
+  public isTejSupported(): boolean {
+    return true;
   }
 
-  public async yxStartDiscovery(): Promise<boolean> {
+  public async tejIsConnected(): Promise<boolean> {
+    if (YxLabelPrinter) {
+      try {
+        if (await YxLabelPrinter.isConnected()) return true;
+      } catch {}
+    }
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const model = usePrinterStore.getState().connectedPrinterModel;
+      if (model === 'tej') {
+        if (await this.isSocketConnected()) return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  public async tejStartDiscovery(): Promise<boolean> {
     if (!YxLabelPrinter) return false;
     return YxLabelPrinter.startDiscovery();
   }
 
-  public async yxStopDiscovery(): Promise<boolean> {
+  public async tejStopDiscovery(): Promise<boolean> {
     if (!YxLabelPrinter) return false;
     return YxLabelPrinter.stopDiscovery();
   }
 
-  public async yxGetPairedPrinters(): Promise<{ address: string; name: string }[]> {
-    if (!YxLabelPrinter) return [];
+  public async tejGetPairedPrinters(): Promise<{ address: string; name: string }[]> {
+    const list: { address: string; name: string }[] = [];
     try {
-      return await YxLabelPrinter.getPairedPrinters();
-    } catch {
-      return [];
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const store = usePrinterStore.getState();
+      const storeDevices = [...(store.pairedPrinters || []), ...(store.scannedDevices || [])];
+      for (const d of storeDevices) {
+        if (d.id && !list.some((x) => x.address === d.id)) {
+          list.push({ address: d.id, name: d.name || d.id });
+        }
+      }
+    } catch {}
+    if (YxLabelPrinter) {
+      try {
+        const yxList = await YxLabelPrinter.getPairedPrinters();
+        for (const d of yxList) {
+          if (d.address && !list.some((x) => x.address === d.address)) {
+            list.push(d);
+          }
+        }
+      } catch {}
     }
+    return list;
   }
 
-  public async yxConnect(address: string, name?: string): Promise<boolean> {
-    if (!YxLabelPrinter) return false;
-    return YxLabelPrinter.connect(address);
+  public async tejConnect(address: string, name?: string): Promise<boolean> {
+    // If Josh is connected, disconnect it cleanly
+    try {
+      if (JoshLabelPrinter && typeof JoshLabelPrinter.disconnect === 'function') {
+        await JoshLabelPrinter.disconnect();
+      }
+    } catch {}
+    // If YX was connected, disconnect it cleanly
+    if (YxLabelPrinter) {
+      try {
+        await YxLabelPrinter.disconnect();
+      } catch {}
+    }
+
+    let ok = false;
+    // Primary bridge for TEJ: YX native SDK (dedicated label printer SDK with gap sensing)
+    if (this.isYxLabelPrinterAvailable() && YxLabelPrinter) {
+      try {
+        ok = await YxLabelPrinter.connect(address);
+      } catch (yxErr) {
+        console.warn('[PrinterService] tejConnect via YX native SDK failed:', yxErr);
+      }
+    }
+
+    // Secondary fallback: standard Bluetooth socket if YX native SDK fails
+    if (!ok) {
+      try {
+        ok = await this.connect(address, name);
+      } catch (err) {
+        console.warn('[PrinterService] tejConnect fallback via standard Bluetooth failed:', err);
+        ok = false;
+      }
+    }
+
+    if (ok) {
+      const printerName = name || 'SEZNIK TEJ';
+      setStoredTejPrinter({ address, name: printerName }).catch(() => {});
+      this.tejReconnectFailedAt = 0;
+      this.activeDevice = {
+        id: address,
+        name: printerName,
+        macAddress: address,
+        type: 'dual',
+        connected: true,
+      };
+      this.warningText = '';
+      this.connectionState = 'connected';
+      try {
+        const { usePrinterStore } = require('../store/usePrinterStore');
+        usePrinterStore.getState().setConnectedPrinterModel('tej');
+      } catch {}
+      this.notifyStatusChange('connected', true);
+      playPrinterConnectFeedback();
+    }
+    return ok;
   }
 
-  public async yxDisconnect(): Promise<boolean> {
-    if (!YxLabelPrinter) return false;
-    return YxLabelPrinter.disconnect();
+  public async tejDisconnect(): Promise<boolean> {
+    setStoredTejPrinter(null).catch(() => {});
+    let ok = false;
+    if (YxLabelPrinter) {
+      try {
+        ok = await YxLabelPrinter.disconnect();
+      } catch {}
+    }
+    try {
+      await this.disconnect();
+      ok = true;
+    } catch {}
+
+    if (
+      this.activeDevice?.type === 'dual' ||
+      this.activeDevice?.name?.toUpperCase().includes('TEJ') ||
+      this.activeDevice?.name?.toUpperCase().includes('YX')
+    ) {
+      this.activeDevice = null;
+      this.connectionState = 'disconnected';
+      this.notifyStatusChange('disconnected', true);
+    }
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      if (usePrinterStore.getState().connectedPrinterModel === 'tej') {
+        usePrinterStore.getState().setConnectedPrinterModel(null as any);
+      }
+    } catch {}
+    return ok;
   }
 
-  public async yxGetPrinterInfo(): Promise<{ name: string; address: string } | null> {
+  public async tejGetPrinterInfo(): Promise<{ name: string; address: string } | null> {
+    if (this.activeDevice && (await this.isSocketConnected())) {
+      return {
+        name: this.activeDevice.name || 'SEZNIK TEJ',
+        address: this.activeDevice.id || this.activeDevice.macAddress || '',
+      };
+    }
     if (!YxLabelPrinter) return null;
     try {
       return await YxLabelPrinter.getPrinterInfo();
@@ -3256,16 +3371,169 @@ class ThermalPrinterServiceManager {
     }
   }
 
+  public async tejEnsureConnected(): Promise<boolean> {
+    if (await this.tejIsConnected()) {
+      if (!this.activeDevice || this.connectionState !== 'connected') {
+        const info = await this.tejGetPrinterInfo();
+        const saved = await getStoredTejPrinter();
+        const printerName = info?.name || saved?.name || 'SEZNIK TEJ';
+        const address = info?.address || saved?.address || 'tej_printer';
+        this.activeDevice = {
+          id: address,
+          name: printerName,
+          macAddress: address,
+          type: 'dual',
+          connected: true,
+        };
+        this.connectionState = 'connected';
+        this.notifyStatusChange('connected', true);
+      }
+      return true;
+    }
+
+    if (this.tejReconnectInFlight) return this.tejReconnectInFlight;
+
+    this.tejReconnectInFlight = (async () => {
+      try {
+        const saved = await getStoredTejPrinter();
+        if (!saved) return false;
+        const ok = await this.tejConnect(saved.address, saved.name);
+        return ok;
+      } catch {
+        return false;
+      } finally {
+        this.tejReconnectInFlight = null;
+      }
+    })();
+
+    return this.tejReconnectInFlight;
+  }
+
+  // Aliases for backwards compatibility
+  public async yxIsConnected(): Promise<boolean> {
+    return this.tejIsConnected();
+  }
+
+  public async yxStartDiscovery(): Promise<boolean> {
+    return this.tejStartDiscovery();
+  }
+
+  public async yxStopDiscovery(): Promise<boolean> {
+    return this.tejStopDiscovery();
+  }
+
+  public async yxGetPairedPrinters(): Promise<{ address: string; name: string }[]> {
+    return this.tejGetPairedPrinters();
+  }
+
+  public async yxConnect(address: string, name?: string): Promise<boolean> {
+    return this.tejConnect(address, name);
+  }
+
+  public async yxDisconnect(): Promise<boolean> {
+    return this.tejDisconnect();
+  }
+
+  public async yxGetPrinterInfo(): Promise<{ name: string; address: string } | null> {
+    return this.tejGetPrinterInfo();
+  }
+
   /**
    * Which non-ESC/POS label printer is live right now, if any.
    *
-   * Josh wins a tie only because it is checked first; in practice a shop has one label
-   * printer paired, and asking both is what lets every caller stay vendor-agnostic.
+   * DEV, VEER, and TEJ connected via standard Bluetooth are ESC/POS + TSPL printers
+   * and should never be routed to LPAPI/YX SDK.
+   * When standalone JOSH or YX is active, returns 'josh' or 'yx' respectively.
    */
   public async getConnectedLabelPrinterKind(): Promise<'josh' | 'yx' | null> {
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const model = usePrinterStore.getState().connectedPrinterModel;
+      if (model === 'tej') {
+        if (this.isYxLabelPrinterAvailable() && (await YxLabelPrinter?.isConnected())) return 'yx';
+      }
+      if (model === 'dev' || model === 'veer') {
+        if (await this.isSocketConnected()) return null;
+      }
+      if (model === 'josh' && this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) return 'josh';
+    } catch {}
+
+    if (this.isYxLabelPrinterAvailable() && (await YxLabelPrinter?.isConnected())) return 'yx';
+    if (await this.isSocketConnected()) return null;
     if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) return 'josh';
-    if (this.isYxLabelPrinterAvailable() && (await this.yxIsConnected())) return 'yx';
     return null;
+  }
+
+  /**
+   * Adapts a label spec for the TEJ (Y50) printer hardware geometry.
+   *
+   * Physical Reason:
+   * The TEJ printer's thermal print head is physically located ~6.5mm downstream
+   * of the tear bar / gap alignment point. When printing begins on gap paper,
+   * the head is resting 6.5mm below the top edge of the label.
+   *
+   * If a full-height bitmap (e.g. 30mm) is sent, the motor feeds:
+   * 6.5mm (start offset) + 30mm (bitmap) = 36.5mm of paper.
+   * On a 30mm label, the last 6.5mm spills across the gap onto the next label,
+   * ruining the next label. On a 50x50mm label, 6.5 + 30 = 36.5 < 50mm,
+   * so it completes inside the single 50mm label without spilling over.
+   *
+   * Solution:
+   * On gap paper, calculate the effective printable height:
+   * printableHeightMm = Math.max(14, targetHmm - effectiveOffsetMm)
+   * where effectiveOffsetMm = 6.5mm + userOffsetMm.
+   * Scale and fit all element vertical coordinates (y, height, fontHeight, etc.)
+   * proportionally into printableHeightMm, and set heightMm to printableHeightMm.
+   *
+   * The motor feeds: 6.5mm + 23.5mm = 30.0mm (EXACT label boundary).
+   * The print stops right at the gap without spilling a single dot onto the next label!
+   */
+  public adaptSpecForYxPrinter(spec: JoshLabelSpec): JoshLabelSpec {
+    if (spec.offsetAdjusted) {
+      return spec;
+    }
+    const isGap = (spec.gapType ?? 2) !== 0;
+    if (!isGap) {
+      return spec;
+    }
+
+    const targetHmm = spec.heightMm > 0 ? spec.heightMm : 30.0;
+    const hwOffsetMm = 6.5;
+    const userOffsetMm = this.getLabelOffsetMm();
+    const effectiveOffsetMm = Math.max(0, Math.min(targetHmm - 12.0, hwOffsetMm + userOffsetMm));
+    const printableHmm = Math.max(14.0, targetHmm - effectiveOffsetMm);
+    const fitY = printableHmm / targetHmm;
+
+    const adaptedElements: JoshLabelElement[] = (spec.elements || []).map((el) => {
+      const copy: any = { ...el };
+      if (typeof copy.y === 'number') {
+        copy.y = Math.round(copy.y * fitY * 100) / 100;
+      }
+      if (typeof copy.height === 'number') {
+        copy.height = Math.round(copy.height * fitY * 100) / 100;
+      }
+      if (typeof copy.fontHeight === 'number') {
+        copy.fontHeight = Math.round(copy.fontHeight * fitY * 100) / 100;
+      }
+      if (typeof copy.textHeight === 'number') {
+        copy.textHeight = Math.round(copy.textHeight * fitY * 100) / 100;
+      }
+      if (typeof copy.size === 'number') {
+        copy.size = Math.round(copy.size * fitY * 100) / 100;
+      }
+      if (typeof copy.y2 === 'number') {
+        copy.y2 = Math.round(copy.y2 * fitY * 100) / 100;
+      }
+      return copy as JoshLabelElement;
+    });
+
+    return {
+      ...spec,
+      heightMm: Math.round(printableHmm * 100) / 100,
+      offsetAdjusted: true,
+      offsetMm: effectiveOffsetMm,
+      elements: adaptedElements,
+    };
   }
 
   /**
@@ -3278,7 +3546,8 @@ class ThermalPrinterServiceManager {
   private async printSpecOnLabelPrinter(spec: JoshLabelSpec): Promise<boolean> {
     const kind = await this.getConnectedLabelPrinterKind();
     if (kind === 'yx' && YxLabelPrinter) {
-      return await YxLabelPrinter.printLabel(spec);
+      const adaptedSpec = this.adaptSpecForYxPrinter(spec);
+      return await YxLabelPrinter.printLabel(adaptedSpec);
     }
     if (!JoshLabelPrinter) return false;
     return await JoshLabelPrinter.printLabel(spec);
@@ -3294,6 +3563,57 @@ class ThermalPrinterServiceManager {
       return usePrinterStore.getState().labelPaperMode || 'gap';
     } catch {
       return 'gap';
+    }
+  }
+
+  /**
+   * Residual vertical alignment trim in mm for the blind ESC/POS raster path.
+   * Deliberately NOT applied to Josh/YX/TSPL: those hand the label size to firmware,
+   * which re-positions at the sensed gap on every label, so they have no standing
+   * phase error to trim and adding one would actively misalign them.
+   */
+  public getLabelOffsetMm(): number {
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const v = usePrinterStore.getState().labelOffsetMm;
+      return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Whether die-cut labels on the shared ESC/POS socket should go out as TSPL rather than
+   * as a rendered bitmap.
+   *
+   * TSPL is the only path that reaches the printer's own gap sensor: addSize(w,h) +
+   * addGap(gap) hand the geometry to firmware, which re-positions at the sensed gap before
+   * every label. The WYSIWYG raster path added later prints a plain bitmap and feeds a
+   * computed distance, which bypasses the sensor entirely — so any mismatch between the
+   * configured label pitch and the physical stock accumulates until content straddles the
+   * die-cut. Labels printed correctly on this hardware at 309c03a precisely because TSPL
+   * was the only route; this restores that for gap stock while leaving the raster to
+   * continuous rolls (no gap to sense) and to printers that really do render bitmaps.
+   */
+  private preferTsplForLabels(): boolean {
+    if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
+    if (this.getLabelPaperMode() === 'continuous') return false;
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const model = usePrinterStore.getState().connectedPrinterModel;
+      if (model === 'tej') return false;
+    } catch {}
+    const activeName = (this.activeDevice?.name || '').toUpperCase();
+    if (activeName.includes('TEJ')) return false;
+    return true;
+  }
+
+  public getLabelEngine(): 'graphic' | 'tspl' {
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      return usePrinterStore.getState().labelEngine || 'graphic';
+    } catch {
+      return 'graphic';
     }
   }
 
@@ -3336,7 +3656,7 @@ class ThermalPrinterServiceManager {
   }
 
   /**
-   * Prints any JoshLabelSpec onto a standard Bluetooth ESC/POS thermal printer as a pixel-perfect
+   * Prints any JoshLabelSpec onto a standard Bluetooth ESC/POS thermal printer (DEV / VEER) as a pixel-perfect
    * graphic. Solves alignment, custom templates, and cross-gap splitting on normal receipt/label printers.
    */
   public async printSpecViaEscposGraphic(
@@ -3350,7 +3670,14 @@ class ThermalPrinterServiceManager {
     const paperSizeDots = paperWidth === '80mm' ? 576 : 384;
     const headMm = paperWidth === '80mm' ? 72 : 48;
 
-    const base64 = await this.rasterizeLabelSpec(spec, headMm);
+    // Attach user-calibrated offsetMm to spec for Android Canvas translation
+    const userOffsetMm = this.getLabelOffsetMm();
+    const effectiveSpec: JoshLabelSpec & { offsetMm?: number } = {
+      ...spec,
+      offsetMm: (spec as any).offsetMm ?? userOffsetMm,
+    };
+
+    const base64 = await this.rasterizeLabelSpec(effectiveSpec, headMm);
     if (!base64) {
       console.warn('[PrinterService] printSpecViaEscposGraphic: could not rasterize label spec');
       return false;
@@ -3359,27 +3686,22 @@ class ThermalPrinterServiceManager {
     await this.initPrinter(paperWidth);
 
     const labelWidthDots = Math.min(paperSizeDots, Math.round(spec.widthMm * 8));
+    // Gap feed dots: ensures the printer head advances across the die-cut gap to the top of the next label
+    const feedDots = Math.max(16, Math.min(48, Math.round((labelGapMm || 2) * 8)));
 
-    // Total advance per label must equal exactly one label pitch (label height + gap),
-    // or the content walks down the roll until it straddles a die-cut. The bitmap itself
-    // advances spec.heightMm, so the only feed wanted afterwards is the gap: printPic's
-    // own trailing feed is pinned to 0 here (it defaults to 30 dots / 3.75mm, which is
-    // what was pushing every successive label further down) and the gap is fed below.
     for (let i = 0; i < Math.max(1, copies); i++) {
       await this.printEscPosBitmap(base64, {
         width: labelWidthDots,
         center: true,
         autoCut: false,
         paperSize: paperSizeDots,
-        feed: 0,
+        feed: feedDots,
       });
 
-      if (labelGapMm > 0 && typeof NativeEscposPrinter.printAndFeed === 'function') {
-        try {
-          const feedDots = Math.min(60, Math.max(1, Math.round(labelGapMm * 8)));
-          await NativeEscposPrinter.printAndFeed(feedDots);
-        } catch (feedErr) {
-          console.warn('[PrinterService] printAndFeed gap advance failed:', feedErr);
+      if (this.getLabelPaperMode() !== 'continuous') {
+        // Small settle delay between copies to avoid head buffer congestion
+        if (i < copies - 1) {
+          await new Promise((r) => setTimeout(r, 200));
         }
       }
     }
@@ -3389,7 +3711,8 @@ class ThermalPrinterServiceManager {
 
   /**
    * Builds an auto-layout JoshLabelSpec for a product (name, price, barcode/QR)
-   * cleanly proportioned to the specified label dimensions.
+   * cleanly proportioned to the specified label dimensions with safe margins,
+   * matching DEV printer's tested geometry across 50x25, 50x30, 50x50, 50x75, and 50x100mm.
    */
   public buildAutoLabelSpec(
     product: { name: string; sellingPrice: number; barcode?: string | null; sku?: string | null; id?: string },
@@ -3401,70 +3724,92 @@ class ThermalPrinterServiceManager {
     copies: number = 1,
     gapType?: number
   ): JoshLabelSpec {
-    const headMm = 48;
     const calWidthMm = this.safeMm(widthMmRaw, 50);
-    const widthMm = Math.min(calWidthMm, headMm);
+    const widthMm = calWidthMm;
     const heightMm = this.safeMm(heightMmRaw, 30);
 
-    const pad = Math.max(1.5, widthMm * 0.04);
-    const innerWidth = widthMm - pad * 2;
-    const nameHeight = Math.max(2.8, Math.min(4.5, heightMm * 0.15));
-    const priceHeight = Math.max(3.2, Math.min(5.0, heightMm * 0.18));
+    // Standard 2mm side margin matching DEV printer MARGIN_2MM = 16 dots at 203 DPI
+    const pad = 2.0;
+    const innerWidth = Math.max(10, widthMm - pad * 2);
+
+    // Dynamic sizing based on label height (50x25, 50x30, 50x50, 50x75, 50x100)
+    const isCompact = heightMm <= 25;
+    const isTall = heightMm >= 50;
+
+    const nameY = isCompact ? 0.8 : 1.2;
+    const nameHeight = isCompact ? 2.4 : isTall ? 3.5 : 2.8;
+
+    const priceY = nameY + nameHeight + (isCompact ? 0.3 : 0.5);
+    const priceHeight = isCompact ? 2.6 : isTall ? 4.0 : 3.0;
+
+    const codeZoneY = priceY + priceHeight + (isCompact ? 0.5 : 1.0);
+    const bottomSafePad = isCompact ? 1.5 : 2.0;
+    const availableCodeH = Math.max(6.0, heightMm - codeZoneY - bottomSafePad);
 
     const elements: JoshLabelElement[] = [
       {
         type: 'text',
         value: this.sanitizeForThermalPrint(product.name || 'Product').slice(0, 36),
         x: pad,
-        y: pad,
+        y: nameY,
         width: innerWidth,
         height: nameHeight,
         fontHeight: nameHeight,
         bold: true,
-        align: 1,
+        align: 1, // center
       },
       {
         type: 'text',
         value: `Rs. ${(product.sellingPrice ?? 0).toFixed(2)}`,
         x: pad,
-        y: pad + nameHeight + 0.6,
+        y: priceY,
         width: innerWidth,
         height: priceHeight,
         fontHeight: priceHeight,
         bold: true,
-        align: 1,
+        align: 1, // center
       },
     ];
 
-    const codeTop = pad + nameHeight + priceHeight + 1.6;
-    const codeSpace = Math.max(4, heightMm - codeTop - pad);
-
     if (format === 'qr') {
-      const size = Math.min(codeSpace, innerWidth);
+      const qrSize = Math.min(availableCodeH, innerWidth, isTall ? 24.0 : 18.0);
+      const qrX = pad + Math.max(0, (innerWidth - qrSize) / 2);
+      const qrY = codeZoneY + Math.max(0, (availableCodeH - qrSize) / 2);
       elements.push({
         type: 'qrcode',
         value: rawCode,
-        x: (widthMm - size) / 2,
-        y: codeTop,
-        size,
+        x: qrX,
+        y: qrY,
+        size: qrSize,
       });
     } else {
       const digits = rawCode.replace(/\D/g, '');
       const useEan13 = format === 'ean13' && (digits.length === 12 || digits.length === 13);
-      const textHeight = Math.min(2.8, codeSpace * 0.28);
-      const barHeight = Math.max(4, codeSpace - textHeight);
-      const barWidth = Math.min(innerWidth, widthMm * 0.88);
+
+      const textHeight = Math.min(2.5, Math.max(1.8, availableCodeH * 0.22));
+      const targetBarH = isCompact
+        ? Math.min(8.0, availableCodeH - textHeight)
+        : isTall
+        ? Math.min(18.0, availableCodeH - textHeight)
+        : Math.min(10.0, availableCodeH - textHeight);
+      const barHeight = Math.max(5.0, targetBarH);
+      const totalBoxH = barHeight + textHeight;
+
+      // Width: EAN-13 has 95 modules (~35.6mm at 3 dots/module), CODE-128 is ~35-38mm
+      const barWidth = useEan13 ? Math.min(innerWidth, 35.625) : Math.min(innerWidth, 38.0);
+      const barX = pad + Math.max(0, (innerWidth - barWidth) / 2);
+      const barY = codeZoneY + Math.max(0, (availableCodeH - totalBoxH) / 2);
 
       elements.push({
         type: 'barcode',
         value: useEan13 ? digits : rawCode.replace(/[^\x20-\x7E]/g, ''),
-        x: pad + Math.max(0, (innerWidth - barWidth) / 2),
-        y: codeTop,
+        x: barX,
+        y: barY,
         width: barWidth,
-        height: barHeight + textHeight,
+        height: totalBoxH,
         textHeight: textHeight,
         barcodeType: useEan13 ? JOSH_BARCODE_TYPE_EAN13 : JOSH_BARCODE_TYPE_CODE128,
-        align: 1,
+        align: 1, // center
       });
     }
 
@@ -3485,11 +3830,21 @@ class ThermalPrinterServiceManager {
 
   /**
    * Reconnect-or-confirm for either vendor. Josh keeps its saved-printer reconnect;
-   * YX is treated as connected-or-not, since it has no stored-reconnect flow yet.
+   * TEJ uses tejEnsureConnected. DEV/VEER are ESC/POS printers and never hijack this.
    */
   public async labelPrinterEnsureConnected(): Promise<boolean> {
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const model = usePrinterStore.getState().connectedPrinterModel;
+      if (model === 'dev' || model === 'veer') {
+        return false;
+      }
+      if (model === 'tej') return await this.tejEnsureConnected();
+      if (model === 'josh') return await this.joshEnsureConnected();
+    } catch {}
+
+    if (await this.tejEnsureConnected()) return true;
     if (await this.joshEnsureConnected()) return true;
-    if (this.isYxLabelPrinterAvailable() && (await this.yxIsConnected())) return true;
     return false;
   }
 
@@ -4339,6 +4694,7 @@ class ThermalPrinterServiceManager {
           ? JOSH_BARCODE_TYPE_CODE128
           : JOSH_BARCODE_TYPE_AUTO;
 
+        const hideDigits = el.showText === false || hasQrElement;
         elements.push({
           type: 'barcode',
           value: isEan13 ? digits : raw.replace(/[^\x20-\x7E]/g, ''),
@@ -4347,7 +4703,7 @@ class ThermalPrinterServiceManager {
           width: w,
           height: h,
           rotation: rot,
-          textHeight: hasQrElement ? 0 : Math.max(0, Math.min(3, h * 0.2)),
+          textHeight: hideDigits ? 0 : Math.max(0, Math.min(3, h * 0.2)),
           barcodeType,
         });
       } else if (el.type === 'qrcode') {
@@ -4467,40 +4823,63 @@ class ThermalPrinterServiceManager {
   }
 
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
-    if ((await this.getConnectedLabelPrinterKind()) !== null) {
-      const ok = await this.printLabelViaJosh(product, template, copies, labelGapMm);
-      // A linked label printer is the destination, so stop here either way. Falling
-      // through to the ESC/POS graphic or TSPL paths pushes those bytes down the
-      // receipt socket, which is exactly what makes a non-ESC/POS label printer
-      // spit out raw command gibberish instead of a label.
-      return ok;
+    const labelKind = await this.getConnectedLabelPrinterKind();
+    if (labelKind === 'josh') {
+      return await this.printLabelViaJosh(product, template, copies, labelGapMm);
+    }
+    if (labelKind === 'yx') {
+      const elements = await this.buildJoshElementsForTemplate(product, template, 1);
+      const spec: JoshLabelSpec = {
+        widthMm: this.safeMm(template.widthMm, 50),
+        heightMm: this.safeMm(template.heightMm, 30),
+        rotation: 0,
+        copies,
+        gapMm: this.safeMm(labelGapMm, 2),
+        gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
+        elements,
+      };
+      return await this.printSpecOnLabelPrinter(spec);
     }
 
-    // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer
-    try {
-      if (await this.isSocketConnected()) {
-        const elements = await this.buildJoshElementsForTemplate(product, template, 1);
-        if (elements.length > 0) {
-          const spec: JoshLabelSpec = {
-            widthMm: this.safeMm(template.widthMm, 50),
-            heightMm: this.safeMm(template.heightMm, 30),
-            rotation: 0,
-            copies: 1,
-            gapMm: this.safeMm(labelGapMm, 2),
-            gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
-            elements,
-          };
-          const ok = await this.printSpecViaEscposGraphic(
-            spec,
-            this.getEscPosPaperWidth(),
-            copies,
-            labelGapMm
-          );
-          if (ok) return true;
+    // Ensure ESC/POS / TSPL socket is ready before printing
+    await this.ensureConnected();
+
+    // Prioritize hardware TSPL with native gap sensing for connected 2-in-1 printers in die-cut label mode
+    if (!this.preferTsplForLabels()) {
+      // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer (DEV / VEER)
+      try {
+        if (await this.isSocketConnected()) {
+          const elements = await this.buildJoshElementsForTemplate(product, template, 1);
+          if (elements.length > 0) {
+            const spec: JoshLabelSpec = {
+              widthMm: this.safeMm(template.widthMm, 50),
+              heightMm: this.safeMm(template.heightMm, 30),
+              rotation: 0,
+              copies: 1,
+              gapMm: this.safeMm(labelGapMm, 2),
+              gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
+              elements,
+            };
+            const ok = await this.printSpecViaEscposGraphic(
+              spec,
+              this.getEscPosPaperWidth(),
+              copies,
+              labelGapMm
+            );
+            if (ok) return true;
+          }
         }
+      } catch (graphicErr) {
+        console.warn('[PrinterService] printSpecViaEscposGraphic for template failed:', graphicErr);
       }
-    } catch (graphicErr) {
-      console.warn('[PrinterService] printSpecViaEscposGraphic for template failed, trying TSPL:', graphicErr);
+
+      // Automatic hardware fallback for ESC/POS printers: use sequential ESC/POS template print
+      return await this.printLabelTemplateOnReceiptPaper(
+        product,
+        template,
+        this.getEscPosPaperWidth(),
+        copies
+      );
     }
 
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
@@ -4514,97 +4893,138 @@ class ThermalPrinterServiceManager {
     // throws on NaN rather than skipping that one field, which fails the label.
     const toDots = (mm: number) => this.safeInt(Number(mm) * DOTS_PER_MM, 0);
 
-
+    const userOffsetMm = this.getLabelOffsetMm();
+    const toYDots = (mm: number) => Math.max(0, toDots(mm + userOffsetMm));
 
     const textFields: any[] = [];
     const barcodeFields: any[] = [];
     const qrFields: any[] = [];
     const imageFields: any[] = [];
 
-    for (const el of template.elements) {
-      if (el.type === 'text') {
-        const value = this.sanitizeForThermalPrint(this.resolveLabelTextValue(product, el));
-        if (!value) continue;
-        // fontSizePt is stored in mm (24 dots = 3mm at FONT_3's native 1x cell height) — derive the
-        // nearest whole TSPL FONTMUL scale from it, same convention buildTsplLabelFields assumes.
-        const scale = Math.min(10, Math.max(1, this.safeInt(Number(el.fontSizePt) / 3, 1)));
-        const boxWidthDots = toDots(el.widthMm);
-        const textWidthDots = value.length * FONT3_CHAR_W * scale;
-        let xDots = toDots(el.xMm);
-        if (el.align === 'center') xDots += Math.max(0, Math.round((boxWidthDots - textWidthDots) / 2));
-        else if (el.align === 'right') xDots += Math.max(0, boxWidthDots - textWidthDots);
+    // If template has shapes (rect, line, circle, table), rasterize the entire template
+    // to a pixel-perfect 203 DPI bitmap and print via TSPL hardware image command at (0, 0)!
+    const hasComplexElements = (template.elements || []).some((el: any) =>
+      ['rect', 'curveRect', 'line', 'circle', 'table'].includes(el.type)
+    );
+    const hasQrElement = (template.elements || []).some((el: any) => el.type === 'qrcode');
 
-        textFields.push({
-          text: value,
-          x: xDots,
-          y: toDots(el.yMm),
-          fonttype: NativeTscPrinter.FONTTYPE?.FONT_3 ?? '3',
-          rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
-          xscal: scale,
-          yscal: scale,
-          bold: !!el.bold,
-        });
-      } else if (el.type === 'barcode') {
-        const raw = this.resolveLabelCodeValue(product, el);
-        const digits = raw.replace(/\D/g, '');
-        let type = NativeTscPrinter.BARCODETYPE?.CODE128 ?? '128';
-        let content = raw.replace(/[^\x20-\x7E]/g, '');
-        let moduleCount = 35 + content.length * 11; // CODE128 approximation, same as buildTsplLabelFields
-        if (el.format === 'ean13' && (digits.length === 12 || digits.length === 13)) {
-          type = NativeTscPrinter.BARCODETYPE?.EAN13 ?? 'EAN13';
-          content = digits;
-          moduleCount = 95; // exact, fixed by the GS1 spec
+    if (hasComplexElements) {
+      try {
+        const rawElements = await this.buildJoshElementsForTemplate(product, template, 1);
+        const elements = userOffsetMm !== 0
+          ? rawElements.map((el) => ({ ...el, y: Math.max(0, el.y + userOffsetMm) }))
+          : rawElements;
+        const spec: JoshLabelSpec = {
+          widthMm: this.safeMm(template.widthMm, 50),
+          heightMm: this.safeMm(template.heightMm, 30),
+          rotation: 0,
+          copies: 1,
+          gapMm: this.safeMm(labelGapMm, 2),
+          gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
+          elements,
+        };
+        const base64 = await this.rasterizeLabelSpec(spec, this.safeMm(template.widthMm, 50));
+        if (base64) {
+          imageFields.push({
+            x: 0,
+            y: 0,
+            width: toDots(template.widthMm),
+            mode: 0,
+            image: base64,
+          });
         }
-        if (!content) continue;
-        // Fit the module width to the box the user actually drew, same "grow when there's spare
-        // room, shrink when it must" approach as buildTsplLabelFields's narrow calculation.
-        const narrow = Math.min(4, Math.max(1, this.safeInt(toDots(el.widthMm) / moduleCount, 1)));
-        barcodeFields.push({
-          x: toDots(el.xMm),
-          y: toDots(el.yMm),
-          type,
-          height: toDots(el.heightMm),
-          wide: narrow + 1,
-          narrow,
-          readable: NativeTscPrinter.READABLE?.EANBLE ?? 1,
-          rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
-          code: content,
-        });
-      } else if (el.type === 'qrcode') {
-        const content = this.resolveLabelCodeValue(product, el);
-        if (!content) continue;
-        let qrModules = 27;
-        try {
-          qrModules = this.getQrModuleCount(content);
-        } catch {
-          // keep the fallback estimate
-        }
-        // The box is square-constrained to whichever side (width/height) is tighter, same
-        // structural guarantee against overflow as buildTsplLabelFields's QR sizing.
-        const boxDots = Math.min(toDots(el.widthMm), toDots(el.heightMm));
-        const cellWidth = Math.max(2, Math.min(10, this.safeInt(boxDots / qrModules, 2)));
-        qrFields.push({
-          x: toDots(el.xMm),
-          y: toDots(el.yMm),
-          level: NativeTscPrinter.EEC?.LEVEL_M ?? 'M',
-          width: cellWidth,
-          rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
-          code: content,
-        });
-      } else if (el.type === 'image' && el.uri) {
-        try {
-          const base64Pic = await this.uriToBase64(el.uri);
-          if (base64Pic) {
-            imageFields.push({
-              x: toDots(el.xMm),
-              y: toDots(el.yMm),
-              width: toDots(el.widthMm),
-              mode: 0,
-              image: base64Pic,
-            });
+      } catch (rastErr) {
+        console.warn('[PrinterService] TSPL rasterization failed, falling back to field extraction:', rastErr);
+      }
+    }
+
+    if (!imageFields.length) {
+      for (const el of template.elements) {
+        if (el.type === 'text') {
+          const value = this.sanitizeForThermalPrint(this.resolveLabelTextValue(product, el));
+          if (!value) continue;
+          // fontSizePt is stored in mm (24 dots = 3mm at FONT_3's native 1x cell height) — derive the
+          // nearest whole TSPL FONTMUL scale from it, same convention buildTsplLabelFields assumes.
+          const scale = Math.min(10, Math.max(1, this.safeInt(Number(el.fontSizePt) / 3, 1)));
+          const boxWidthDots = toDots(el.widthMm);
+          const textWidthDots = value.length * FONT3_CHAR_W * scale;
+          let xDots = toDots(el.xMm);
+          if (el.align === 'center') xDots += Math.max(0, Math.round((boxWidthDots - textWidthDots) / 2));
+          else if (el.align === 'right') xDots += Math.max(0, boxWidthDots - textWidthDots);
+
+          textFields.push({
+            text: value,
+            x: xDots,
+            y: toYDots(el.yMm),
+            fonttype: NativeTscPrinter.FONTTYPE?.FONT_3 ?? '3',
+            rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
+            xscal: scale,
+            yscal: scale,
+            bold: !!el.bold,
+          });
+        } else if (el.type === 'barcode') {
+          const raw = this.resolveLabelCodeValue(product, el);
+          const digits = raw.replace(/\D/g, '');
+          let type = NativeTscPrinter.BARCODETYPE?.CODE128 ?? '128';
+          let content = raw.replace(/[^\x20-\x7E]/g, '');
+          let moduleCount = 35 + content.length * 11; // CODE128 approximation, same as buildTsplLabelFields
+          if (el.format === 'ean13' && (digits.length === 12 || digits.length === 13)) {
+            type = NativeTscPrinter.BARCODETYPE?.EAN13 ?? 'EAN13';
+            content = digits;
+            moduleCount = 95; // exact, fixed by the GS1 spec
           }
-        } catch (imgErr) {
-          console.warn('TSPL image element conversion failed:', imgErr);
+          if (!content) continue;
+          // Fit the module width to the box the user actually drew, same "grow when there's spare
+          // room, shrink when it must" approach as buildTsplLabelFields's narrow calculation.
+          const narrow = Math.min(4, Math.max(1, this.safeInt(toDots(el.widthMm) / moduleCount, 1)));
+          const shouldShowBarcodeText = el.showText !== false && !hasQrElement;
+          barcodeFields.push({
+            x: toDots(el.xMm),
+            y: toYDots(el.yMm),
+            type,
+            height: toDots(el.heightMm),
+            wide: narrow + 1,
+            narrow,
+            readable: shouldShowBarcodeText ? (NativeTscPrinter.READABLE?.EANBLE ?? 1) : (NativeTscPrinter.READABLE?.DISABLE ?? 0),
+            rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
+            code: content,
+          });
+        } else if (el.type === 'qrcode') {
+          const content = this.resolveLabelCodeValue(product, el);
+          if (!content) continue;
+          let qrModules = 27;
+          try {
+            qrModules = this.getQrModuleCount(content);
+          } catch {
+            // keep the fallback estimate
+          }
+          // The box is square-constrained to whichever side (width/height) is tighter, same
+          // structural guarantee against overflow as buildTsplLabelFields's QR sizing.
+          const boxDots = Math.min(toDots(el.widthMm), toDots(el.heightMm));
+          const cellWidth = Math.max(2, Math.min(10, this.safeInt(boxDots / qrModules, 2)));
+          qrFields.push({
+            x: toDots(el.xMm),
+            y: toYDots(el.yMm),
+            level: NativeTscPrinter.EEC?.LEVEL_M ?? 'M',
+            width: cellWidth,
+            rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
+            code: content,
+          });
+        } else if (el.type === 'image' && el.uri) {
+          try {
+            const base64Pic = await this.uriToBase64(el.uri);
+            if (base64Pic) {
+              imageFields.push({
+                x: toDots(el.xMm),
+                y: toYDots(el.yMm),
+                width: toDots(el.widthMm),
+                mode: 0,
+                image: base64Pic,
+              });
+            }
+          } catch (imgErr) {
+            console.warn('TSPL image element conversion failed:', imgErr);
+          }
         }
       }
     }
@@ -4643,6 +5063,7 @@ class ThermalPrinterServiceManager {
               reference: [0, 0],
               tear: NativeTscPrinter.TEAR?.ON ?? 'ON',
               sound: 0,
+              // home is omitted: TSPL hardware gap sensor positions paper accurately at (0, 0)
               text: textFields.length ? textFields : undefined,
               barcode: barcodeFields.length ? barcodeFields : undefined,
               qrcode: qrFields.length ? qrFields : undefined,
@@ -4865,6 +5286,125 @@ class ThermalPrinterServiceManager {
     `;
   }
 
+  /**
+   * Vendor-neutral label alignment self-test.
+   *
+   * Prints a border box + centre crosshair + corner ticks on N consecutive labels. It is
+   * deliberately ONE utility rather than per-module logic: it emits a plain JoshLabelSpec
+   * and hands it to the same dispatcher every real label goes through, so whichever
+   * printer is connected — Josh (LPAPI), YX, ESC/POS raster or TSPL — renders it by its
+   * own normal path. Any module added later is covered with no extra work here.
+   *
+   * How to read the result:
+   *  - Border sits evenly inside all four die-cut edges  -> aligned, nothing to do.
+   *  - Border is cut off at top/bottom by the same amount on every label -> a fixed phase
+   *    offset: adjust the vertical offset trim by that amount (positive moves content down).
+   *  - The cut grows label to label -> pitch is wrong, not phase: labelHeightMm + labelGapMm
+   *    do not match the physical stock, so fix those first — the offset cannot absorb it.
+   */
+  public buildAlignmentTestSpec(
+    widthMm: number,
+    heightMm: number,
+    index: number,
+    total: number,
+    gapMm: number
+  ): JoshLabelSpec {
+    const w = this.safeMm(widthMm, 50);
+    const h = this.safeMm(heightMm, 30);
+    // 1mm inset so the border prints just inside the die-cut: a border drawn exactly on
+    // the edge is indistinguishable from one that has drifted a whole millimetre off it.
+    const inset = 1;
+    const bw = Math.max(2, w - inset * 2);
+    const bh = Math.max(2, h - inset * 2);
+    const cx = w / 2;
+    const cy = h / 2;
+    const arm = Math.min(bw, bh) * 0.22;
+    const tick = Math.min(bw, bh) * 0.14;
+    const thin = 0.25;
+
+    const elements: JoshLabelElement[] = [
+      { type: 'rectangle', x: inset, y: inset, width: bw, height: bh, thickness: thin },
+      // Centre crosshair — vertical misalignment shows as the horizontal arm sitting off
+      // the label's own midline, which is far easier to eyeball than a shifted border.
+      { type: 'line', x: cx - arm, y: cy, x2: cx + arm, y2: cy, thickness: thin },
+      { type: 'line', x: cx, y: cy - arm, x2: cx, y2: cy + arm, thickness: thin },
+      // Corner ticks: if the top pair is missing but the bottom pair prints, content has
+      // moved down; the reverse means up.
+      { type: 'line', x: inset, y: inset, x2: inset + tick, y2: inset, thickness: thin },
+      { type: 'line', x: w - inset - tick, y: inset, x2: w - inset, y2: inset, thickness: thin },
+      { type: 'line', x: inset, y: h - inset, x2: inset + tick, y2: h - inset, thickness: thin },
+      { type: 'line', x: w - inset - tick, y: h - inset, x2: w - inset, y2: h - inset, thickness: thin },
+      {
+        type: 'text',
+        value: `${index}/${total}  ${w}x${h}mm`,
+        x: inset + 1.5,
+        y: cy - 4.2,
+        width: bw - 3,
+        height: 3.2,
+        fontHeight: 3,
+        align: 1,
+      },
+    ];
+
+    return {
+      widthMm: w,
+      heightMm: h,
+      rotation: 0,
+      copies: 1,
+      gapMm: this.safeMm(gapMm, 2),
+      gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
+      elements,
+    };
+  }
+
+  /**
+   * Prints the alignment pattern across `count` consecutive labels on whichever label
+   * printer is connected. Sizes come from the saved calibration unless overridden, so the
+   * test always exercises the exact geometry real labels use.
+   */
+  public async printAlignmentTest(
+    count: number = 4,
+    overrides?: { widthMm?: number; heightMm?: number; gapMm?: number }
+  ): Promise<boolean> {
+    let widthMm = 50;
+    let heightMm = 30;
+    let gapMm = 2;
+    try {
+      const { usePrinterStore } = require('../store/usePrinterStore');
+      const s = usePrinterStore.getState();
+      widthMm = s.labelWidthMm;
+      heightMm = s.labelHeightMm;
+      gapMm = s.labelGapMm;
+    } catch {
+      // Fall through to the defaults above — the test is still meaningful.
+    }
+    widthMm = this.safeMm(overrides?.widthMm ?? widthMm, 50);
+    heightMm = this.safeMm(overrides?.heightMm ?? heightMm, 30);
+    gapMm = this.safeMm(overrides?.gapMm ?? gapMm, 2);
+
+    const total = Math.max(1, Math.min(10, Math.round(count)));
+    let printed = 0;
+
+    for (let i = 1; i <= total; i++) {
+      const spec = this.buildAlignmentTestSpec(widthMm, heightMm, i, total, gapMm);
+
+      // Same routing rule as every other label entry point: a linked label printer owns
+      // the job, and we never fall through to the receipt socket behind its back.
+      if ((await this.getConnectedLabelPrinterKind()) !== null) {
+        if (await this.printSpecOnLabelPrinter(spec)) printed++;
+        continue;
+      }
+
+      if (await this.isSocketConnected()) {
+        if (await this.printSpecViaEscposGraphic(spec, this.getEscPosPaperWidth(), 1, gapMm)) {
+          printed++;
+        }
+      }
+    }
+
+    return printed === total;
+  }
+
   public async printCustomLabel(
     product: { name: string; sellingPrice: number; barcode?: string | null; sku?: string | null; id?: string },
     format: 'qr' | 'code128' | 'ean13' = 'qr',
@@ -4877,12 +5417,10 @@ class ThermalPrinterServiceManager {
     const rawCode = product.barcode || product.sku || `PROD-${product.id?.slice(-6) || '1234'}`;
     const safeCopies = Math.max(1, copies);
 
-    // Same routing rule as printLabelFromTemplate: a linked label printer is the
-    // destination. This is the no-saved-template path (products page with no
-    // default label design), which would otherwise emit TSPL the label printer
-    // never receives.
-    if ((await this.getConnectedLabelPrinterKind()) !== null) {
-      const ok = await this.printAutoLabelViaJosh(
+    // Check for dedicated label printers
+    const labelKind = await this.getConnectedLabelPrinterKind();
+    if (labelKind === 'josh') {
+      return await this.printAutoLabelViaJosh(
         product,
         rawCode,
         format,
@@ -4891,36 +5429,58 @@ class ThermalPrinterServiceManager {
         labelGapMm,
         safeCopies
       );
-      // A linked label printer is the destination, so stop here either way. Falling
-      // through to the ESC/POS graphic or TSPL paths pushes those bytes down the
-      // receipt socket, which is exactly what makes a non-ESC/POS label printer
-      // spit out raw command gibberish instead of a label.
-      return ok;
+    }
+    if (labelKind === 'yx') {
+      const spec = this.buildAutoLabelSpec(
+        product,
+        rawCode,
+        format,
+        labelWidthMm,
+        labelHeightMm,
+        labelGapMm,
+        safeCopies,
+        this.getLabelPaperMode() === 'continuous' ? 0 : 2
+      );
+      return await this.printSpecOnLabelPrinter(spec);
     }
 
-    // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer
-    try {
-      if (await this.isSocketConnected()) {
-        const spec = this.buildAutoLabelSpec(
-          product,
-          rawCode,
-          format,
-          labelWidthMm,
-          labelHeightMm,
-          labelGapMm,
-          1,
-          this.getLabelPaperMode() === 'continuous' ? 0 : 2
-        );
-        const ok = await this.printSpecViaEscposGraphic(
-          spec,
-          this.getEscPosPaperWidth(),
-          safeCopies,
-          labelGapMm
-        );
-        if (ok) return true;
+    // Ensure ESC/POS / TSPL socket is ready before printing
+    await this.ensureConnected();
+
+    // Prioritize hardware TSPL with native gap sensing for connected 2-in-1 printers in die-cut label mode
+    if (!this.preferTsplForLabels()) {
+      // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer (DEV / VEER)
+      try {
+        if (await this.isSocketConnected()) {
+          const spec = this.buildAutoLabelSpec(
+            product,
+            rawCode,
+            format,
+            labelWidthMm,
+            labelHeightMm,
+            labelGapMm,
+            1,
+            this.getLabelPaperMode() === 'continuous' ? 0 : 2
+          );
+          const ok = await this.printSpecViaEscposGraphic(
+            spec,
+            this.getEscPosPaperWidth(),
+            safeCopies,
+            labelGapMm
+          );
+          if (ok) return true;
+        }
+      } catch (graphicErr) {
+        console.warn('[PrinterService] printSpecViaEscposGraphic for auto label failed:', graphicErr);
       }
-    } catch (graphicErr) {
-      console.warn('[PrinterService] printSpecViaEscposGraphic for auto label failed, trying TSPL:', graphicErr);
+
+      // Automatic hardware fallback for ESC/POS printers: use hardware ESC/POS label print
+      return await this.printLabelOnReceiptPaper(
+        product,
+        format,
+        this.getEscPosPaperWidth(),
+        safeCopies
+      );
     }
 
     try {
@@ -4939,6 +5499,7 @@ class ThermalPrinterServiceManager {
               reference: [0, 0],
               tear: NativeTscPrinter.TEAR?.ON ?? 'ON',
               sound: 0,
+              // home is omitted: TSPL hardware gap sensor positions paper accurately at (0, 0)
               // TSC DENSITY is a real native heat-intensity knob (0-15) — unlike ESC/POS receipts,
               // which have no density command in this SDK. Omitted entirely when not provided,
               // so the printer just uses its own default.
@@ -5021,7 +5582,8 @@ class ThermalPrinterServiceManager {
     // A linked label printer beats the receipt roll even in 'continuous' mode.
     // This path has no template and no label calibration handy, so the stock
     // 50x30mm auto-layout applies (same default as the calibration screen).
-    if (await this.labelPrinterEnsureConnected()) {
+    const labelKind = await this.getConnectedLabelPrinterKind();
+    if (labelKind === 'josh' && (await this.joshEnsureConnected())) {
       return await this.printAutoLabelViaJosh(
         product,
         rawCode,
@@ -5150,7 +5712,8 @@ class ThermalPrinterServiceManager {
     // Studio and the products page print to the receipt roll while the label
     // printer the user just connected sits idle. Covers printLabelSequence's
     // continuous branch too, since it lands here.
-    if (await this.labelPrinterEnsureConnected()) {
+    const labelKind = await this.getConnectedLabelPrinterKind();
+    if (labelKind === 'josh' && (await this.joshEnsureConnected())) {
       return this.printLabelViaJosh(product, template, copies);
     }
 
@@ -5411,16 +5974,19 @@ class ThermalPrinterServiceManager {
 
     try {
       // 1. Direct Josh Printer support (LPAPI / continuous roll)
-      if (await this.joshEnsureConnected()) {
-        try {
-          const ok = await this.printReceiptViaJosh(saleData, effectivePaperWidth, {
-            ...effectiveOptions,
-            copies,
-          });
-          if (!ok) throw new Error('Josh printer rejected receipt data');
-          return true;
-        } catch (joshErr: any) {
-          console.warn('Josh receipt print failed, falling back to ESC/POS:', joshErr);
+      const currentModel = require('../store/usePrinterStore').usePrinterStore.getState().connectedPrinterModel;
+      if (currentModel !== 'dev' && currentModel !== 'veer') {
+        if (await this.joshEnsureConnected()) {
+          try {
+            const ok = await this.printReceiptViaJosh(saleData, effectivePaperWidth, {
+              ...effectiveOptions,
+              copies,
+            });
+            if (!ok) throw new Error('Josh printer rejected receipt data');
+            return true;
+          } catch (joshErr: any) {
+            console.warn('Josh receipt print failed, falling back to ESC/POS:', joshErr);
+          }
         }
       }
 
@@ -6192,8 +6758,9 @@ class ThermalPrinterServiceManager {
     // The test button must exercise the printer that real labels will use — with a
     // linked label printer, a TSPL test would "pass" on the receipt printer while
     // telling the user nothing about the device their labels actually go to.
-    if ((await this.getConnectedLabelPrinterKind()) !== null) {
-      const ok = await this.printAutoLabelViaJosh(
+    const labelKind = await this.getConnectedLabelPrinterKind();
+    if (labelKind === 'josh') {
+      return await this.printAutoLabelViaJosh(
         item,
         item.barcode || '8901234567890',
         format,
@@ -6201,11 +6768,11 @@ class ThermalPrinterServiceManager {
         labelHeightMm,
         labelGapMm
       );
-      // A linked label printer is the destination, so stop here either way. Falling
-      // through to the ESC/POS graphic or TSPL paths pushes those bytes down the
-      // receipt socket, which is exactly what makes a non-ESC/POS label printer
-      // spit out raw command gibberish instead of a label.
-      return ok;
+    }
+    if (labelKind === 'yx') {
+      const rawCode = item.barcode || '8901234567890';
+      const spec = this.buildAutoLabelSpec(item, rawCode, format, labelWidthMm, labelHeightMm, labelGapMm);
+      return await this.printSpecOnLabelPrinter(spec);
     }
 
     try {
@@ -6252,6 +6819,117 @@ class ThermalPrinterServiceManager {
       barcode: '8901234567890',
     };
     return this.printLabelOnReceiptPaper(sampleProduct, format, paperWidth);
+  }
+
+  /**
+   * Universal alignment self-test utility for all printer drivers (JOSH, TEJ, DEV, VEER).
+   * Prints an outer border box (1mm inside edge) + center crosshair + dimension details across 3-4 consecutive labels.
+   * This provides an instant visual verification of label pitch, horizontal centering, and margin bleed.
+   */
+  public async printAlignmentSelfTest(
+    copies: number = 3,
+    widthMmOverride?: number,
+    heightMmOverride?: number,
+    gapMmOverride?: number
+  ): Promise<boolean> {
+    const { usePrinterStore } = require('../store/usePrinterStore');
+    const store = usePrinterStore.getState();
+    const widthMm = widthMmOverride || store.labelWidthMm || 50;
+    const heightMm = heightMmOverride || store.labelHeightMm || 30;
+    const gapMm = gapMmOverride ?? store.labelGapMm ?? 2;
+    const safeCopies = Math.max(1, Math.min(10, copies));
+
+    let allSucceeded = true;
+    for (let i = 0; i < safeCopies; i++) {
+      const dummyProduct: any = {
+        id: `test-align-${i + 1}`,
+        name: `SEZNIK CALIBRATION ${i + 1}/${safeCopies}`,
+        sellingPrice: 0,
+        barcode: '12345678',
+        sku: 'ALIGN',
+        category: 'ALIGN',
+      };
+
+      const elements: any[] = [
+        // Outer border box (inset 1.5mm horizontally, 1.0mm top, safe bottom)
+        {
+          id: 'border',
+          type: 'rect',
+          xMm: 1.5,
+          yMm: 1.0,
+          widthMm: Math.max(10, widthMm - 3.0),
+          heightMm: Math.max(10, heightMm - 3.8),
+          thickness: 0.4,
+        },
+        // Horizontal center line
+        {
+          id: 'cross_h',
+          type: 'line',
+          xMm: 2.5,
+          yMm: (heightMm - 1.8) / 2,
+          x2Mm: widthMm - 2.5,
+          y2Mm: (heightMm - 1.8) / 2,
+          thickness: 0.3,
+        },
+        // Vertical center line
+        {
+          id: 'cross_v',
+          type: 'line',
+          xMm: widthMm / 2,
+          yMm: 1.5,
+          x2Mm: widthMm / 2,
+          y2Mm: heightMm - 3.2,
+          thickness: 0.3,
+        },
+        // Title text at top
+        {
+          id: 'title',
+          type: 'text',
+          binding: 'custom',
+          customText: `ALIGNMENT (${i + 1}/${safeCopies})`,
+          xMm: 2,
+          yMm: 1.8,
+          widthMm: widthMm - 4,
+          heightMm: 3.2,
+          fontSizePt: 2.5,
+          bold: true,
+          align: 'center',
+        },
+        // Dimension info text at bottom
+        {
+          id: 'info',
+          type: 'text',
+          binding: 'custom',
+          customText: `${widthMm}x${heightMm}mm • GAP ${gapMm}mm`,
+          xMm: 2,
+          yMm: Math.max(6, heightMm - 6.5),
+          widthMm: widthMm - 4,
+          heightMm: 2.8,
+          fontSizePt: 2.2,
+          bold: false,
+          align: 'center',
+        },
+      ];
+
+      const testTemplate: any = {
+        id: `align-test-${i + 1}`,
+        name: 'Alignment Test',
+        widthMm,
+        heightMm,
+        elements,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const ok = await this.printLabelFromTemplate(dummyProduct, testTemplate, 1, gapMm);
+      if (!ok) allSucceeded = false;
+      // Slight breath between labels to let hardware settle
+      if (i < safeCopies - 1) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+
+    return allSucceeded;
   }
 
   /**

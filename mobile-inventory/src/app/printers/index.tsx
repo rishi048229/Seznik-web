@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ import {
   QrCode,
   Edit2,
   Zap,
+  Power,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -120,6 +121,8 @@ export default function PrintersScreen() {
     labelWidthMm,
     labelHeightMm,
     labelGapMm,
+    labelOffsetMm,
+    setLabelOffsetMm,
     setLabelWidthMm,
     setLabelHeightMm,
     setLabelGapMm,
@@ -243,6 +246,47 @@ export default function PrintersScreen() {
   }, []);
 
   const activeTemplate = getTemplateById(activeTemplateId);
+
+  const [tejConnected, setTejConnected] = useState(false);
+  const [joshConnected, setJoshConnected] = useState(false);
+
+  const checkBridges = useCallback(async () => {
+    try {
+      const yx = await ThermalPrinterService.tejIsConnected();
+      setTejConnected(yx);
+      const josh = await ThermalPrinterService.joshIsConnected();
+      setJoshConnected(josh);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    checkBridges();
+    const interval = setInterval(checkBridges, 3000);
+    return () => clearInterval(interval);
+  }, [checkBridges]);
+
+  const isAnyConnected = connectionState === 'connected' || Boolean(activeDevice) || tejConnected || joshConnected;
+  const connectedPrinterName =
+    activeDevice?.name ||
+    (tejConnected ? 'SEZNIK TEJ' : joshConnected ? 'SEZNIK JOSH' : 'Connected Printer');
+
+  const handleDisconnectAll = async () => {
+    try {
+      if (tejConnected) {
+        await ThermalPrinterService.tejDisconnect();
+      }
+      if (joshConnected) {
+        await ThermalPrinterService.joshDisconnect();
+      }
+      await disconnectDevice();
+      usePrinterStore.getState().setConnectedPrinterModel(null as any);
+      setTejConnected(false);
+      setJoshConnected(false);
+      Alert.alert('Disconnected', 'Printer has been disconnected.');
+    } catch (e: any) {
+      Alert.alert('Disconnect Error', e?.message || 'Could not disconnect.');
+    }
+  };
 
   const handleAddManualPrinter = async () => {
     if (!manualName.trim()) {
@@ -419,6 +463,7 @@ export default function PrintersScreen() {
         labelWidthMm,
         labelHeightMm,
         labelGapMm,
+        labelOffsetMm,
       });
       Alert.alert('Configuration Saved!', 'Bluetooth thermal printer settings updated & synced.');
     } catch (e: any) {
@@ -517,25 +562,25 @@ export default function PrintersScreen() {
             Replaces a full-bleed blue panel with white-on-blue controls: on a
             status surface the colour has to carry meaning, so the card stays
             neutral and only the state dot and its caption change colour. */}
-        <View style={[styles.statusCard, { backgroundColor: theme.cardBg, borderColor: connectionState === 'connected' ? '#10B981' : theme.borderColor }]}>
+        <View style={[styles.statusCard, { backgroundColor: theme.cardBg, borderColor: isAnyConnected ? '#10B981' : theme.borderColor }]}>
           <View style={styles.statusTopRow}>
-            <View style={[styles.statusIcon, { backgroundColor: connectionState === 'connected' ? 'rgba(16,185,129,0.12)' : 'rgba(100,116,139,0.12)' }]}>
-              <Printer size={20} color={connectionState === 'connected' ? '#10B981' : theme.textSecondary} />
+            <View style={[styles.statusIcon, { backgroundColor: isAnyConnected ? 'rgba(16,185,129,0.12)' : 'rgba(100,116,139,0.12)' }]}>
+              <Printer size={20} color={isAnyConnected ? '#10B981' : theme.textSecondary} />
             </View>
 
             <View style={{ flex: 1, marginLeft: 12, marginRight: 10 }}>
               <Text style={[styles.statusTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                {activeDevice ? activeDevice.name : 'No printer connected'}
+                {isAnyConnected ? connectedPrinterName : 'No printer connected'}
               </Text>
               <View style={styles.statusLine}>
                 <View
                   style={[
                     styles.statusDot,
-                    { backgroundColor: connectionState === 'connected' ? '#10B981' : '#F59E0B' },
+                    { backgroundColor: isAnyConnected ? '#10B981' : '#F59E0B' },
                   ]}
                 />
                 <Text style={[styles.statusCaption, { color: theme.textSecondary }]} numberOfLines={1}>
-                  {connectionState === 'connected'
+                  {isAnyConnected
                     ? `Ready · ${paperWidthVal}mm paper`
                     : 'Tap Find Printers to connect one'}
                 </Text>
@@ -555,22 +600,44 @@ export default function PrintersScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity
-            onPress={handleScanBluetooth}
-            disabled={isScanning}
-            style={[styles.primaryAction, { opacity: isScanning ? 0.6 : 1 }]}
-          >
-            {isScanning ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Bluetooth size={16} color="#FFFFFF" />
-                <Text style={styles.primaryActionText}>
-                  {activeDevice ? 'Change Printer' : 'Find Printers'}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              onPress={handleScanBluetooth}
+              disabled={isScanning}
+              style={[styles.primaryAction, { flex: 1, opacity: isScanning ? 0.6 : 1 }]}
+            >
+              {isScanning ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Bluetooth size={16} color="#FFFFFF" />
+                  <Text style={styles.primaryActionText}>
+                    {isAnyConnected ? 'Change Printer' : 'Find Printers'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {isAnyConnected && (
+              <TouchableOpacity
+                onPress={handleDisconnectAll}
+                style={[
+                  styles.primaryAction,
+                  {
+                    flex: 1,
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderWidth: 1,
+                    borderColor: '#EF4444',
+                  },
+                ]}
+              >
+                <Power size={16} color="#EF4444" />
+                <Text style={[styles.primaryActionText, { color: '#EF4444' }]}>
+                  Disconnect
                 </Text>
-              </>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
 
           {/* Test prints. Given their own labelled row rather than three cramped
               10px chips, since this is how a shop confirms the printer works. */}
@@ -1220,7 +1287,7 @@ export default function PrintersScreen() {
               {ThermalPrinterService.isYxSupported() && (
                 <View style={{ marginBottom: 12 }}>
                   <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    1. SEZNIK TEJ SMART PRINTER (TEJ NATIVE SDK • RECEIPTS & LABELS)
+                    1. SEZNIK TEJ SMART PRINTER (RECEIPTS & LABELS)
                   </Text>
                   <YxPrinterCard />
                 </View>
@@ -1229,7 +1296,7 @@ export default function PrintersScreen() {
               {ThermalPrinterService.isJoshSupported() && (
                 <View style={{ marginBottom: 12 }}>
                   <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    4. SEZNIK JOSH SMART PRINTER (LPAPI SDK • RECEIPTS & LABELS)
+                    4. SEZNIK JOSH SMART PRINTER (RECEIPTS & LABELS)
                   </Text>
                   <JoshPrinterCard />
                 </View>
@@ -1237,7 +1304,7 @@ export default function PrintersScreen() {
 
               {/* Section: PAIRED & DISCOVERED BLUETOOTH PRINTERS (DEV & VEER) */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>2 & 3. SEZNIK DEV / VEER (ESC/POS & TSPL) ({scannedDevices.length})</Text>
+                <Text style={styles.sectionHeader}>2 & 3. SEZNIK DEV / VEER (BLUETOOTH) ({scannedDevices.length})</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity onPress={() => setShowDeviceModal(true)}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>
@@ -1580,21 +1647,21 @@ export default function PrintersScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Dedicated TEJ / YX label printer (com.yx.print SDK) */}
+                  {/* Dedicated TEJ label printer */}
                   {ThermalPrinterService.isYxSupported() && (
                     <View style={{ marginTop: 16 }}>
                       <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                        1. SEZNIK TEJ SMART PRINTER (TEJ NATIVE SDK • LABELS & BILLS)
+                        1. SEZNIK TEJ SMART PRINTER (LABELS & BILLS)
                       </Text>
                       <YxPrinterCard />
                     </View>
                   )}
 
-                  {/* Dedicated LPAPI label printer (com.dothantech.lpapi SDK) */}
+                  {/* Dedicated JOSH label printer */}
                   {ThermalPrinterService.isJoshSupported() && (
                     <View style={{ marginTop: 16 }}>
                       <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                        4. SEZNIK JOSH SMART PRINTER (LPAPI SDK • LABELS & BILLS)
+                        4. SEZNIK JOSH SMART PRINTER (LABELS & BILLS)
                       </Text>
                       <JoshPrinterCard />
                     </View>
@@ -1677,6 +1744,53 @@ export default function PrintersScreen() {
                           </TouchableOpacity>
                         </View>
                       </View>
+
+                      <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Vertical Trim</Text>
+                          <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                            Nudges content down (+) or up (-) on printers without a gap sensor
+                          </Text>
+                        </View>
+                        <View style={styles.stepperControls}>
+                          <TouchableOpacity onPress={() => setLabelOffsetMm(Math.max(-15, Math.round((labelOffsetMm - 0.5) * 2) / 2))} style={styles.stepBtn}>
+                            <Minus size={16} color={theme.textPrimary} />
+                          </TouchableOpacity>
+                          <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelOffsetMm}mm</Text>
+                          <TouchableOpacity onPress={() => setLabelOffsetMm(Math.min(15, Math.round((labelOffsetMm + 0.5) * 2) / 2))} style={styles.stepBtn}>
+                            <Plus size={16} color={theme.textPrimary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={async () => {
+                          try {
+                            const ok = await ThermalPrinterService.printAlignmentTest(4);
+                            Alert.alert(
+                              ok ? 'Alignment Test Sent' : 'Alignment Test Incomplete',
+                              ok
+                                ? `Printed 4 test labels at ${labelWidthMm}x${labelHeightMm}mm.
+
+Border even inside all four edges = aligned.
+Same amount cut off on every label = adjust Vertical Trim by that much.
+Cut grows label to label = label height/gap are wrong, fix those first.`
+                                : 'Some labels did not print. Check the printer is connected.'
+                            );
+                          } catch (e: any) {
+                            Alert.alert('Alignment Test Failed', e?.message || 'Could not print the alignment test.');
+                          }
+                        }}
+                        style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+                      >
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Print Alignment Test</Text>
+                          <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                            4 labels with a border + crosshair, to check and dial in the trim
+                          </Text>
+                        </View>
+                        <Tag size={18} color={BRAND_COLORS.blue600} />
+                      </TouchableOpacity>
                     </>
                   ) : null}
 

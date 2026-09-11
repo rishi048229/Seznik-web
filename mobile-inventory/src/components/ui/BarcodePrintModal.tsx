@@ -12,7 +12,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { X, QrCode, Barcode, Printer, Download, Share2, Sparkles, Check, FileText, Plus, Minus, AlertTriangle } from 'lucide-react-native';
+import { X, QrCode, Barcode, Printer, Download, Share2, Sparkles, Check, FileText, Plus, Minus, AlertTriangle, Search, Tag, ScrollText } from 'lucide-react-native';
 import QRCodeSVG from 'react-native-qrcode-svg';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -22,6 +22,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import { useLabelPrinterStatus } from '@/hooks/useLabelPrinterStatus';
 import { useJoshDualModeTip } from '@/hooks/useJoshDualModeTip';
 import { JoshDualModeModal } from '@/components/printers/JoshDualModeModal';
+import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
 import { LABEL_PRESETS, LabelPresetId, buildLabelPreset } from '@/constants/labelTemplatePresets';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -45,9 +46,22 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
 }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { activeDevice, connectionState, paperWidth, labelPaperMode, labelWidthMm, labelHeightMm, labelGapMm, labelTemplates, activeLabelTemplateId } = usePrinterStore();
+  const {
+    activeDevice,
+    connectionState,
+    paperWidth,
+    labelPaperMode,
+    setLabelPaperMode,
+    labelWidthMm,
+    labelHeightMm,
+    labelGapMm,
+    labelTemplates,
+    activeLabelTemplateId,
+    connectedPrinterModel,
+  } = usePrinterStore();
   const labelPrinter = useLabelPrinterStatus();
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
+  const [showConnectModal, setShowConnectModal] = useState(false);
 
   const [selectedFormat, setSelectedFormat] = useState<BarcodeFormat>('qr');
   const [printMode, setPrintMode] = useState<'direct' | 'template'>('direct');
@@ -72,6 +86,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   }
   const [presetId, setPresetId] = useState<LabelPresetId | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isTestPrinting, setIsTestPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showSequencePrompt, setShowSequencePrompt] = useState(false);
   const [seqProgress, setSeqProgress] = useState(0);
@@ -79,12 +94,22 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const [showTipModal, setShowTipModal] = useState(false);
   const { shouldShowTip, markTipShown, dismissPermanently } = useJoshDualModeTip();
 
+  // Clean up any stale "New Label" or "SITA RAM" templates so they never hijack product barcode printing
   React.useEffect(() => {
-    if (visible && activeLabelTemplateId && activeLabelTemplate && templateHasPrintableContent(activeLabelTemplate)) {
-      setPrintMode('template');
+    if (visible && activeLabelTemplate) {
+      const nameLower = (activeLabelTemplate.name || '').trim().toLowerCase();
+      const isStale =
+        nameLower === 'new label' ||
+        nameLower.includes('sita') ||
+        (activeLabelTemplate.elements || []).some(
+          (el: any) => el.type === 'text' && (el.customText || '').toLowerCase().includes('sita ram')
+        );
+      if (isStale) {
+        usePrinterStore.getState().setActiveLabelTemplate(null);
+        setPrintMode('direct');
+      }
     }
-  }, [visible, activeLabelTemplateId, activeLabelTemplate]);
-
+  }, [visible, activeLabelTemplate]);
 
   React.useEffect(() => {
     if (visible && labelPrinter.isConnected && labelPrinter.kind === 'label' && shouldShowTip) {
@@ -92,7 +117,16 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     }
   }, [visible, labelPrinter.isConnected, labelPrinter.kind, shouldShowTip]);
 
-  const usableTemplate = templateHasPrintableContent(activeLabelTemplate) ? activeLabelTemplate : null;
+  const usableTemplate =
+    templateHasPrintableContent(activeLabelTemplate) &&
+    activeLabelTemplate?.name?.trim().toLowerCase() !== 'new label' &&
+    !activeLabelTemplate?.name?.toLowerCase().includes('sita') &&
+    !(activeLabelTemplate?.elements || []).some(
+      (el: any) => el.type === 'text' && (el.customText || '').toLowerCase().includes('sita ram')
+    )
+      ? activeLabelTemplate
+      : null;
+
   const hasSequenceElement =
     printMode === 'template' && (usableTemplate?.elements.some((el) => el.type === 'text' && el.binding === 'sequence') ?? false);
 
@@ -101,6 +135,22 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const rawCode = product.barcode || product.sku || `PROD-${product.id.slice(-6)}`;
   const formattedCode128 = generateCode128Barcode(rawCode);
   const formattedEAN13 = generateEAN13Barcode(rawCode);
+
+  const handleTestPrint = async () => {
+    setIsTestPrinting(true);
+    try {
+      const ok = await ThermalPrinterService.printAlignmentSelfTest(1, sizeW, sizeH, labelGapMm);
+      if (ok) {
+        Alert.alert('Test Label Printed', `Sent 1 alignment test label (${sizeW}x${sizeH}mm) to printer.`);
+      } else {
+        Alert.alert('Test Print Failed', 'Please check that your printer is powered on and connected.');
+      }
+    } catch (err: any) {
+      Alert.alert('Test Print Error', err?.message || 'Could not print test label.');
+    } finally {
+      setIsTestPrinting(false);
+    }
+  };
 
   const handlePrintLabel = async () => {
     setIsPrinting(true);
@@ -283,6 +333,38 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               >
                 <Barcode size={14} color={printMode === 'direct' && selectedFormat === 'ean13' ? '#FFF' : theme.textSecondary} />
                 <Text style={[styles.formatTabText, printMode === 'direct' && selectedFormat === 'ean13' && styles.formatTabTextActive]}>EAN-13</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Label Paper Mode Selector */}
+            <Text style={[styles.pickerLabel, { color: theme.textSecondary }]}>LABEL PAPER MODE</Text>
+            <View style={[styles.paperModeToggleRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  setLabelPaperMode('gap');
+                  ThermalPrinterService.yxCalibrate(2).catch(() => {});
+                }}
+                style={[styles.paperModeChip, labelPaperMode === 'gap' && styles.paperModeChipActive]}
+                activeOpacity={0.8}
+              >
+                <Tag size={13} color={labelPaperMode === 'gap' ? '#FFF' : theme.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={[styles.paperModeChipText, labelPaperMode === 'gap' && styles.paperModeChipTextActive]}>
+                  Die-Cut Labels (Gap Sensor)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setLabelPaperMode('continuous');
+                  ThermalPrinterService.yxCalibrate(0).catch(() => {});
+                }}
+                style={[styles.paperModeChip, labelPaperMode === 'continuous' && styles.paperModeChipActive]}
+                activeOpacity={0.8}
+              >
+                <ScrollText size={13} color={labelPaperMode === 'continuous' ? '#FFF' : theme.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={[styles.paperModeChipText, labelPaperMode === 'continuous' && styles.paperModeChipTextActive]}>
+                  Continuous Roll (Receipt Paper)
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -491,27 +573,47 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               </View>
             </View>
 
-            {/* Connected Printer Status Pill */}
+            {/* Connected Printer Search & Status Row */}
             <View
               style={[
-                styles.printerStatusPill,
-                { backgroundColor: labelPrinter.isConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)' },
+                styles.printerRowContainer,
+                {
+                  backgroundColor: theme.cardBg,
+                  borderColor: labelPrinter.isConnected ? '#10B981' : theme.borderColor,
+                },
               ]}
             >
-              <Printer size={14} color={labelPrinter.isConnected ? '#10B981' : '#EF4444'} />
-              <Text
-                style={[styles.printerStatusText, { color: labelPrinter.isConnected ? '#10B981' : '#EF4444' }]}
-                numberOfLines={1}
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                <View style={[styles.statusDot, { backgroundColor: labelPrinter.isConnected ? '#10B981' : '#EF4444' }]} />
+                <Printer size={16} color={labelPrinter.isConnected ? '#10B981' : '#EF4444'} style={{ marginLeft: 8, marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.printerNameText, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {labelPrinter.isConnected ? labelPrinter.name || 'Printer' : 'No Printer Connected'}
+                  </Text>
+                  <Text style={[styles.printerSubText, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {labelPrinter.isConnected
+                      ? labelPrinter.kind === 'dual'
+                        ? '2-in-1 POS & Label Printer (Die-Cut + Receipt)'
+                        : labelPrinter.kind === 'label'
+                        ? 'Smart Label Printer (Sticker Labels)'
+                        : `Receipt Printer (${paperWidth})`
+                      : 'Tap Search to find & connect printer'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowConnectModal(true)}
+                style={[styles.searchPrinterBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                activeOpacity={0.8}
               >
-                {labelPrinter.isConnected
-                  ? labelPrinter.kind === 'label'
-                    ? `Label printer: ${labelPrinter.name}`
-                    : `Printer: ${labelPrinter.name} (${paperWidth})`
-                  : 'No printer connected'}
-              </Text>
+                <Search size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={styles.searchPrinterBtnText}>
+                  {labelPrinter.isConnected ? 'Switch' : 'Search'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Receipt-only Printer Warning Banner (when Veer or other ESC/POS printer is connected) */}
+            {/* Receipt-only Printer Warning Banner (when Veer or purely receipt-only printer is connected) */}
             {labelPrinter.isConnected && labelPrinter.kind === 'thermal' && (
               <View
                 style={[
@@ -528,9 +630,27 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                     Receipt Printer Connected ({labelPrinter.name})
                   </Text>
                   <Text style={[styles.warningBannerText, { color: isDark ? '#FCD34D' : '#B45309' }]}>
-                    Your connected printer is designed for continuous receipt paper rolls, not adhesive sticker labels. The label will print on receipt paper. For adhesive stickers, connect a Josh Dual-Mode printer.
+                    This printer uses continuous receipt roll paper. Labels will print on thermal receipt paper. For adhesive stickers, connect a SEZNIK TEJ, DEV, or Josh printer.
                   </Text>
                 </View>
+              </View>
+            )}
+
+            {/* Dual-Mode TEJ / DEV Printer Connected Callout */}
+            {labelPrinter.isConnected && labelPrinter.kind === 'dual' && (
+              <View
+                style={[
+                  styles.dualModePill,
+                  {
+                    backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#EFF6FF',
+                    borderColor: isDark ? 'rgba(37, 99, 235, 0.25)' : '#BFDBFE',
+                  },
+                ]}
+              >
+                <Sparkles size={13} color="#2563EB" style={{ marginRight: 6 }} />
+                <Text style={[styles.dualModePillText, { color: isDark ? '#93C5FD' : '#1D4ED8' }]} numberOfLines={1}>
+                  2-in-1 Smart Printer: {labelPrinter.name} (Ready for Die-Cut & Receipt Rolls)
+                </Text>
               </View>
             )}
 
@@ -555,13 +675,28 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
 
           {/* Action Buttons Row */}
           <View style={styles.actionRow}>
-            <TouchableOpacity onPress={handleDownloadPNG} disabled={isDownloading} style={[styles.actionBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1 }]}>
+            <TouchableOpacity
+              onPress={handleTestPrint}
+              disabled={isTestPrinting || isPrinting}
+              style={[styles.actionBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1, flex: 0.85 }]}
+            >
+              {isTestPrinting ? (
+                <ActivityIndicator size="small" color={theme.textPrimary} />
+              ) : (
+                <>
+                  <Sparkles size={15} color={BRAND_COLORS.blue600} />
+                  <Text style={[styles.actionBtnText, { color: theme.textPrimary, fontSize: 11.5 }]}>Test Print</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleDownloadPNG} disabled={isDownloading} style={[styles.actionBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1, flex: 0.85 }]}>
               {isDownloading ? (
                 <ActivityIndicator size="small" color={theme.textPrimary} />
               ) : (
                 <>
-                  <Download size={16} color={theme.textPrimary} />
-                  <Text style={[styles.actionBtnText, { color: theme.textPrimary }]}>Export Label</Text>
+                  <Download size={15} color={theme.textPrimary} />
+                  <Text style={[styles.actionBtnText, { color: theme.textPrimary, fontSize: 11.5 }]}>Export</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -569,14 +704,14 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             <TouchableOpacity
               onPress={hasSequenceElement ? () => setShowSequencePrompt(true) : handlePrintLabel}
               disabled={isPrinting}
-              style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+              style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.blue600, flex: 1.3 }]}
             >
               {isPrinting ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
                 <>
                   <Printer size={16} color="#FFF" />
-                  <Text style={[styles.actionBtnText, { color: '#FFF' }]}>
+                  <Text style={[styles.actionBtnText, { color: '#FFF', fontSize: 12 }]}>
                     {printMode === 'template' && usableTemplate
                       ? `Print ${printCopies > 1 ? `${printCopies}x ` : ''}"${usableTemplate.name}"`
                       : `Print ${printCopies} ${selectedFormat.toUpperCase()} ${printCopies > 1 ? 'Labels' : 'Label'}`}
@@ -607,6 +742,11 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           dismissPermanently();
         }}
       />
+
+      <DirectPrinterConnectModal
+        visible={showConnectModal}
+        onClose={() => setShowConnectModal(false)}
+      />
     </Modal>
   );
 };
@@ -616,6 +756,71 @@ const styles = StyleSheet.create({
   modalCard: { width: '100%', maxWidth: 440, maxHeight: '90%', borderRadius: 24, padding: 20, borderWidth: 1 },
   scrollBody: { flexGrow: 0, marginVertical: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  printerRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginVertical: 10,
+  },
+  statusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+  },
+  printerNameText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  printerSubText: {
+    fontSize: 10.5,
+    marginTop: 1,
+  },
+  searchPrinterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  searchPrinterBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  paperModeToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 6,
+    marginBottom: 4,
+    gap: 4,
+  },
+  paperModeChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 9,
+  },
+  paperModeChipActive: {
+    backgroundColor: BRAND_COLORS.blue600,
+  },
+  paperModeChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  paperModeChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   modalTitle: { fontSize: 16, fontWeight: '900' },
   closeBtn: {
     padding: 6,

@@ -6,7 +6,7 @@ export interface LabelPrinterStatus {
   /** True when a label can actually be printed right now, by either transport. */
   isConnected: boolean;
   /** Which transport is live, for wording the UI. */
-  kind: 'label' | 'thermal' | null;
+  kind: 'label' | 'thermal' | 'dual' | null;
   /** Display name of whichever printer is connected. */
   name: string | null;
   refresh: () => void;
@@ -64,12 +64,20 @@ export function useLabelPrinterStatus(pollWhileVisible = true): LabelPrinterStat
   }, [refresh, pollWhileVisible]);
 
   const thermalConnected = !!activeDevice && connectionState === 'connected';
+  const connectedModel = usePrinterStore.getState().connectedPrinterModel;
+  const isDual =
+    connectedModel === 'dev' ||
+    connectedModel === 'tej' ||
+    (activeDevice?.name || '').toUpperCase().includes('DEV') ||
+    (activeDevice?.name || '').toUpperCase().includes('TEJ') ||
+    (activeDevice?.name || '').toUpperCase().includes('2IN1') ||
+    activeDevice?.type === 'dual';
 
   return {
     isConnected: joshConnected || thermalConnected,
     // A dedicated label printer wins the label: it is the better destination and
     // the one the user explicitly linked for this purpose.
-    kind: joshConnected ? 'label' : thermalConnected ? 'thermal' : null,
+    kind: joshConnected ? 'label' : isDual ? 'dual' : thermalConnected ? 'thermal' : null,
     name: joshConnected ? joshName || 'Label printer' : thermalConnected ? activeDevice?.name || null : null,
     refresh,
   };

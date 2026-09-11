@@ -265,6 +265,8 @@ export interface StoredPrinterCalibration {
   labelWidthMm?: number;
   labelHeightMm?: number;
   labelGapMm?: number;
+  /** Residual vertical alignment trim in mm for gap-sensor-less (blind raster) label printing. */
+  labelOffsetMm?: number;
 }
 
 export async function getStoredPrinterCalibration(): Promise<StoredPrinterCalibration | null> {
@@ -465,6 +467,52 @@ export async function setStoredJoshPrinter(printer: StoredJoshPrinter | null): P
     }
   } catch (error) {
     console.error('Error saving label printer:', error);
+  }
+}
+
+/**
+ * The linked SEZNIK TEJ (Y50/YX SDK) label printer. Device-local like JOSH and paired ESC/POS
+ * printers. Persisted so that TEJ auto-reconnects on launch and across print operations.
+ */
+const TEJ_PRINTER_KEY = 'seznik_tej_label_printer';
+
+export interface StoredTejPrinter {
+  address: string;
+  name: string;
+}
+
+export async function getStoredTejPrinter(): Promise<StoredTejPrinter | null> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(TEJ_PRINTER_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(TEJ_PRINTER_KEY);
+    }
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed.address === 'string' && parsed.address ? parsed : null;
+  } catch (error) {
+    console.error('Error reading saved TEJ label printer:', error);
+    return null;
+  }
+}
+
+export async function setStoredTejPrinter(printer: StoredTejPrinter | null): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (printer) window.localStorage.setItem(TEJ_PRINTER_KEY, JSON.stringify(printer));
+        else window.localStorage.removeItem(TEJ_PRINTER_KEY);
+      }
+      return;
+    }
+    if (printer) {
+      await SecureStore.setItemAsync(TEJ_PRINTER_KEY, JSON.stringify(printer));
+    } else {
+      await SecureStore.deleteItemAsync(TEJ_PRINTER_KEY);
+    }
+  } catch (error) {
+    console.error('Error saving TEJ label printer:', error);
   }
 }
 

@@ -28,7 +28,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     name: 'SEZNIK TEJ',
     tagline: 'Smart Label & Thermal Printer',
     typeBadge: 'Receipt + Label',
-    driver: 'TEJ SDK (High-Speed Dual-Mode)',
+    driver: 'TEJ Smart Driver',
     driverType: 'tej',
     image: require('@/assets/images/printers/printer_tej.png'),
     capabilities: {
@@ -36,12 +36,12 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
       labels: true,
       barcodes: true,
       qrCodes: true,
-      highResBitmap: true,
+      highResBitmap: false,
     },
     badgeColor: '#ECFDF5',
     badgeTextColor: '#059669',
     description: 'Dedicated high-speed smart label & receipt printer with proprietary TEJ driver engine.',
-    warningNotice: 'Uses dedicated TEJ Native Bridge for high-resolution 203 DPI label and receipt printing.',
+    warningNotice: 'High-resolution 203 DPI label and receipt printing with smart calibration.',
     connectionHelp: 'Power on the TEJ printer and tap Scan under TEJ section.',
   },
   dev: {
@@ -49,7 +49,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     name: 'SEZNIK DEV',
     tagline: '2-in-1 POS & Label Printer',
     typeBadge: 'Receipt + Label',
-    driver: 'ESC/POS & TSPL Bridge',
+    driver: 'Standard Bluetooth',
     driverType: 'escpos',
     image: require('@/assets/images/printers/printer_dev.jpg'),
     capabilities: {
@@ -62,7 +62,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     badgeColor: '#EFF6FF',
     badgeTextColor: '#2563EB',
     description: 'Versatile 2-in-1 printer supporting both continuous receipt rolls and 50x30mm die-cut labels.',
-    warningNotice: 'Supports standard continuous receipts and 50x30mm sticker labels via ESC/POS & TSPL commands.',
+    warningNotice: 'Supports continuous receipts and 50×30mm die-cut sticker labels.',
     connectionHelp: 'Pair via Bluetooth in phone settings, then select SEZNIK DEV.',
   },
   veer: {
@@ -70,7 +70,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     name: 'SEZNIK VEER',
     tagline: 'Classic Thermal Receipt Printer',
     typeBadge: 'Receipt Only',
-    driver: 'Universal ESC/POS Bridge',
+    driver: 'Standard Bluetooth',
     driverType: 'escpos',
     image: require('@/assets/images/printers/printer_veer.jpg'),
     capabilities: {
@@ -83,7 +83,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     badgeColor: '#FEF3C7',
     badgeTextColor: '#D97706',
     description: 'High-speed compact 58mm/80mm thermal receipt printer for sales bills, KOT, and daybook.',
-    warningNotice: '⚠️ Receipt printing only — does not support die-cut sticker labels or gap sensors.',
+    warningNotice: '⚠️ Receipt printing only — does not support sticker labels.',
     connectionHelp: 'Pair via Bluetooth in phone settings, then select SEZNIK VEER.',
   },
   josh: {
@@ -91,7 +91,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     name: 'SEZNIK JOSH',
     tagline: 'Dual-Mode Smart Label & Receipt Printer',
     typeBadge: 'Receipt + Label',
-    driver: 'LPAPI SDK (Native Bitmap Engine)',
+    driver: 'JOSH Smart Driver',
     driverType: 'josh',
     image: require('@/assets/images/printers/printer_josh.png'),
     capabilities: {
@@ -104,7 +104,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     badgeColor: '#F5F3FF',
     badgeTextColor: '#7C3AED',
     description: 'Premium dual-mode printer with hardware optical gap sensor and native LPAPI vector engine.',
-    warningNotice: 'Powered by DothanTech LPAPI SDK for hardware-calibrated gap detection and instant bitmap prints.',
+    warningNotice: 'Premium printer with hardware gap detection and instant label prints.',
     connectionHelp: 'Power on JOSH printer and tap Scan on the JOSH connector card.',
   },
 };

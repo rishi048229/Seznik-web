@@ -42,14 +42,13 @@ export function YxPrinterCard() {
   const [isTestReceiptPrinting, setIsTestReceiptPrinting] = useState(false);
 
   const refreshConnection = useCallback(async () => {
-    if (!YxLabelPrinter) return;
     try {
-      const isOn = await YxLabelPrinter.isConnected();
+      const isOn = await ThermalPrinterService.tejIsConnected();
       if (!isOn) {
         setConnected(null);
         return;
       }
-      const info = await YxLabelPrinter.getPrinterInfo();
+      const info = await ThermalPrinterService.tejGetPrinterInfo();
       setConnected(info ? { address: info.address, name: info.name } : null);
     } catch {
       setConnected(null);
@@ -57,27 +56,38 @@ export function YxPrinterCard() {
   }, []);
 
   useEffect(() => {
-    if (!supported || !YxLabelPrinter) return;
-
     Promise.resolve().then(refreshConnection);
 
-    YxLabelPrinter.getPairedPrinters()
-      .then((paired) => setDevices((prev) => mergeDevices(prev, paired)))
-      .catch(() => {});
+    const storeDevices = [
+      ...(usePrinterStore.getState().pairedPrinters || []),
+      ...(usePrinterStore.getState().scannedDevices || []),
+    ];
+    setDevices((prev) =>
+      mergeDevices(
+        prev,
+        storeDevices.map((d) => ({ address: d.id, name: d.name }))
+      )
+    );
 
-    const foundSub = YxLabelPrinter.addListener('onPrinterFound', (device) => {
-      setDevices((prev) => mergeDevices(prev, [device]));
-    });
-    const stateSub = YxLabelPrinter.addListener('onPrinterStateChange', () => {
-      refreshConnection();
-    });
+    if (YxLabelPrinter) {
+      YxLabelPrinter.getPairedPrinters()
+        .then((paired) => setDevices((prev) => mergeDevices(prev, paired)))
+        .catch(() => {});
 
-    return () => {
-      foundSub.remove();
-      stateSub.remove();
-      YxLabelPrinter?.stopDiscovery().catch(() => {});
-    };
-  }, [supported, refreshConnection]);
+      const foundSub = YxLabelPrinter.addListener('onPrinterFound', (device) => {
+        setDevices((prev) => mergeDevices(prev, [device]));
+      });
+      const stateSub = YxLabelPrinter.addListener('onPrinterStateChange', () => {
+        refreshConnection();
+      });
+
+      return () => {
+        foundSub.remove();
+        stateSub.remove();
+        YxLabelPrinter?.stopDiscovery().catch(() => {});
+      };
+    }
+  }, [refreshConnection]);
 
   const ensureBluetoothPermissions = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
@@ -104,6 +114,16 @@ export function YxPrinterCard() {
     }
     setIsScanning(true);
     try {
+      // Immediately refresh paired devices from SDK & system
+      try {
+        const paired = await YxLabelPrinter.getPairedPrinters();
+        if (paired && paired.length > 0) {
+          setDevices((prev) => mergeDevices(prev, paired));
+        }
+      } catch (e) {
+        console.log('[TEJ Card] getPairedPrinters error:', e);
+      }
+
       await YxLabelPrinter.startDiscovery();
       setTimeout(() => {
         YxLabelPrinter?.stopDiscovery().catch(() => {});
@@ -116,7 +136,6 @@ export function YxPrinterCard() {
   };
 
   const handleConnect = async (device: YxPrinterDevice) => {
-    if (!YxLabelPrinter) return;
     if (!(await ensureBluetoothPermissions())) {
       Alert.alert('Permission Needed', 'Allow Bluetooth access to connect the TEJ printer.');
       return;
@@ -130,7 +149,11 @@ export function YxPrinterCard() {
       }
       usePrinterStore.getState().setConnectedPrinterModel('tej');
 
-      const ok = await ThermalPrinterService.yxConnect(device.address, device.name);
+      const ok = await ThermalPrinterService.tejConnect(device.address, device.name);
+      if (ok) {
+        const activePaperMode = usePrinterStore.getState().labelPaperMode || 'gap';
+        ThermalPrinterService.yxCalibrate(activePaperMode === 'continuous' ? 0 : 2).catch(() => {});
+      }
       await refreshConnection();
       if (ok) {
         Alert.alert('SEZNIK TEJ Linked', `${device.name} is ready for bills and labels.`);
@@ -149,54 +172,70 @@ export function YxPrinterCard() {
 
   const handleDisconnect = async () => {
     try {
-      await ThermalPrinterService.yxDisconnect();
+      await ThermalPrinterService.tejDisconnect();
+      usePrinterStore.getState().setConnectedPrinterModel(null as any);
       await refreshConnection();
+      Alert.alert('Disconnected', 'SEZNIK TEJ has been disconnected.');
     } catch {
       // Ignored
     }
   };
 
-  const handleTestPrint = async () => {
-    setIsTestPrinting(true);
-    try {
-      const sample = {
-        name: 'Sample Item 500g',
-        sellingPrice: 250.0,
-        barcode: '8901234567890',
-        id: 'sample-1',
-      };
-      const { labelWidthMm, labelHeightMm, labelGapMm } = usePrinterStore.getState();
-      const ok = await ThermalPrinterService.printCustomLabel(
-        sample,
-        'ean13',
-        undefined,
-        labelWidthMm,
-        labelHeightMm,
-        labelGapMm
-      );
-      if (ok) Alert.alert('Test Label Sent!', 'Printed sample label on SEZNIK TEJ.');
-      else Alert.alert('Print Error', 'Could not send the test label.');
-    } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Failed to print the test label.');
-    } finally {
-      setIsTestPrinting(false);
-    }
-  };
-
-  const handleTestReceiptPrint = async () => {
-    setIsTestReceiptPrinting(true);
-    try {
-      const ok = await ThermalPrinterService.printTestReceipt();
-      if (ok) {
-        Alert.alert('Test Receipt Sent!', 'Printed sample receipt via SEZNIK TEJ.');
-      } else {
-        Alert.alert('Print Error', 'Could not send test receipt.');
-      }
-    } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Failed to print test receipt.');
-    } finally {
-      setIsTestReceiptPrinting(false);
-    }
+  const handleTestPrint = () => {
+    Alert.alert(
+      'Test Print',
+      'What would you like to print for testing?',
+      [
+        {
+          text: 'Receipt',
+          onPress: async () => {
+            setIsTestPrinting(true);
+            try {
+              const ok = await ThermalPrinterService.printTestReceipt();
+              if (ok) Alert.alert('Test Receipt Sent!', 'Printed sample receipt via SEZNIK TEJ.');
+              else Alert.alert('Print Error', 'Could not send test receipt.');
+            } catch (e: any) {
+              Alert.alert('Print Error', e?.message || 'Failed to print test receipt.');
+            } finally {
+              setIsTestPrinting(false);
+            }
+          },
+        },
+        {
+          text: 'Label',
+          onPress: async () => {
+            setIsTestPrinting(true);
+            try {
+              const sample = {
+                name: 'Sample Item 500g',
+                sellingPrice: 250.0,
+                barcode: '8901234567890',
+                id: 'sample-1',
+              };
+              const { labelWidthMm, labelHeightMm, labelGapMm } = usePrinterStore.getState();
+              const ok = await ThermalPrinterService.printCustomLabel(
+                sample,
+                'ean13',
+                undefined,
+                labelWidthMm,
+                labelHeightMm,
+                labelGapMm
+              );
+              if (ok) Alert.alert('Test Label Sent!', 'Printed sample label on SEZNIK TEJ.');
+              else Alert.alert('Print Error', 'Could not send the test label.');
+            } catch (e: any) {
+              Alert.alert('Print Error', e?.message || 'Failed to print the test label.');
+            } finally {
+              setIsTestPrinting(false);
+            }
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   const [isCalibrating, setIsCalibrating] = useState(false);
@@ -235,19 +274,19 @@ export function YxPrinterCard() {
               SEZNIK TEJ
             </Text>
             <View style={styles.dualBadge}>
-              <Zap size={11} color="#059669" />
+              <Sparkles size={11} color="#059669" />
               <Text style={styles.dualBadgeText}>Receipt + Label</Text>
             </View>
           </View>
           <Text style={[styles.sub, { color: theme.textSecondary }]} numberOfLines={1}>
-            {connected ? `${connected.name} — ready (TEJ Native SDK)` : 'Not connected (TEJ Native SDK)'}
+            {connected ? `${connected.name} — ready` : 'Not connected'}
           </Text>
         </View>
         {connected ? <CheckCircle2 size={18} color="#10B981" /> : null}
       </View>
 
       <Text style={[styles.blurb, { color: theme.textSecondary }]}>
-        High-speed dual-mode smart printer with proprietary TEJ driver engine. Supports 50x30mm die-cut sticker barcode labels and fast continuous thermal receipts.
+        SEZNIK TEJ high-speed smart printer. Supports receipts and die-cut sticker labels.
       </Text>
 
       <View style={styles.actionRow}>
@@ -271,20 +310,6 @@ export function YxPrinterCard() {
         {connected ? (
           <>
             <TouchableOpacity
-              onPress={handleTestReceiptPrint}
-              disabled={isTestReceiptPrinting}
-              style={[styles.secondaryBtn, { borderColor: '#059669' }]}
-            >
-              {isTestReceiptPrinting ? (
-                <ActivityIndicator size="small" color="#059669" />
-              ) : (
-                <Text style={[styles.secondaryBtnText, { color: '#059669' }]} numberOfLines={1}>
-                  Bill Test
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
               onPress={handleTestPrint}
               disabled={isTestPrinting}
               style={[styles.secondaryBtn, { borderColor: '#10B981' }]}
@@ -293,7 +318,7 @@ export function YxPrinterCard() {
                 <ActivityIndicator size="small" color="#10B981" />
               ) : (
                 <Text style={[styles.secondaryBtnText, { color: '#10B981' }]} numberOfLines={1}>
-                  Label Test
+                  Test Print
                 </Text>
               )}
             </TouchableOpacity>
@@ -318,7 +343,7 @@ export function YxPrinterCard() {
             >
               <PowerOff size={13} color="#EF4444" style={{ marginRight: 4 }} />
               <Text style={[styles.secondaryBtnText, { color: '#EF4444' }]} numberOfLines={1}>
-                Unlink
+                Disconnect
               </Text>
             </TouchableOpacity>
           </>

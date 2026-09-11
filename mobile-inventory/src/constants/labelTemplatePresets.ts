@@ -90,10 +90,14 @@ export function buildLabelPreset(
     align: 'center',
   });
 
+  // Bottom safety padding to protect against physical gap-sensor cutoff across all label sizes
+  const bottomSafePad = Math.max(2.8, Math.min(6.0, heightMm * 0.08));
+
   if (preset === 'minimal_tag') {
     // Product top-left, barcode through the middle, price bottom-right.
-    const codeTop = pad + bodyH + 1;
-    const codeH = Math.max(5, heightMm - codeTop - bodyH - pad - 1);
+    const codeTop = pad + bodyH + 0.6;
+    const codeH = Math.max(4.5, Math.min(6.5, heightMm * 0.20));
+    const priceY = codeTop + codeH + 3.2;
     return {
       ...base,
       elements: [
@@ -108,7 +112,7 @@ export function buildLabelPreset(
         },
         {
           id: nextId(), type: 'text', binding: 'price',
-          xMm: pad, yMm: heightMm - bodyH - pad, widthMm: innerW, heightMm: bodyH,
+          xMm: pad, yMm: priceY, widthMm: innerW, heightMm: bodyH,
           fontSizePt: bodyH, bold: true, align: 'right',
         },
       ],
@@ -116,11 +120,15 @@ export function buildLabelPreset(
   }
 
   if (preset === 'retail_dual_code') {
-    // Barcode and QR share a row; the MRP line and price sit left-aligned below.
-    const nameY = pad + titleH + 0.8;
-    const codeTop = nameY + bodyH + 0.8;
-    const codeH = Math.max(6, heightMm - codeTop - smallH - bodyH - pad - 1.6);
-    const qrSide = Math.min(codeH, innerW * 0.34);
+    // Barcode and QR share a row; MRP and price sit left-aligned below the barcode.
+    // showText: false ensures barcode human-readable digits do not render and collide with MRP/price.
+    const nameY = pad + titleH + 0.4;
+    const codeTop = nameY + bodyH + 0.4;
+    const qrSide = Math.min(Math.max(8, heightMm * 0.36), innerW * 0.34, 12.0);
+    const barcodeW = Math.max(15, innerW - qrSide - 2.5);
+    const codeH = Math.max(4.5, Math.min(5.5, qrSide * 0.50));
+    const mrpY = codeTop + codeH + 0.6;
+    const priceY = mrpY + smallH + 0.4;
     return {
       ...base,
       elements: [
@@ -132,7 +140,8 @@ export function buildLabelPreset(
         },
         {
           id: nextId(), type: 'barcode', format: 'code128', binding: 'barcode',
-          xMm: pad, yMm: codeTop, widthMm: innerW - qrSide - 1.5, heightMm: codeH,
+          xMm: pad, yMm: codeTop, widthMm: barcodeW, heightMm: codeH,
+          showText: false,
         },
         {
           id: nextId(), type: 'qrcode', binding: 'barcode',
@@ -141,12 +150,12 @@ export function buildLabelPreset(
         {
           id: nextId(), type: 'text', binding: 'custom',
           customText: 'MRP (Incl. of all taxes)',
-          xMm: pad, yMm: heightMm - bodyH - smallH - pad, widthMm: innerW, heightMm: smallH,
+          xMm: pad, yMm: mrpY, widthMm: barcodeW, heightMm: smallH,
           fontSizePt: smallH, align: 'left',
         },
         {
           id: nextId(), type: 'text', binding: 'price',
-          xMm: pad, yMm: heightMm - bodyH - pad, widthMm: innerW, heightMm: bodyH,
+          xMm: pad, yMm: priceY, widthMm: barcodeW, heightMm: bodyH,
           fontSizePt: bodyH, bold: true, align: 'left',
         },
       ],
@@ -154,9 +163,10 @@ export function buildLabelPreset(
   }
 
   if (preset === 'centered_standard') {
-    const nameY = pad + titleH + 0.8;
-    const codeTop = nameY + bodyH + 1;
-    const codeH = Math.max(6, heightMm - codeTop - bodyH - pad - 1);
+    const nameY = pad + titleH + 0.4;
+    const codeTop = nameY + bodyH + 0.4;
+    const codeH = Math.max(4.5, Math.min(6.0, heightMm * 0.19));
+    const priceY = codeTop + codeH + 3.2;
     return {
       ...base,
       elements: [
@@ -172,7 +182,7 @@ export function buildLabelPreset(
         },
         {
           id: nextId(), type: 'text', binding: 'price',
-          xMm: pad, yMm: heightMm - bodyH - pad, widthMm: innerW, heightMm: bodyH,
+          xMm: pad, yMm: priceY, widthMm: innerW, heightMm: bodyH,
           fontSizePt: bodyH, bold: true, align: 'center',
         },
       ],
@@ -180,9 +190,11 @@ export function buildLabelPreset(
   }
 
   // classic_mrp — the shared default: everything centred, with the MRP caption.
-  const nameY = pad + titleH + 0.8;
-  const codeTop = nameY + bodyH + 1;
-  const codeH = Math.max(6, heightMm - codeTop - smallH - bodyH - pad - 1.6);
+  const nameY = pad + titleH + 0.4;
+  const codeTop = nameY + bodyH + 0.4;
+  const codeH = Math.max(4.2, Math.min(5.2, heightMm * 0.17));
+  const mrpY = codeTop + codeH + 3.0;
+  const priceY = mrpY + smallH + 0.4;
   return {
     ...base,
     elements: [
@@ -199,12 +211,12 @@ export function buildLabelPreset(
       {
         id: nextId(), type: 'text', binding: 'custom',
         customText: 'MRP (Incl. of all taxes)',
-        xMm: pad, yMm: heightMm - bodyH - smallH - pad, widthMm: innerW, heightMm: smallH,
+        xMm: pad, yMm: mrpY, widthMm: innerW, heightMm: smallH,
         fontSizePt: smallH, align: 'center',
       },
       {
         id: nextId(), type: 'text', binding: 'price',
-        xMm: pad, yMm: heightMm - bodyH - pad, widthMm: innerW, heightMm: bodyH,
+        xMm: pad, yMm: priceY, widthMm: innerW, heightMm: bodyH,
         fontSizePt: bodyH, bold: true, align: 'center',
       },
     ],

@@ -84,6 +84,14 @@ export interface JoshLabelSpec {
   /** Printer darkness, typically 1-15 depending on model. */
   darkness?: number;
   speed?: number;
+  /**
+   * Residual vertical alignment trim in mm applied to the rendered image (positive =
+   * content moves down the label). Only meaningful for the blind ESC/POS raster path,
+   * which has no gap sensor to re-synchronise against; gap-sensing printers leave it 0.
+   */
+  offsetMm?: number;
+  /** Whether vertical dimensions have already been adapted for hardware printhead offset */
+  offsetAdjusted?: boolean;
   elements: JoshLabelElement[];
 }
 

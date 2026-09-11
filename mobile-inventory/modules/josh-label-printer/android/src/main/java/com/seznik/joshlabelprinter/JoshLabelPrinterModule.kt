@@ -191,6 +191,17 @@ class JoshLabelPrinterModule : Module() {
 
   private fun finiteInt(v: Any?, fallback: Int): Int = finite(v, fallback.toDouble()).toInt()
 
+  /**
+   * Real head density in dots/mm, straight from LPAPI. Falls back to 203 DPI (8 dots/mm)
+   * when the printer has not reported yet — never assume, the two vendors we support do
+   * not necessarily share a head, and the label geometry is computed from this.
+   */
+  private fun deviceDotsPerMm(): Double {
+    val dpi = api?.printerInfo?.deviceDPI ?: return 8.0
+    if (dpi <= 0) return 8.0
+    return dpi.toDouble() / 25.4
+  }
+
   private fun printableWidthMm(): Double {
     val info = api?.printerInfo ?: return 48.0
     val px = info.deviceWidth
@@ -424,7 +435,7 @@ class JoshLabelPrinterModule : Module() {
         instance.setPrintPageGapLength(gapMm)
 
         // Build composite label bitmap once
-        val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
+        val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm, deviceDotsPerMm())
 
         val pending = PendingPrint()
         pendingPrint = pending
@@ -515,7 +526,7 @@ class JoshLabelPrinterModule : Module() {
         val bitmapsToRecycle = mutableListOf<Bitmap>()
         try {
           for ((index, labelSpec) in rawLabels.withIndex()) {
-            val bmp = buildLabelBitmap(labelSpec, widthMm, heightMm, headMm)
+            val bmp = buildLabelBitmap(labelSpec, widthMm, heightMm, headMm, deviceDotsPerMm())
             bitmapsToRecycle.add(bmp)
             if (index > 0) instance.startPage()
             instance.drawBitmap(bmp, 0.0, 0.0, printWmm, printHmm)
@@ -581,9 +592,14 @@ class JoshLabelPrinterModule : Module() {
     spec: Map<String, Any?>,
     widthMm: Double,
     heightMm: Double,
-    headMm: Double
+    headMm: Double,
+    dotsPerMmOverride: Double = 0.0
   ): Bitmap {
-    val dotsPerMm = 8.0 // 203 DPI
+    // 8 dots/mm = 203 DPI, the near-universal thermal head density. LPAPI can report the
+    // real head via printerInfo.deviceDPI, so the native print path passes that in; the
+    // ESC/POS raster path shares this same renderer for a different printer entirely and
+    // keeps the 203 DPI default, which is why this is a parameter and not a constant.
+    val dotsPerMm = if (dotsPerMmOverride > 0.0) dotsPerMmOverride else 8.0
     val printWmm = minOf(widthMm, headMm)
     val printHmm = heightMm
     val fit = if (widthMm > 0) printWmm / widthMm else 1.0
@@ -594,6 +610,13 @@ class JoshLabelPrinterModule : Module() {
     val bmp = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     canvas.drawColor(Color.WHITE)
+
+    // Residual head/sensor phase trim. Only ever non-zero for the blind ESC/POS raster
+    // path, which has no gap sensor to re-synchronise against; a printer whose firmware
+    // positions at the sensed gap never needs it. Applied to the whole canvas so every
+    // element moves together and the label's own dimensions stay exact.
+    val offsetPx = (finite(spec["offsetMm"], 0.0) * dotsPerMm).toFloat()
+    if (offsetPx != 0f) canvas.translate(0f, offsetPx)
 
     @Suppress("UNCHECKED_CAST")
     val elements = (spec["elements"] as? List<Map<String, Any?>>) ?: emptyList()

@@ -169,8 +169,10 @@ export function JoshPrinterCard() {
     if (!JoshLabelPrinter) return;
     try {
       await ThermalPrinterService.joshDisconnect();
+      usePrinterStore.getState().setConnectedPrinterModel(null as any);
       await refreshConnection();
       try { Vibration.vibrate(60); } catch (e) {}
+      Alert.alert('Disconnected', 'SEZNIK JOSH has been disconnected.');
     } catch (e: any) {
       // Ignored
     }
@@ -178,52 +180,61 @@ export function JoshPrinterCard() {
 
   const [isTestPrinting, setIsTestPrinting] = useState(false);
 
-  const handleTestPrint = async () => {
-    setIsTestPrinting(true);
-    try {
-      const sample = {
-        name: 'Sample Item 500g',
-        sellingPrice: 250.0,
-        barcode: '8901234567890',
-        id: 'sample-1',
-      };
-      const { labelWidthMm, labelHeightMm, labelGapMm } = usePrinterStore.getState();
-      const ok = await ThermalPrinterService.printCustomLabel(
-        sample,
-        'ean13',
-        undefined,
-        labelWidthMm,
-        labelHeightMm,
-        labelGapMm
-      );
-      if (ok) {
-        Alert.alert('Test Label Sent!', 'Printed test label via SEZNIK JOSH.');
-      } else {
-        Alert.alert('Print Error', 'Could not send test label.');
-      }
-    } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Failed to print test label.');
-    } finally {
-      setIsTestPrinting(false);
-    }
-  };
-
-  const [isTestReceiptPrinting, setIsTestReceiptPrinting] = useState(false);
-
-  const handleTestReceiptPrint = async () => {
-    setIsTestReceiptPrinting(true);
-    try {
-      const ok = await ThermalPrinterService.printTestReceipt();
-      if (ok) {
-        Alert.alert('Test Receipt Sent!', 'Printed sample receipt via SEZNIK JOSH.');
-      } else {
-        Alert.alert('Print Error', 'Could not send test receipt.');
-      }
-    } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Failed to print test receipt.');
-    } finally {
-      setIsTestReceiptPrinting(false);
-    }
+  const handleTestPrint = () => {
+    Alert.alert(
+      'Test Print',
+      'What would you like to print for testing?',
+      [
+        {
+          text: 'Receipt',
+          onPress: async () => {
+            setIsTestPrinting(true);
+            try {
+              const ok = await ThermalPrinterService.printTestReceipt();
+              if (ok) Alert.alert('Test Receipt Sent!', 'Printed sample receipt via SEZNIK JOSH.');
+              else Alert.alert('Print Error', 'Could not send test receipt.');
+            } catch (e: any) {
+              Alert.alert('Print Error', e?.message || 'Failed to print test receipt.');
+            } finally {
+              setIsTestPrinting(false);
+            }
+          },
+        },
+        {
+          text: 'Label',
+          onPress: async () => {
+            setIsTestPrinting(true);
+            try {
+              const sample = {
+                name: 'Sample Item 500g',
+                sellingPrice: 250.0,
+                barcode: '8901234567890',
+                id: 'sample-1',
+              };
+              const { labelWidthMm, labelHeightMm, labelGapMm } = usePrinterStore.getState();
+              const ok = await ThermalPrinterService.printCustomLabel(
+                sample,
+                'ean13',
+                undefined,
+                labelWidthMm,
+                labelHeightMm,
+                labelGapMm
+              );
+              if (ok) Alert.alert('Test Label Sent!', 'Printed test label via SEZNIK JOSH.');
+              else Alert.alert('Print Error', 'Could not send test label.');
+            } catch (e: any) {
+              Alert.alert('Print Error', e?.message || 'Failed to print test label.');
+            } finally {
+              setIsTestPrinting(false);
+            }
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   if (!supported) return null;
@@ -249,14 +260,14 @@ export function JoshPrinterCard() {
             </View>
           </View>
           <Text style={[styles.sub, { color: theme.textSecondary }]} numberOfLines={1}>
-            {connected ? `${connected.name} — ready (LPAPI SDK)` : 'Not connected (LPAPI Native SDK)'}
+            {connected ? `${connected.name} — ready` : 'Not connected'}
           </Text>
         </View>
         {connected ? <CheckCircle2 size={18} color="#10B981" /> : null}
       </View>
 
       <Text style={[styles.blurb, { color: theme.textSecondary }]}>
-        SEZNIK JOSH 2-in-1 smart printer with LPAPI native bitmap engine. Supports crystal-clear sticker labels and thermal receipts.
+        SEZNIK JOSH 2-in-1 smart printer. Supports receipts and die-cut sticker labels.
       </Text>
 
       <View style={styles.actionRow}>
@@ -280,20 +291,6 @@ export function JoshPrinterCard() {
         {connected ? (
           <>
             <TouchableOpacity
-              onPress={handleTestReceiptPrint}
-              disabled={isTestReceiptPrinting}
-              style={[styles.secondaryBtn, { borderColor: '#6366F1' }]}
-            >
-              {isTestReceiptPrinting ? (
-                <ActivityIndicator size="small" color="#6366F1" />
-              ) : (
-                <Text style={[styles.secondaryBtnText, { color: '#6366F1' }]} numberOfLines={1}>
-                  Bill Test
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
               onPress={handleTestPrint}
               disabled={isTestPrinting}
               style={[styles.secondaryBtn, { borderColor: '#10B981' }]}
@@ -302,7 +299,7 @@ export function JoshPrinterCard() {
                 <ActivityIndicator size="small" color="#10B981" />
               ) : (
                 <Text style={[styles.secondaryBtnText, { color: '#10B981' }]} numberOfLines={1}>
-                  Label Test
+                  Test Print
                 </Text>
               )}
             </TouchableOpacity>
@@ -313,7 +310,7 @@ export function JoshPrinterCard() {
             >
               <PowerOff size={13} color="#EF4444" style={{ marginRight: 4 }} />
               <Text style={[styles.secondaryBtnText, { color: '#EF4444' }]} numberOfLines={1}>
-                Unlink
+                Disconnect
               </Text>
             </TouchableOpacity>
           </>

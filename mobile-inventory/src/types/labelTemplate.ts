@@ -40,6 +40,7 @@ export interface LabelBarcodeElement extends BaseLabelElement {
   format: 'code128' | 'ean13';
   binding: LabelCodeBinding;
   customValue?: string;
+  showText?: boolean;
 }
 
 export interface LabelQrElement extends BaseLabelElement {
