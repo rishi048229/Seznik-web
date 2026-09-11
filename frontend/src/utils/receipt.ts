@@ -850,6 +850,7 @@ export const generateReceiptEscPos = async ({
   businessPhone,
   businessGSTIN,
   customerName,
+  customerPhone,
   templateOverride,
   businessLogoURL,
   invoiceConfig,

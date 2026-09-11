@@ -230,7 +230,21 @@ export function disconnectPrinter(): void {
 }
 
 export async function printEscPos(bytes: Uint8Array): Promise<void> {
-  if (!characteristic) throw new Error('Printer not connected')
+  if (!characteristic) {
+    if (device && device.gatt && !device.gatt.connected) {
+      try {
+        await connectToDevice(device)
+      } catch {}
+    }
+    if (!characteristic) {
+      try {
+        await tryReconnectKnownPrinter()
+      } catch {}
+    }
+    if (!characteristic) {
+      throw new Error('Bluetooth printer is not connected. Please connect the printer first.')
+    }
+  }
 
   setState({ status: 'printing' })
   try {

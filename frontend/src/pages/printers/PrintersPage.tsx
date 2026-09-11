@@ -639,13 +639,18 @@ export const PrintersPage = () => {
             businessName: settings?.businessName,
             businessAddress: settings?.businessAddress,
             customerName: 'Walk-in Customer',
+            customerPhone: testSale.customerPhone,
           })
           await printEscPos(bytes)
           toast.success('Test receipt sent to Bluetooth printer!')
           return
-        } catch (err) {
+        } catch (err: any) {
           console.error('BLE Print error:', err)
-          toast.error('Connect the Bluetooth printer first. Thermal test print does not open the system print dialog.')
+          if (bleState.status !== 'connected') {
+            toast.error('Connect the Bluetooth printer first. Thermal test print does not open the system print dialog.')
+          } else {
+            toast.error(err?.message || 'Failed to print test receipt to Bluetooth printer.')
+          }
           return
         }
       }
@@ -688,9 +693,13 @@ export const PrintersPage = () => {
           await printEscPos(bytes)
           toast.success(mode === 'tspl' ? 'Label sent to sticker printer.' : 'Label sent to receipt printer.')
           return
-        } catch (err) {
+        } catch (err: any) {
           console.error('BLE Print error:', err)
-          toast.error('Connect the Bluetooth printer first. Label test print does not open the system print dialog.')
+          if (bleState.status !== 'connected') {
+            toast.error('Connect the Bluetooth printer first. Label test print does not open the system print dialog.')
+          } else {
+            toast.error(err?.message || 'Failed to print label to Bluetooth printer.')
+          }
           return
         }
       }

@@ -99,6 +99,7 @@ export function saleToReceiptContext(
     upiId?: string
     footerMessage?: string
     customerName?: string
+    customerPhone?: string
     tableNo?: string
     waiterName?: string
     tokenNo?: string
