@@ -248,19 +248,23 @@ export async function printEscPos(bytes: Uint8Array): Promise<void> {
 
   setState({ status: 'printing' })
   try {
-    // Fast stream with writeWithoutResponse and short 3ms pacing (refer commit 473d730 / 273baf4)
-    // Eliminates 30-50ms round-trip GATT ACK latency stalls per 20 bytes and streams bitmap logos smoothly
-    const useFastStream = supportsWriteWithoutResponse
-    const isDense = bytes.length > 1500
-    const paceDelay = isDense ? 7 : 4
+    const isLargePayload = bytes.length > 3000
+    // For large payloads (e.g. rasterized bitmap receipts), prefer writeWithResponse or safe pacing
+    // to strictly prevent the printer's 1-2KB serial buffer from overflowing and printing gibberish.
+    const useWriteWithResponse = supportsWriteWithResponse && isLargePayload
+
     for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
       const chunk = bytes.slice(offset, offset + CHUNK_SIZE)
-      if (useFastStream) {
+      if (useWriteWithResponse) {
+        await characteristic.writeValueWithResponse(chunk)
+      } else if (supportsWriteWithoutResponse) {
         await characteristic.writeValueWithoutResponse(chunk)
+        // Adaptive pacing: 12ms for large bitmaps to protect buffer, 3ms for fast short text
+        const paceDelay = isLargePayload ? 12 : 3
         await new Promise(resolve => setTimeout(resolve, paceDelay))
-        if (isDense && offset > 0 && offset % 400 === 0) {
-          // Pause every 400 bytes to let the printer UART buffer flush so no packets are dropped
-          await new Promise(resolve => setTimeout(resolve, 20))
+        if (isLargePayload && offset > 0 && offset % 1024 === 0) {
+          // Micro-pause every 1KB to let thermal printhead motor process
+          await new Promise(resolve => setTimeout(resolve, 25))
         }
       } else {
         await characteristic.writeValueWithResponse(chunk)

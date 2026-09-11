@@ -944,7 +944,7 @@ export const generateReceiptEscPos = async ({
     const raster = await rasterizeImageForEscPos(rasterSrc, maxWidthDots, maxHeightDots)
     if (raster) {
       b.align('center')
-      b.rasterReceiptBands(raster.packed, raster.widthBytes, raster.heightDots, 24)
+      b.image(raster.packed, raster.widthBytes, raster.heightDots)
       b.feed(1)
       b.align('left')
     }
@@ -980,7 +980,7 @@ export const generateReceiptEscPos = async ({
           note: sale.invoiceNumber || 'Bill Payment',
         })
       : (printConfig?.paymentQrURL || effectiveConfig?.paymentQrURL)!
-    b.qr(qrPayload, receiptQrEscPosModuleSize(effectivePaper, effectiveConfig?.receiptQrSize), effectivePaper)
+    b.qr(qrPayload, receiptQrEscPosModuleSize(effectivePaper, effectiveConfig?.receiptQrSize))
   }
 
   if (effectiveConfig?.enableBillQrCode) {
@@ -992,7 +992,7 @@ export const generateReceiptEscPos = async ({
     b.feed(1)
     b.align('center')
     b.line('Scan QR to View & Download Bill PDF')
-    b.qr(billPdfUrl, receiptQrEscPosModuleSize(effectivePaper), effectivePaper)
+    b.qr(billPdfUrl, receiptQrEscPosModuleSize(effectivePaper))
   }
 
   b.feed(2)

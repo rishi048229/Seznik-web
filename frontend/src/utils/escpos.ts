@@ -1,56 +1,9 @@
-import QRCode from 'qrcode'
+// Minimal ESC/POS command builder for 58mm (32 character wide) thermal printers.
 
 const ESC = 0x1b
 const GS = 0x1d
 
 export type EscPosAlign = 'left' | 'center' | 'right'
-
-export interface EscPosRasterImage {
-  packed: Uint8Array
-  widthBytes: number
-  heightDots: number
-}
-
-/**
- * Synchronously generates a 1-bit monochrome raster bitmap from a string payload
- * using standard QR Code (ISO/IEC 18004).
- * Emitted via universal "GS v 0" raster bit-image, supported by 100% of ESC/POS
- * thermal printers (unlike Epson "GS ( k" which clone/58mm firmwares reject and
- * dump raw URL text onto the receipt).
- */
-export function rasterizeQrForEscPos(text: string, targetDots = 120): EscPosRasterImage | null {
-  if (!text || !text.trim()) return null
-  try {
-    const cleanText = text.trim()
-    const qr = QRCode.create(cleanText, { errorCorrectionLevel: 'M' })
-    const modCount = qr.modules.size
-    const margin = 2
-    const totalMods = modCount + margin * 2
-    const scale = Math.max(1, Math.floor(targetDots / totalMods))
-    const widthDots = totalMods * scale
-    const widthBytes = Math.ceil(widthDots / 8)
-    const heightDots = widthDots
-    const packed = new Uint8Array(widthBytes * heightDots)
-
-    for (let y = 0; y < heightDots; y++) {
-      const modY = Math.floor(y / scale) - margin
-      for (let x = 0; x < widthDots; x++) {
-        const modX = Math.floor(x / scale) - margin
-        if (modX >= 0 && modX < modCount && modY >= 0 && modY < modCount) {
-          if (qr.modules.get(modX, modY)) {
-            const byteIdx = y * widthBytes + (x >> 3)
-            packed[byteIdx] |= (0x80 >> (x & 7))
-          }
-        }
-      }
-    }
-
-    return { packed, widthBytes, heightDots }
-  } catch (err) {
-    console.warn('[escpos] QR rasterization failed:', err)
-    return null
-  }
-}
 
 // Printers on this command set generally only ship an 8-bit ASCII/CP437-ish
 // code page, so non-ASCII characters (₹, etc.) are swapped for safe equivalents
@@ -178,40 +131,25 @@ export class EscPosBuilder {
     return this
   }
 
-  // 2D QR code rendered via standard 1bpp raster bitmap ("GS v 0") with vertical banding.
-  // Banded into 24-dot slices to strictly prevent printer serial FIFO buffer overflow.
-  qr(data: string, targetDotsOrModuleSize: number = 120, paperWidth: '58mm' | '80mm' = '58mm'): this {
-    if (!data || !data.trim()) return this
-    const maxPaperDots = paperWidth === '80mm' ? 576 : 384
-    const targetDots = targetDotsOrModuleSize <= 16
-      ? (targetDotsOrModuleSize >= 7 ? 150 : 120)
-      : Math.min(160, Math.max(96, targetDotsOrModuleSize))
+  // 2D QR code via the standard Epson "GS ( k" symbol-storage sequence
+  // (select model → set module size → set error-correction level → store
+  // data → print). This exact byte sequence is the widely-replicated ESC/POS
+  // spec used by most Chinese-clone thermal printers, not vendor-specific.
+  qr(data: string, moduleSize = 6): this {
+    const cn = 0x31 // '1' — fixed value for 2D symbol commands
 
-    const raster = rasterizeQrForEscPos(data, targetDots)
-    if (raster) {
-      const leftMarginDots = Math.max(0, Math.floor((maxPaperDots - raster.widthBytes * 8) / 2))
-      if (leftMarginDots > 0) {
-        this.push(GS, 0x4c, leftMarginDots & 0xff, (leftMarginDots >> 8) & 0xff)
-      }
-      this.align('center')
-      this.rasterReceiptBands(raster.packed, raster.widthBytes, raster.heightDots, 24)
-      if (leftMarginDots > 0) {
-        this.push(GS, 0x4c, 0x00, 0x00)
-      }
-      this.align('left')
-      return this
-    }
+    // Omit explicit Model 2 command (0x41 0x32 0x00): ESC/POS printers default to
+    // Model 2 natively, but many clone/POS-58 firmwares fail to parse Function 165 and
+    // dump the 0x32 byte onto the paper as an unwanted literal '2' above the QR code.
+    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x43, moduleSize) // module size (1-16)
+    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x45, 0x31) // error correction level M (~15%)
 
-    // Secondary fallback: Epson GS ( k sequence
-    const cn = 0x31
-    const moduleSize = Math.max(3, Math.min(8, Math.floor(targetDots / 32)))
-    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x43, moduleSize)
-    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x45, 0x31)
     const bytes = new TextEncoder().encode(data)
     const storeLen = bytes.length + 3
     this.push(GS, 0x28, 0x6b, storeLen & 0xff, (storeLen >> 8) & 0xff, cn, 0x50, 0x30)
     for (const b of bytes) this.bytes.push(b)
-    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x51, 0x30)
+
+    this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x51, 0x30) // print the stored symbol
     return this
   }
 

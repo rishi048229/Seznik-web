@@ -330,7 +330,7 @@ export function resolveShowItemNumbers(entry: CustomReceiptEntry, isRestaurant?:
 }
 
 /** Advanced table blocks use compact ITEM | QTY | AMT columns (restaurant thermal layout). */
-export function isCompactItemsTable(entry: CustomReceiptEntry): entry is TableReceiptEntry {
+export function isCompactItemsTable(entry: CustomReceiptEntry): boolean {
   return entry.type === 'table' && entry.tableType === 'advanced'
 }
 
@@ -339,7 +339,7 @@ export function resolveCompactTableWrap(
   opts?: CustomReceiptGstOpts,
   template?: Pick<CustomReceiptTemplate, 'id' | 'name'> | null
 ): boolean {
-  return opts?.isRestaurant === true || isRestaurantReceiptTemplate(template ?? undefined)
+  return opts?.isRestaurant === true || (template ? isRestaurantReceiptTemplate(template) : false)
 }
 
 type TableReceiptEntry = Extract<CustomReceiptEntry, { type: 'table' }>
@@ -932,7 +932,7 @@ async function tryAppendEscPosLogo(
     return false
   }
   b.align(align)
-  b.rasterReceiptBands(raster.packed, raster.widthBytes, raster.heightDots, 24)
+  b.image(raster.packed, raster.widthBytes, raster.heightDots)
   b.feed(1)
   b.align('left')
   return true
@@ -1125,7 +1125,7 @@ export async function appendCustomTemplateToEscPos(
         if (isQr && rawVal) {
           b.feed(1)
           b.align(toEscPosAlign(entry.align || 'center'))
-          b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize), paperSize)
+          b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize))
           b.feed(1)
           b.align('left')
         } else if (rawVal && (entry.format === 'code128' || entry.format === 'ean13' || entry.codeType === 'barcode_1d')) {
