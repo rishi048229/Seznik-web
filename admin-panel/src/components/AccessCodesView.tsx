@@ -11,6 +11,7 @@ import {
   KeyRound,
   Loader2,
   RefreshCw,
+  Search,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -18,8 +19,10 @@ import {
   fetchAccessCodes,
   fetchAccessCodesByBatch,
   generateAccessCodes,
+  lookupAdminAccessCode,
 } from '../services/api';
 import type { AccessCodeBatch, AccessCodeRecord } from '../types/admin';
+import { CodeSearchModal } from './CodeSearchModal';
 import {
   exportAccessCodesCsv,
   exportAccessCodesExcel,
@@ -84,6 +87,8 @@ export const AccessCodesView: React.FC = () => {
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null);
   const [expandedCodes, setExpandedCodes] = useState<AccessCodeRecord[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [selectedSearchCode, setSelectedSearchCode] = useState('');
 
   const loadBatches = useCallback(async () => {
     setLoading(true);
@@ -212,28 +217,53 @@ export const AccessCodesView: React.FC = () => {
           minWidth: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-          <div
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'rgba(37, 99, 235, 0.12)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <KeyRound size={18} color="var(--accent-blue)" />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                Generate Access Codes
+              </h2>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Unique 7-character alphanumeric codes (A–Z, 0–9). Never reused.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedSearchCode('');
+              setSearchModalOpen(true);
+            }}
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'rgba(37, 99, 235, 0.12)',
               display: 'inline-flex',
               alignItems: 'center',
-              justifyContent: 'center',
+              gap: '6px',
+              padding: '7px 13px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-main)',
+              color: 'var(--text-main)',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
             }}
           >
-            <KeyRound size={18} color="var(--accent-blue)" />
-          </div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              Generate Access Codes
-            </h2>
-            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Unique 7-character alphanumeric codes (A–Z, 0–9). Never reused.
-            </p>
-          </div>
+            <Search size={14} color="var(--accent-blue)" />
+            Search Code
+          </button>
         </div>
 
         <div
@@ -414,15 +444,29 @@ export const AccessCodesView: React.FC = () => {
               {batchTotal} generation{batchTotal === 1 ? '' : 's'} · view details or export again
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void loadBatches()}
-            style={exportBtnStyle}
-            title="Refresh"
-          >
-            <RefreshCw size={13} />
-            Refresh
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSearchCode('');
+                setSearchModalOpen(true);
+              }}
+              style={exportBtnStyle}
+              title="Search and verify any code status"
+            >
+              <Search size={13} color="var(--accent-blue)" />
+              Search Code
+            </button>
+            <button
+              type="button"
+              onClick={() => void loadBatches()}
+              style={exportBtnStyle}
+              title="Refresh"
+            >
+              <RefreshCw size={13} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {listError && (
@@ -627,7 +671,11 @@ export const AccessCodesView: React.FC = () => {
                                     return (
                                       <div
                                         key={code.id}
-                                        title={isRedeemed ? `Redeemed by ${code.customerName || code.phone || 'User'}` : 'Unused / Available'}
+                                        onClick={() => {
+                                          setSelectedSearchCode(code.code);
+                                          setSearchModalOpen(true);
+                                        }}
+                                        title={`Code ${code.code} · ${isRedeemed ? 'Redeemed' : 'Available'} · Click to view full details`}
                                         style={{
                                           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                                           letterSpacing: '0.06em',
@@ -644,6 +692,8 @@ export const AccessCodesView: React.FC = () => {
                                           alignItems: 'center',
                                           justifyContent: 'center',
                                           gap: 2,
+                                          cursor: 'pointer',
+                                          transition: 'transform 0.1s, box-shadow 0.1s',
                                         }}
                                       >
                                         <span>{code.code}</span>
@@ -667,6 +717,14 @@ export const AccessCodesView: React.FC = () => {
           </table>
         </div>
       </section>
+
+      <CodeSearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        searchFn={lookupAdminAccessCode}
+        initialCode={selectedSearchCode}
+        title="Search Access Code"
+      />
     </div>
   );
 };

@@ -25,6 +25,7 @@ import { pgConnectionString, pgSslConfig } from './lib/pgSsl.js';
 import {
   generateAccessCodes,
   listAccessCodes,
+  lookupAccessCode,
   listAccessCodeBatches,
   getAccessCodesByBatch,
   issueCustomerAccessCode,
@@ -718,6 +719,18 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
+            if ((pathname === '/api/admin/access-codes/search' || pathname === '/api/admin/access-codes/lookup') && req.method === 'GET') {
+              try {
+                const code = parsedUrl.searchParams.get('code') || parsedUrl.searchParams.get('q') || '';
+                const result = await lookupAccessCode(pool, code);
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on access-code search:', err.message);
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to search access code' });
+              }
+              return;
+            }
+
             if (pathname === '/api/admin/access-codes' && req.method === 'GET') {
               try {
                 const result = await listAccessCodes(pool, {
@@ -881,6 +894,33 @@ export default defineConfig(({ mode }) => {
                 send(200, { success: true, record });
               } catch (err: any) {
                 send(err?.statusCode || 500, { error: err?.message || 'Failed to issue code' });
+              }
+              return;
+            }
+
+            if ((pathname === '/api/support/access-codes/search' || pathname === '/api/support/access-codes/lookup') && req.method === 'GET') {
+              try {
+                const session = getSupportSession(req);
+                if (!session) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                const agent = await getSupportAgentById(pool, session.agentId);
+                if (!agent) {
+                  send(401, { error: 'Unauthorized' });
+                  return;
+                }
+                if (agent.isDisabled) {
+                  res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+                  send(403, { error: 'Access disabled. Contact an administrator.' });
+                  return;
+                }
+                const code = parsedUrl.searchParams.get('code') || parsedUrl.searchParams.get('q') || '';
+                const result = await lookupAccessCode(pool, code);
+                send(200, result);
+              } catch (err: any) {
+                console.error('DB error on support access-code search:', err.message);
+                send(err?.statusCode || 500, { error: err?.message || 'Failed to search access code' });
               }
               return;
             }

@@ -1130,7 +1130,7 @@ export const ProductsPage = () => {
                         <th className="px-6 py-4">SKU / Barcode</th>
                         <th className="px-6 py-4">{t('common.category')}</th>
                         <th className="px-6 py-4">{trackStock ? t('products.stockLevel') : 'Availability'}</th>
-                        <th className="px-6 py-4">Price</th>
+                        <th className="px-6 py-4 text-center">Selling Price</th>
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -1138,7 +1138,6 @@ export const ProductsPage = () => {
                       {paginated.map(product => {
                         const storeStock = getBrowseStock(product)
                         const storePrice = getBrowsePrice(product)
-                        const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3 || 1)) * 100, 100)
                         const isLowStock = storeStock > 0 && storeStock <= product.lowStockThreshold
                         const isOutOfStock = storeStock <= 0
                         const available = isProductAvailable(product)
@@ -1146,7 +1145,7 @@ export const ProductsPage = () => {
                           <tr
                             key={product.id}
                             onClick={() => openDetail(product)}
-                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-dark-card/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''} ${!trackStock && !available ? 'opacity-70' : ''}`}
+                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-dark-card/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:blue-900/10' : ''} ${!trackStock && !available ? 'opacity-70' : ''}`}
                           >
                             <td className="px-4 py-4 w-10" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -1204,32 +1203,31 @@ export const ProductsPage = () => {
                             </td>
                             <td className="px-6 py-4">
                               {trackStock ? (
-                                <div className="flex flex-col gap-1">
-                                  <span className={`text-sm font-semibold flex items-center gap-1.5 ${
-                                    isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
+                                <div className="flex flex-col gap-1 items-start">
+                                  <span className={`text-sm font-semibold ${
+                                    isOutOfStock ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'
                                   }`}>
-                                    {isOutOfStock ? (
-                                      <>
-                                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold">
-                                          Out of Stock
-                                        </span>
-                                        <span className="text-xs opacity-75">(0 Units)</span>
-                                      </>
-                                    ) : (
-                                      `${storeStock} Units`
-                                    )}
+                                    {isOutOfStock ? '0 Units' : `${storeStock} Units`}
                                   </span>
+                                  {isOutOfStock ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                      Out of Stock
+                                    </span>
+                                  ) : isLowStock ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                      Low Stock
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                      In Stock
+                                    </span>
+                                  )}
                                   {browseStoreId && (
                                     <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
                                   )}
-                                  <div className="w-24 h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full ${
-                                        isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
-                                      }`}
-                                      style={{ width: `${stockPercent}%` }}
-                                    />
-                                  </div>
                                 </div>
                               ) : (
                                 <Badge variant={available ? 'success' : 'danger'}>
@@ -1237,7 +1235,7 @@ export const ProductsPage = () => {
                                 </Badge>
                               )}
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-6 py-4 text-center">
                               <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
                               {browseStoreId && storePrice !== product.sellingPrice && (
                                 <p className="text-[10px] text-gray-400 line-through">{formatINR(product.sellingPrice)}</p>

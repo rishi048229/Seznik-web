@@ -110,6 +110,28 @@ export async function ensureAccessCodeTable(pool) {
 }
 
 function mapCodeRow(row) {
+  const isUsed = Boolean(row.isUsed || row.usedAt || row.usedByUserId);
+  const hasUserEnrichment = Boolean(
+    row.usedByUserId ||
+    row.user_id ||
+    row.customerEmail ||
+    row.user_email ||
+    row.user_displayName ||
+    row.user_businessName
+  );
+
+  const redeemedUser = isUsed && hasUserEnrichment
+    ? {
+        id: row.usedByUserId || row.user_id || null,
+        email: row.customerEmail || row.user_email || null,
+        displayName: row.user_displayName || row.customerName || null,
+        businessName: row.user_businessName || row.customerName || null,
+        phone: row.phone || row.user_phone || null,
+        businessType: row.user_businessType || null,
+        usedAt: row.usedAt instanceof Date ? row.usedAt.toISOString() : row.usedAt || null,
+      }
+    : null;
+
   return {
     id: row.id,
     code: row.code,
@@ -122,10 +144,11 @@ function mapCodeRow(row) {
     invoiceNumber: row.invoiceNumber || null,
     phone: row.phone || null,
     printer: row.printer || null,
-    isUsed: Boolean(row.isUsed),
+    isUsed,
     usedAt: row.usedAt instanceof Date ? row.usedAt.toISOString() : row.usedAt || null,
     usedByUserId: row.usedByUserId || null,
     customerEmail: row.customerEmail || null,
+    redeemedUser,
   };
 }
 
@@ -142,6 +165,18 @@ function mapBatchRow(row) {
 const CODE_SELECT = `id, code, "batchId", note, "createdBy", "createdAt",
   "customerName", "customerId", "invoiceNumber", phone, printer,
   "isUsed", "usedAt", "usedByUserId", "customerEmail"`;
+
+const CODE_SELECT_ENRICHED = `
+  a.id, a.code, a."batchId", a.note, a."createdBy", a."createdAt",
+  a."customerName", a."customerId", a."invoiceNumber", a.phone, a.printer,
+  a."isUsed", a."usedAt", a."usedByUserId", a."customerEmail",
+  u.id AS "user_id",
+  u.email AS "user_email",
+  u."displayName" AS "user_displayName",
+  u."businessName" AS "user_businessName",
+  u.phone AS "user_phone",
+  u."businessType" AS "user_businessType"
+`;
 
 export async function generateAccessCodes(pool, { count, note, createdBy }) {
   const safeCount = clampGenerateCount(count);
@@ -304,22 +339,23 @@ export async function listAccessCodes(
   let p = 1;
 
   if (batchId) {
-    where.push(`"batchId" = $${p++}`);
+    where.push(`a."batchId" = $${p++}`);
     params.push(String(batchId));
   }
   if (createdBy && String(createdBy).trim()) {
-    where.push(`"createdBy" = $${p++}`);
+    where.push(`a."createdBy" = $${p++}`);
     params.push(String(createdBy).trim());
   }
   if (customerOnly) {
-    where.push(`"customerName" IS NOT NULL`);
+    where.push(`a."customerName" IS NOT NULL`);
   }
   if (search && String(search).trim()) {
     const q = `%${String(search).trim()}%`;
     where.push(
-      `(code ILIKE $${p} OR "customerName" ILIKE $${p} OR "customerId" ILIKE $${p}
-        OR "invoiceNumber" ILIKE $${p} OR phone ILIKE $${p} OR printer ILIKE $${p}
-        OR "createdBy" ILIKE $${p} OR COALESCE(note, '') ILIKE $${p})`
+      `(a.code ILIKE $${p} OR a."customerName" ILIKE $${p} OR a."customerId" ILIKE $${p}
+        OR a."invoiceNumber" ILIKE $${p} OR a.phone ILIKE $${p} OR a.printer ILIKE $${p}
+        OR a."createdBy" ILIKE $${p} OR COALESCE(a.note, '') ILIKE $${p}
+        OR u.email ILIKE $${p} OR u."displayName" ILIKE $${p} OR u."businessName" ILIKE $${p})`
     );
     params.push(q);
     p += 1;
@@ -328,16 +364,20 @@ export async function listAccessCodes(
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const countRes = await pool.query(
-    `SELECT COUNT(*)::int AS total FROM "AccessCode" ${whereSql}`,
+    `SELECT COUNT(*)::int AS total
+     FROM "AccessCode" a
+     LEFT JOIN "User" u ON (a."usedByUserId" IS NOT NULL AND a."usedByUserId" = u.id)
+     ${whereSql}`,
     params
   );
   const total = countRes.rows[0]?.total || 0;
 
   const dataRes = await pool.query(
-    `SELECT ${CODE_SELECT}
-     FROM "AccessCode"
+    `SELECT ${CODE_SELECT_ENRICHED}
+     FROM "AccessCode" a
+     LEFT JOIN "User" u ON (a."usedByUserId" IS NOT NULL AND a."usedByUserId" = u.id)
      ${whereSql}
-     ORDER BY "createdAt" DESC, code ASC
+     ORDER BY a."createdAt" DESC, a.code ASC
      LIMIT $${p++} OFFSET $${p++}`,
     [...params, safeLimit, offset]
   );
@@ -438,3 +478,69 @@ export async function getAccessCodesByBatch(pool, batchId) {
     codes: dataRes.rows.map(mapCodeRow),
   };
 }
+
+export async function lookupAccessCode(pool, rawCode) {
+  await ensureAccessCodeTable(pool);
+  const query = String(rawCode || '').trim();
+  if (!query) {
+    const err = new Error('Access code or search query is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const cleanCode = query.replace(/[\s-]/g, '').toUpperCase();
+
+  // 1. Exact match on code (case-insensitive, handling hyphens/spaces)
+  const exactRes = await pool.query(
+    `SELECT ${CODE_SELECT_ENRICHED}
+     FROM "AccessCode" a
+     LEFT JOIN "User" u ON (a."usedByUserId" IS NOT NULL AND a."usedByUserId" = u.id)
+     WHERE UPPER(TRIM(a.code)) = UPPER(TRIM($1))
+        OR UPPER(TRIM(a.code)) = $2
+     LIMIT 1`,
+    [query, cleanCode]
+  );
+
+  let row = exactRes.rows[0];
+
+  // 2. Fallback match (invoiceNumber, phone, customerName, or code ILIKE)
+  if (!row) {
+    const fallbackRes = await pool.query(
+      `SELECT ${CODE_SELECT_ENRICHED}
+       FROM "AccessCode" a
+       LEFT JOIN "User" u ON (a."usedByUserId" IS NOT NULL AND a."usedByUserId" = u.id)
+       WHERE a.code ILIKE $1
+          OR a.code ILIKE $2
+          OR (a."invoiceNumber" IS NOT NULL AND a."invoiceNumber" ILIKE $1)
+          OR (a.phone IS NOT NULL AND a.phone ILIKE $1)
+          OR (a."customerName" IS NOT NULL AND a."customerName" ILIKE $1)
+          OR (u.email IS NOT NULL AND u.email ILIKE $1)
+          OR (u."businessName" IS NOT NULL AND u."businessName" ILIKE $1)
+       ORDER BY a."createdAt" DESC
+       LIMIT 1`,
+      [`%${query}%`, `%${cleanCode}%`]
+    );
+    row = fallbackRes.rows[0];
+  }
+
+  if (!row) {
+    return {
+      found: false,
+      code: query,
+      status: 'not_found',
+      isRedeemed: false,
+      record: null,
+      message: `No access code found matching "${query}"`,
+    };
+  }
+
+  const record = mapCodeRow(row);
+  return {
+    found: true,
+    code: record.code,
+    status: record.isUsed ? 'redeemed' : 'available',
+    isRedeemed: record.isUsed,
+    record,
+  };
+}
+

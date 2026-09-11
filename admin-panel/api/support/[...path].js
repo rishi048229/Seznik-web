@@ -13,6 +13,7 @@ import {
 import {
   issueCustomerAccessCode,
   listAccessCodes,
+  lookupAccessCode,
 } from '../lib/accessCodes.js';
 
 function pathSegments(req) {
@@ -86,6 +87,14 @@ export default async function handler(req, res) {
         })
       );
       return sendJson(res, 200, { success: true, record });
+    }
+
+    if (method === 'GET' && (route === 'access-codes/search' || route === 'access-codes/lookup')) {
+      const ctx = await requireActiveAgent(req, res, secure);
+      if (!ctx) return;
+      const code = query.code || query.q || '';
+      const result = await withDbRetry((pool) => lookupAccessCode(pool, code));
+      return sendJson(res, 200, result);
     }
 
     if (method === 'GET' && route === 'access-codes') {

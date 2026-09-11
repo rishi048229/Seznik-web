@@ -53,6 +53,7 @@ interface DirectPrinterConnectModalProps {
   subtitle?: string;
   showContinueWithoutPrinter?: boolean;
   onContinueWithoutPrinter?: () => void;
+  continueWithoutPrinterLabel?: string;
   initialModelId?: SeznikPrinterModelId;
 }
 
@@ -64,6 +65,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   subtitle,
   showContinueWithoutPrinter = true,
   onContinueWithoutPrinter,
+  continueWithoutPrinterLabel,
   initialModelId = 'dev',
 }) => {
   const { t } = useTranslation();
@@ -1116,9 +1118,9 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                   { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
                 ]}
               >
-                <Share2 size={14} color={theme.textSecondary} />
+                <CheckCircle2 size={14} color="#10B981" />
                 <Text style={[styles.continueBtnText, { color: theme.textPrimary }]}>
-                  Continue without Printer
+                  {continueWithoutPrinterLabel || t('continueWithoutPrinter', 'Continue without Printer')}
                 </Text>
               </TouchableOpacity>
             ) : null}

@@ -27,6 +27,7 @@ import {
 import {
   generateAccessCodes,
   listAccessCodes,
+  lookupAccessCode,
   listAccessCodeBatches,
   getAccessCodesByBatch,
   listAccessCodeIssuers,
@@ -402,6 +403,12 @@ export default async function handler(req, res) {
     const batchCodesMatch = route.match(/^access-codes\/batch\/([^/]+)$/);
     if (method === 'GET' && batchCodesMatch) {
       const result = await getAccessCodesByBatch(pool, decodeURIComponent(batchCodesMatch[1]));
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && (route === 'access-codes/search' || route === 'access-codes/lookup')) {
+      const code = query.code || query.q || '';
+      const result = await lookupAccessCode(pool, code);
       return sendJson(res, 200, result);
     }
 

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
+import JSZip from 'jszip'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
-import { useAiExtractDocument, useBulkImportProducts } from '@/hooks/useProducts'
+import { useProducts, useAiExtractDocument, useBulkImportProducts } from '@/hooks/useProducts'
 import { type AiExtractedProduct } from '@/services/productService'
 import { preprocessImageForOcr } from '@/utils/imagePreprocess'
 import { useQueryClient } from '@tanstack/react-query'
@@ -83,24 +84,24 @@ interface BulkProductUploadModalProps {
   onClose: () => void
 }
 
-const SEZ_AI_LOADING_MESSAGES = [
-  'SEZ AI is scanning your CSV / file and parsing all columns & rows...',
-  'SEZ AI is intelligent-mapping product names, prices & units...',
-  'SEZ AI is detecting existing barcodes & preserving barcode numbers 100%...',
-  'SEZ AI is auto-assigning smart categories & calculating tax rates...',
-  'SEZ AI is building your interactive product review & edit table...'
+const SPREADSHEET_PARSING_MESSAGES = [
+  'Reading your spreadsheet file...',
+  'Parsing columns and table rows...',
+  'Mapping product names, prices, categories, and stock...',
+  'Detecting existing barcodes and units...',
+  'Building your interactive product review table...'
 ]
 
-const SEZ_AI_IMPORT_MESSAGES = [
-  'SEZ AI is creating missing categories in your database...',
-  'SEZ AI is executing high-speed batch database insertion...',
-  'SEZ AI is finalizing inventory and category synchronization...'
+const IMPORT_LOADING_MESSAGES = [
+  'Creating categories and preparing catalog...',
+  'Importing products into inventory database...',
+  'Finalizing catalog and stock synchronization...'
 ]
 
 export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ isOpen, onClose }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
-  const [fileTypeCategory, setFileTypeCategory] = useState<'image' | 'pdf' | 'excel' | 'csv' | 'text'>('image')
+  const [fileTypeCategory, setFileTypeCategory] = useState<'image' | 'pdf' | 'excel' | 'csv' | 'numbers' | 'text'>('excel')
   const [searchFilter, setSearchFilter] = useState('')
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
   const [elapsedSec, setElapsedSec] = useState(0)
@@ -125,16 +126,17 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
+  const { data: existingCatalogProducts = [] } = useProducts()
 
   const { mutate: extractDocument, isPending: isExtracting } = useAiExtractDocument()
   const { mutate: bulkImport, isPending: isImporting } = useBulkImportProducts()
 
-  // Cycle interactive SEZ AI progress messages during analysis
+  // Cycle progress messages during parsing
   useEffect(() => {
     if (step === 'analyzing') {
       setLoadingMsgIdx(0)
       const interval = setInterval(() => {
-        setLoadingMsgIdx(prev => (prev + 1) % SEZ_AI_LOADING_MESSAGES.length)
+        setLoadingMsgIdx(prev => (prev + 1) % SPREADSHEET_PARSING_MESSAGES.length)
       }, 2500)
       return () => clearInterval(interval)
     }
@@ -149,12 +151,12 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
     return () => clearInterval(tick)
   }, [step])
 
-  // Cycle interactive SEZ AI progress messages during import
+  // Cycle progress messages during import
   useEffect(() => {
     if (isImporting) {
       setLoadingMsgIdx(0)
       const interval = setInterval(() => {
-        setLoadingMsgIdx(prev => (prev + 1) % SEZ_AI_IMPORT_MESSAGES.length)
+        setLoadingMsgIdx(prev => (prev + 1) % IMPORT_LOADING_MESSAGES.length)
       }, 1500)
       return () => clearInterval(interval)
     }
@@ -167,22 +169,28 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
     }
 
     const lowerName = file.name.toLowerCase()
-    const isCsv = lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || file.type.includes('csv')
+    const isNumbers = lowerName.endsWith('.numbers') || file.type.includes('numbers')
+    const isCsv = lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || lowerName.endsWith('.tab') || file.type.includes('csv')
     const isExcel =
       lowerName.endsWith('.xlsx') ||
       lowerName.endsWith('.xls') ||
       lowerName.endsWith('.xlsm') ||
+      lowerName.endsWith('.xlsb') ||
       lowerName.endsWith('.ods') ||
+      lowerName.endsWith('.dif') ||
+      lowerName.endsWith('.prn') ||
+      lowerName.endsWith('.txt') ||
       file.type.includes('sheet') ||
-      file.type.includes('excel')
+      file.type.includes('excel') ||
+      file.type.includes('opendocument')
 
-    if (!isCsv && !isExcel) {
-      toast.error('Only Excel (.xlsx, .xls) and CSV (.csv) files are supported. Please use the provided template.')
+    if (!isCsv && !isExcel && !isNumbers) {
+      toast.error('Only spreadsheet files (Excel .xlsx/.xls/.xlsm/.xlsb, Apple Numbers .numbers, CSV .csv/.tsv, OpenDocument .ods) are supported.')
       return
     }
 
     setSelectedFile(file)
-    setFileTypeCategory(isCsv ? 'csv' : 'excel')
+    setFileTypeCategory(isNumbers ? 'numbers' : (isCsv ? 'csv' : 'excel'))
     setFilePreview(null)
     setShowSampleConfirmModal(true)
   }
@@ -204,117 +212,196 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
 
   // Universal Format-Independent CSV & Spreadsheet Table Parser
   const parseExcelSheetDirectly = (sheet: XLSX.WorkSheet): AiExtractedProduct[] => {
-    const jsonRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
+    let jsonRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
     if (!jsonRows || jsonRows.length === 0) return []
+
+    // If row 0 keys don't have recognizable column headers (e.g. file has a title block in rows 1-3),
+    // look through the first 10 raw rows to find the actual header row.
+    const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false })
+    const isHeaderRow = (headers: any[]) => {
+      if (!Array.isArray(headers)) return false
+      const hStr = headers.map(h => String(h || '').trim().toLowerCase()).join(' ')
+      return (
+        (hStr.includes('name') || hStr.includes('product') || hStr.includes('item') || hStr.includes('particulars')) &&
+        (hStr.includes('price') || hStr.includes('rate') || hStr.includes('mrp') || hStr.includes('cost') || hStr.includes('stock') || hStr.includes('barcode') || hStr.includes('qty'))
+      )
+    }
+
+    let headerRowIdx = 0
+    if (rawRows && rawRows.length > 0) {
+      for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+        const row = rawRows[i]
+        if (isHeaderRow(row)) {
+          headerRowIdx = i
+          break
+        }
+      }
+    }
+
+    if (headerRowIdx > 0) {
+      jsonRows = XLSX.utils.sheet_to_json(sheet, { range: headerRowIdx, defval: '', raw: false })
+      if (!jsonRows || jsonRows.length === 0) return []
+    }
 
     const keys = Object.keys(jsonRows[0] || {})
     if (keys.length === 0) return []
 
-    const findKey = (regex: RegExp): string | undefined => {
-      return keys.find(k => regex.test(k.trim()))
+    const cleanHeader = (h: string) => String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+
+    const findKeyFlexible = (patterns: RegExp[], excludePatterns: RegExp[] = []): string | undefined => {
+      return keys.find(k => {
+        const raw = k.trim().toLowerCase()
+        const clean = cleanHeader(k)
+        const isExcluded = excludePatterns.some(ex => ex.test(raw) || ex.test(clean))
+        if (isExcluded) return false
+        return patterns.some(p => p.test(raw) || p.test(clean))
+      })
+    }
+
+    const parseNumericValue = (rawVal: any): number => {
+      if (rawVal === undefined || rawVal === null || rawVal === '') return NaN
+      if (typeof rawVal === 'number') return isNaN(rawVal) ? NaN : rawVal
+      let str = String(rawVal).trim().replace(/^[₹$\sRs\.INR]+/i, '').trim()
+      if (str.includes(',') && str.includes('.')) {
+        if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+          str = str.replace(/\./g, '').replace(',', '.')
+        } else {
+          str = str.replace(/,/g, '')
+        }
+      } else if (str.includes(',')) {
+        const parts = str.split(',')
+        if (parts.length === 2 && parts[1].length === 2) {
+          str = str.replace(',', '.')
+        } else {
+          str = str.replace(/,/g, '')
+        }
+      }
+      const clean = str.replace(/[^0-9.-]/g, '')
+      const val = parseFloat(clean)
+      return isNaN(val) ? NaN : val
     }
 
     // Barcode (Optional)
-    const barcodeKey = 
-      findKey(/^barcode/i) ||
-      findKey(/^(bar_code|bar\s*code|barcode_no|barcodeno|ean|upc|gtin|item_barcode|product_barcode)$/i) ||
-      findKey(/^code$/i) ||
-      findKey(/sku/i)
+    const barcodeKey = findKeyFlexible([
+      /barcode/i, /bar code/i, /upc/i, /ean/i, /gtin/i, /itemcode/i, /item code/i, /articleno/i, /article no/i, /sku/i, /code/i
+    ])
 
     // Product Name (Compulsory)
-    const nameKey = 
-      findKey(/^(product\s*name\*?|product_name|name\*?|product|item\s*name|item|particulars)/i) ||
-      findKey(/name|product|item|description|title/i)
+    const nameKey = findKeyFlexible([
+      /productname/i, /product name/i, /itemname/i, /item name/i, /particulars/i, /product/i, /item/i, /title/i, /description/i, /name/i
+    ])
 
     // Selling Price (Compulsory)
-    const sellingPriceKey = 
-      findKey(/^(selling\s*price\*?|selling_price|price\*?|sale\s*price|mrp|rate|sales_rate|selling_rate)/i) ||
-      findKey(/selling|sell|sale|price|mrp|rate/i)
+    const sellingPriceKey = findKeyFlexible([
+      /sellingprice/i, /selling price/i, /saleprice/i, /sale price/i, /salesprice/i, /sales price/i, /retailprice/i, /retail price/i, /sellingrate/i, /selling rate/i, /salesrate/i, /sales rate/i, /mrp/i, /price/i, /rate/i
+    ], [/cost/i, /purchase/i, /buy/i, /cp/i])
 
     // Cost Price (Compulsory)
-    const costPriceKey = 
-      findKey(/^(cost\s*price\*?|cost_price|cost\*?|purchase\s*price|costprice|buy_price|cost_rate|purchase_rate)/i) ||
-      findKey(/cost|purchase/i)
+    const costPriceKey = findKeyFlexible([
+      /costprice/i, /cost price/i, /purchaseprice/i, /purchase price/i, /buyprice/i, /buy price/i, /purchaserate/i, /purchase rate/i, /costrate/i, /cost rate/i, /cost/i, /purchase/i, /cp/i
+    ], [/selling/i, /sale/i, /retail/i, /mrp/i])
 
     // Category (Compulsory)
-    const categoryKey = findKey(/^(category\*?|cat|category_name|group|department|productgroup|type)/i)
+    const categoryKey = findKeyFlexible([
+      /category/i, /cat/i, /department/i, /dept/i, /group/i, /type/i, /classification/i
+    ])
 
     // Stock Quantity (Compulsory)
-    const stockKey = findKey(/^(stock\s*quantity\*?|current\s*stock\*?|stock\*?|qty|quantity|available_stock|balance|count)/i)
+    const stockKey = findKeyFlexible([
+      /quantity/i, /qty/i, /stock/i, /openingstock/i, /currentstock/i, /availablestock/i, /balance/i, /inventory/i, /count/i
+    ])
 
-    // Min Stock Alert (Optional, defaults to 0 if not entered)
-    const minStockKey = findKey(/^(min\s*stock|low\s*stock|threshold|alert)/i)
+    // Min Stock Alert (Optional)
+    const minStockKey = findKeyFlexible([
+      /minstock/i, /min stock/i, /lowstock/i, /low stock/i, /threshold/i, /minqty/i, /min qty/i, /reorder/i, /alert/i
+    ])
 
     // Tax Rate (Optional)
-    const taxKey = findKey(/^(tax\s*rate|gst\s*rate|tax|gst|vat)/i)
+    const taxKey = findKeyFlexible([
+      /taxrate/i, /tax rate/i, /gstrate/i, /gst rate/i, /tax/i, /gst/i, /vat/i
+    ])
 
     // Unit (Compulsory)
-    const unitKey = findKey(/^(unit\*?|uom|pack|unit_type|measurementunit)/i)
+    const unitKey = findKeyFlexible([
+      /unit/i, /uom/i, /pack/i, /measurement/i
+    ])
 
     if (!nameKey && !sellingPriceKey && !barcodeKey) return []
 
     const products: AiExtractedProduct[] = []
 
-    jsonRows.forEach((row, idx) => {
-      // Product Name
-      let name = nameKey ? String(row[nameKey]).trim() : ''
+    jsonRows.forEach((row) => {
+      let name = nameKey ? String(row[nameKey] ?? '').trim() : ''
       if (name.startsWith('₹') || name.startsWith('Rs')) name = ''
+
+      const rawBarcode = barcodeKey ? String(row[barcodeKey] ?? '').trim() : ''
+      const sellVal = sellingPriceKey ? parseNumericValue(row[sellingPriceKey]) : NaN
+      const costVal = costPriceKey ? parseNumericValue(row[costPriceKey]) : NaN
+      const stockVal = stockKey ? parseNumericValue(row[stockKey]) : NaN
+
+      // Skip completely blank rows where there is no name, no barcode, and no price/stock
+      if (!name && !rawBarcode && isNaN(sellVal) && isNaN(costVal) && isNaN(stockVal)) {
+        return
+      }
+
       if (!name) {
-        const altKey = keys.find(k => k !== barcodeKey && String(row[k]).trim().length > 0 && isNaN(Number(row[k])))
+        const altKey = keys.find(k => k !== barcodeKey && String(row[k] ?? '').trim().length > 0 && isNaN(Number(row[k])))
         if (altKey) name = String(row[altKey]).trim()
       }
-      if (!name) name = `Item ${idx + 1}`
+      if (!name) name = `Item ${products.length + 1}`
 
-      // Barcode (Optional - auto-generate if blank)
-      let rawBarcode = barcodeKey ? String(row[barcodeKey]).trim() : ''
-      
-      if (!rawBarcode || rawBarcode === 'null' || rawBarcode === 'undefined' || rawBarcode === '0') {
-        rawBarcode = 'SZ' + Math.floor(1000000000 + Math.random() * 9000000000).toString()
-      } else if (rawBarcode.length < 6 && /^\d+$/.test(rawBarcode) && !barcodeKey.toLowerCase().includes('barcode')) {
-        const foundLongDigit = keys.map(k => String(row[k]).trim()).find(v => /^\d{7,16}$/.test(v))
-        if (foundLongDigit) rawBarcode = foundLongDigit
+      // Barcode (auto-generate if blank)
+      let finalBarcode = rawBarcode
+      if (!finalBarcode || finalBarcode === 'null' || finalBarcode === 'undefined' || finalBarcode === '0') {
+        finalBarcode = 'SZ' + Math.floor(1000000000 + Math.random() * 9000000000).toString()
+      } else if (finalBarcode.length < 6 && /^\d+$/.test(finalBarcode) && !barcodeKey?.toLowerCase().includes('barcode')) {
+        const foundLongDigit = keys.map(k => String(row[k] ?? '').trim()).find(v => /^\d{7,16}$/.test(v))
+        if (foundLongDigit) finalBarcode = foundLongDigit
       }
 
-      const isExistingBarcode = rawBarcode.startsWith('SZ') && rawBarcode.length === 12 ? false : true
+      const isExistingBarcode = !(finalBarcode.startsWith('SZ') && finalBarcode.length === 12)
 
-      // Selling Price (Compulsory)
-      const sellVal = sellingPriceKey ? parseFloat(String(row[sellingPriceKey]).replace(/[^0-9.]/g, '')) : NaN
-      let sellingPrice = !isNaN(sellVal) ? sellVal : 0
+      // Selling Price
+      let sellingPrice = !isNaN(sellVal) ? Math.max(0, sellVal) : 0
 
-      // Cost Price (Compulsory)
-      const costVal = costPriceKey ? parseFloat(String(row[costPriceKey]).replace(/[^0-9.]/g, '')) : NaN
-      const costPrice = !isNaN(costVal) ? costVal : (sellingPrice > 0 ? sellingPrice : 0)
-
+      // Cost Price
+      const costPrice = !isNaN(costVal) ? Math.max(0, costVal) : (sellingPrice > 0 ? sellingPrice : 0)
       if (sellingPrice === 0 && costPrice > 0) {
         sellingPrice = costPrice
       }
 
-      // Category (Compulsory)
+      // Category
       const categoryName = categoryKey && row[categoryKey] ? String(row[categoryKey]).trim() : 'General'
 
-      // Stock Quantity (Compulsory)
-      const stockVal = stockKey ? parseInt(String(row[stockKey]).replace(/[^0-9]/g, '')) : NaN
-      const currentStock = !isNaN(stockVal) ? stockVal : 0
+      // Stock Quantity
+      const currentStock = !isNaN(stockVal) ? Math.max(0, Math.floor(stockVal)) : 0
 
-      // Min Stock Alert (Optional, defaults to 0 if not entered)
-      const minStockVal = minStockKey && row[minStockKey] !== '' ? parseInt(String(row[minStockKey]).replace(/[^0-9]/g, '')) : NaN
-      const lowStockThreshold = !isNaN(minStockVal) ? minStockVal : 0
+      // Min Stock Alert
+      const minStockVal = minStockKey && row[minStockKey] !== '' ? parseNumericValue(row[minStockKey]) : NaN
+      const lowStockThreshold = !isNaN(minStockVal) ? Math.max(0, Math.floor(minStockVal)) : 0
 
       // Tax Rate
-      const taxVal = taxKey ? parseFloat(String(row[taxKey]).replace(/[^0-9.]/g, '')) : NaN
-      const taxRate = !isNaN(taxVal) ? taxVal : 0
+      const taxVal = taxKey ? parseNumericValue(row[taxKey]) : NaN
+      const taxRate = !isNaN(taxVal) ? Math.max(0, taxVal) : 0
 
-      // Unit (Normalized using index mapping: 1=piece, 2=kg, etc.)
+      // Unit
       const rawUnit = unitKey && row[unitKey] ? String(row[unitKey]).trim() : ''
       const unitVal = normalizeUnit(rawUnit)
 
+      // Check if product already exists in user catalog
+      const matchedCatalogItem = existingCatalogProducts.find(
+        (ep: any) =>
+          (finalBarcode && ep.barcode && ep.barcode.toLowerCase().trim() === finalBarcode.toLowerCase().trim()) ||
+          (ep.name && ep.name.toLowerCase().trim() === name.toLowerCase().trim())
+      )
+
       products.push({
-        id: `csv-format-${Date.now()}-${idx}`,
+        id: `csv-format-${Date.now()}-${products.length}`,
         name,
         sellingPrice,
         costPrice,
         categoryName,
-        barcode: rawBarcode,
+        barcode: finalBarcode,
         isExistingBarcode,
         barcodeType: 'CODE128',
         taxRate,
@@ -322,7 +409,12 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
         lowStockThreshold,
         unit: unitVal,
         priceIncludesGst: false,
-        selected: true
+        selected: true,
+        isAlreadyListed: Boolean(matchedCatalogItem),
+        matchedProductId: matchedCatalogItem?.id || null,
+        matchedProductName: matchedCatalogItem?.name || null,
+        currentCatalogStock: matchedCatalogItem?.currentStock ?? null,
+        importAction: matchedCatalogItem ? 'update_stock' : 'create_new',
       })
     })
 
@@ -331,24 +423,103 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
 
   const startActualExtraction = () => {
     if (!selectedFile) {
-      toast.error('Please select an Excel (.xlsx) or CSV file first.')
+      toast.error('Please select an Excel, Apple Numbers, or CSV file first.')
       return
     }
 
     setStep('analyzing')
 
-    // Handle CSV and Excel files seamlessly using XLSX parser + SEZ AI fallback
+    // Handle Apple Numbers (.numbers) format via QuickLook preview PDF extraction
+    if (fileTypeCategory === 'numbers') {
+      const parseNumbersFile = async () => {
+        try {
+          const zip = await JSZip.loadAsync(selectedFile)
+
+          // 1. Look for QuickLook/Preview.pdf (standard in macOS Numbers)
+          const previewPdf = zip.file(/quicklook\/preview\.pdf$/i)[0] || zip.file(/preview\.pdf$/i)[0]
+          if (previewPdf) {
+            const pdfBlob = await previewPdf.async('blob')
+            const reader = new FileReader()
+            reader.onload = () => {
+              const base64Data = reader.result as string
+              sendExtractionRequest(base64Data, 'application/pdf')
+            }
+            reader.onerror = () => {
+              setStep('upload')
+              toast.error('Failed to read QuickLook preview from Apple Numbers file.')
+            }
+            reader.readAsDataURL(pdfBlob)
+            return
+          }
+
+          // 2. Look for QuickLook/Thumbnail.jpg or image snapshot
+          const thumbFile =
+            zip.file(/quicklook\/thumbnail\.jpg$/i)[0] ||
+            zip.file(/thumbnail\.jpg$/i)[0] ||
+            zip.file(/\.(jpg|jpeg|png)$/i)[0]
+          if (thumbFile) {
+            const imgBlob = await thumbFile.async('blob')
+            const reader = new FileReader()
+            reader.onload = () => {
+              const base64Data = reader.result as string
+              sendExtractionRequest(base64Data, 'image/jpeg')
+            }
+            reader.onerror = () => {
+              setStep('upload')
+              toast.error('Failed to read thumbnail from Apple Numbers file.')
+            }
+            reader.readAsDataURL(imgBlob)
+            return
+          }
+
+          // 3. Look for index.xml (Numbers '08/'09)
+          const indexXml = zip.file(/index\.xml$/i)[0]
+          if (indexXml) {
+            const xmlText = await indexXml.async('string')
+            const base64Data = btoa(unescape(encodeURIComponent(xmlText)))
+            sendExtractionRequest(`data:text/plain;base64,${base64Data}`, 'text/plain')
+            return
+          }
+
+          // 4. If Numbers file was saved without QuickLook preview
+          setStep('upload')
+          toast.error(
+            'This Apple Numbers file was saved without a QuickLook preview. In Numbers on Mac, click File > Export To > Excel (.xlsx) or CSV, then upload that file here.',
+            { duration: 8000 }
+          )
+        } catch (err) {
+          console.error('Apple Numbers extraction error:', err)
+          setStep('upload')
+          toast.error('Could not unpack Apple Numbers document. Try exporting to Excel (.xlsx) or CSV from Numbers.')
+        }
+      }
+
+      parseNumbersFile()
+      return
+    }
+
+    // Handle CSV, Excel, ODS, TSV, and all spreadsheet files seamlessly using XLSX parser + SEZ AI fallback
     if (fileTypeCategory === 'csv' || fileTypeCategory === 'excel') {
       const reader = new FileReader()
       reader.onload = (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer)
           const workbook = XLSX.read(data, { type: 'array' })
-          const firstSheetName = workbook.SheetNames[0]
-          const sheet = workbook.Sheets[firstSheetName]
 
-          // 1. Try Universal Format-Independent Table Parser
-          const directProducts = parseExcelSheetDirectly(sheet)
+          // Search sheets for product data
+          let directProducts: AiExtractedProduct[] = []
+          let activeSheet = workbook.Sheets[workbook.SheetNames[0]]
+
+          for (const sheetName of workbook.SheetNames) {
+            const sheet = workbook.Sheets[sheetName]
+            const parsed = parseExcelSheetDirectly(sheet)
+            if (parsed.length > 0) {
+              directProducts = parsed
+              activeSheet = sheet
+              break
+            }
+          }
+
           const directBarcodeCount = directProducts.filter(p => p.isExistingBarcode).length
 
           // If parser extracted products with preserved barcodes, use it instantly!
@@ -360,13 +531,13 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
           }
 
           // 2. Universal SEZ AI Multi-Modal Sheet Extraction (CSV / HTML representation)
-          const csvText = XLSX.utils.sheet_to_csv(sheet)
-          const htmlContent = XLSX.utils.sheet_to_html(sheet)
+          const csvText = XLSX.utils.sheet_to_csv(activeSheet)
+          const htmlContent = XLSX.utils.sheet_to_html(activeSheet)
           const textPayload = (csvText && csvText.trim().length > 0) ? csvText : htmlContent
 
           if (!textPayload || textPayload.trim().length === 0) {
             setStep('upload')
-            toast.error('The uploaded CSV / Excel file appears to be empty.')
+            toast.error('The uploaded spreadsheet file appears to be empty.')
             return
           }
 
@@ -374,7 +545,7 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
           sendExtractionRequest(`data:text/csv;base64,${base64Data}`, 'text/csv')
         } catch (err) {
           setStep('upload')
-          toast.error('Failed to parse CSV file. Sending to SEZ AI fallback...')
+          toast.error('Failed to parse spreadsheet file. Please check file formatting.')
           readAndSendFile(selectedFile)
         }
       }
@@ -442,15 +613,15 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
             setExtractedProducts(enriched)
             setStep('review')
             const preservedCount = enriched.filter(p => p.isExistingBarcode).length
-            toast.success(`SEZ AI successfully extracted ${res.count} products! (${preservedCount} barcodes preserved)`)
+            toast.success(`Successfully parsed ${res.count} products! (${preservedCount} barcodes preserved)`)
           } else {
             setStep('upload')
-            toast.error('SEZ AI could not find any product items in the document. Please try a clearer file.')
+            toast.error('Could not find any product items in the file. Please check your sheet data.')
           }
         },
         onError: (err) => {
           setStep('upload')
-          const msg = err instanceof Error ? err.message : 'SEZ AI document analysis failed'
+          const msg = err instanceof Error ? err.message : 'File parsing failed'
           toast.error(msg)
         },
       }
@@ -495,10 +666,11 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
     bulkImport(selectedList, {
       onSuccess: (res) => {
         toast.success(`Successfully imported ${res.count} products & updated categories!`)
-        qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
-        qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
-        qc.refetchQueries({ queryKey: [QUERY_KEYS.CATEGORIES] })
-        qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS] })
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.CATEGORIES], exact: false })
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.PRODUCTS], exact: false })
+        qc.invalidateQueries({ queryKey: [QUERY_KEYS.REPORTS_TOP_CATEGORIES], exact: false })
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.CATEGORIES], exact: false })
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS], exact: false })
         handleResetAndClose()
       },
       onError: (err) => {
@@ -718,15 +890,27 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                   </div>
                   <span>Format Guidelines & Required Columns</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-zinc-400">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-zinc-400">
                   <span>Accepted:</span>
                   <span className="font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50 text-[10.5px]">
-                    Excel (.xlsx, .xls)
+                    Excel (.xlsx, .xls, .xlsm, .xlsb)
+                  </span>
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800/50 text-[10.5px]">
+                    Apple Numbers (.numbers)
                   </span>
                   <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/50 text-[10.5px]">
-                    CSV (.csv)
+                    CSV (.csv, .tsv)
+                  </span>
+                  <span className="font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200/60 dark:border-purple-800/50 text-[10.5px]">
+                    ODS (.ods)
                   </span>
                 </div>
+              </div>
+
+              {/* Mac Apple Numbers compatibility banner */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/40 text-[11.5px] text-emerald-900 dark:text-emerald-200">
+                <span className="font-bold shrink-0">🍎 Mac Users:</span>
+                <span>You can upload native <strong>.numbers</strong> spreadsheets directly. Our engine automatically parses the document via QuickLook vision!</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -842,7 +1026,7 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                accept=".csv,.xlsx,.xls,.numbers,.ods,.tsv,.xlsm,.xlsb,.dif,.prn,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/tab-separated-values,application/vnd.oasis.opendocument.spreadsheet,application/x-iwork-numbers-sffnumbers,application/vnd.apple.numbers"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -855,7 +1039,7 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                   <div className="text-left">
                     <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100 truncate max-w-md">{selectedFile.name}</p>
                     <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                      {(selectedFile.size / 1024).toFixed(1)} KB • {fileTypeCategory.toUpperCase()} Format •{' '}
+                      {(selectedFile.size / 1024).toFixed(1)} KB • {fileTypeCategory === 'numbers' ? 'APPLE NUMBERS (.numbers)' : `${fileTypeCategory.toUpperCase()} FORMAT`} •{' '}
                       <span className="text-blue-600 dark:text-blue-400 font-semibold underline">Click to replace file</span>
                     </p>
                   </div>
@@ -866,11 +1050,11 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                     <UploadCloud className="w-5 h-5" />
                   </div>
                   <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-zinc-100">
-                    Drop your completed Excel (.xlsx) or CSV file here, or{' '}
+                    Drop your completed Excel, Apple Numbers (.numbers), or CSV file here, or{' '}
                     <span className="text-blue-600 dark:text-blue-400 underline decoration-blue-400/50 hover:text-blue-500 font-semibold">Browse</span>
                   </p>
                   <p className="text-xs text-slate-500 dark:text-zinc-400">
-                    Supports Excel (.xlsx, .xls) and CSV (.csv) — max 20MB, up to 5,000 products per batch
+                    Supports Excel (.xlsx, .xls, .xlsm, .xlsb), Apple Numbers (.numbers), CSV (.csv, .tsv), and OpenDocument (.ods) — max 20MB, up to 5,000 products per batch
                   </p>
                 </div>
               )}
@@ -882,22 +1066,22 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
           <div className="py-16 text-center space-y-6">
             <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
               <div className="absolute inset-0 rounded-full border-4 border-purple-500/20 border-t-purple-600 animate-spin" />
-              <Bot className="w-10 h-10 text-purple-600 dark:text-purple-400 animate-bounce" />
+              <FileSpreadsheet className="w-10 h-10 text-purple-600 dark:text-purple-400 animate-pulse" />
             </div>
             <div className="space-y-2 max-w-md mx-auto">
               <Badge variant="info" className="px-3 py-1 text-xs font-bold animate-pulse">
-                SEZ AI Active Processing
+                Parsing Spreadsheet
               </Badge>
               <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                SEZ AI is Analyzing Your File...
+                Parsing Your Product List...
               </h3>
               <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40 transition-all duration-300">
                 <p className="text-xs font-semibold text-purple-900 dark:text-purple-200 animate-fade-in">
-                  {SEZ_AI_LOADING_MESSAGES[loadingMsgIdx]}
+                  {SPREADSHEET_PARSING_MESSAGES[loadingMsgIdx % SPREADSHEET_PARSING_MESSAGES.length]}
                 </p>
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                Extracting items, mapping prices, creating categories, and preserving barcodes...
+                Reading rows, mapping prices, categories, and preserving barcodes...
               </p>
               <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 tabular-nums">
                 {elapsedSec}s elapsed
@@ -909,17 +1093,17 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
 
         {step === 'review' && (
           <div className="space-y-4">
-            {/* AI Verification Notice & Disclaimer Warning Banner */}
+            {/* Verification Notice & Review Warning Banner */}
             <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-dark-elevated border border-amber-300/80 dark:border-amber-500/30 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
               <div className="p-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
                 <CautionBadgeIcon className="w-4 h-4" />
               </div>
               <div className="space-y-0.5 min-w-0 flex-1">
                 <p className="font-bold text-amber-950 dark:text-amber-300">
-                  Verification Required: AI & Automated Extraction Notice
+                  Please Verify Your Product List
                 </p>
                 <p className="text-[11px] text-amber-800 dark:text-zinc-300 leading-relaxed">
-                  Automated extraction helps process thousands of products quickly, but AI and file parsers can occasionally misinterpret handwritten text, complex grid columns, or custom formats. <strong>Please inspect and verify product names, prices, categories, and barcodes below before clicking import into your inventory.</strong>
+                  Please inspect and verify product names, prices, categories, and barcodes below before clicking import into your inventory.
                 </p>
               </div>
             </div>
@@ -1039,12 +1223,12 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                     </th>
                     <th className="p-3 min-w-[160px]">Product Name</th>
                     <th className="p-3 min-w-[110px]">Category</th>
-                    <th className="p-3 text-right min-w-[90px]">Sell Price (₹)</th>
                     <th className="p-3 text-right min-w-[90px]">Cost Price (₹)</th>
-                    <th className="p-3 min-w-[80px]">GST %</th>
-                    <th className="p-3 min-w-[170px]">Barcode & Origin</th>
+                    <th className="p-3 text-right min-w-[90px]">Sell Price (₹)</th>
                     <th className="p-3 text-center min-w-[70px]">Stock</th>
                     <th className="p-3 min-w-[80px]">Unit</th>
+                    <th className="p-3 min-w-[170px]">Barcode & Origin</th>
+                    <th className="p-3 min-w-[80px]">GST %</th>
                     <th className="p-3 text-center w-12">Action</th>
                   </tr>
                 </thead>
@@ -1103,27 +1287,34 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                           <input
                             type="number"
                             step="0.01"
-                            value={product.sellingPrice}
-                            onChange={e => handleUpdateProductField(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)}
-                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs font-bold text-purple-900 dark:text-purple-100"
+                            value={product.costPrice}
+                            onChange={e => handleUpdateProductField(product.id, 'costPrice', parseFloat(e.target.value) || 0)}
+                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs text-gray-700 dark:text-zinc-200"
                           />
                         </td>
                         <td className="p-2 text-right">
                           <input
                             type="number"
                             step="0.01"
-                            value={product.costPrice}
-                            onChange={e => handleUpdateProductField(product.id, 'costPrice', parseFloat(e.target.value) || 0)}
-                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs text-gray-700 dark:text-zinc-200"
+                            value={product.sellingPrice}
+                            onChange={e => handleUpdateProductField(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)}
+                            className="w-20 text-right bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-2 py-1 text-xs font-bold text-purple-900 dark:text-purple-100"
+                          />
+                        </td>
+                        <td className="p-2 text-center font-medium">
+                          <input
+                            type="number"
+                            value={product.currentStock}
+                            onChange={e => handleUpdateProductField(product.id, 'currentStock', parseInt(e.target.value) || 0)}
+                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs font-semibold"
                           />
                         </td>
                         <td className="p-2">
                           <input
-                            type="number"
-                            step="1"
-                            value={product.taxRate}
-                            onChange={e => handleUpdateProductField(product.id, 'taxRate', parseFloat(e.target.value) || 0)}
-                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs"
+                            type="text"
+                            value={product.unit}
+                            onChange={e => handleUpdateProductField(product.id, 'unit', e.target.value)}
+                            className="w-16 bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs"
                           />
                         </td>
                         <td className="p-2 font-mono">
@@ -1153,20 +1344,13 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                             )}
                           </div>
                         </td>
-                        <td className="p-2 text-center font-medium">
-                          <input
-                            type="number"
-                            value={product.currentStock}
-                            onChange={e => handleUpdateProductField(product.id, 'currentStock', parseInt(e.target.value) || 0)}
-                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs font-semibold"
-                          />
-                        </td>
                         <td className="p-2">
                           <input
-                            type="text"
-                            value={product.unit}
-                            onChange={e => handleUpdateProductField(product.id, 'unit', e.target.value)}
-                            className="w-16 bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs"
+                            type="number"
+                            step="1"
+                            value={product.taxRate}
+                            onChange={e => handleUpdateProductField(product.id, 'taxRate', parseFloat(e.target.value) || 0)}
+                            className="w-16 text-center bg-transparent border border-gray-200 dark:border-dark-border hover:border-purple-400 focus:border-purple-500 focus:bg-white dark:focus:bg-dark-card rounded px-1.5 py-1 text-xs"
                           />
                         </td>
                         <td className="p-2 text-center">
@@ -1238,7 +1422,7 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                       </button>
                     </div>
 
-                    {/* Inputs Grid: Category, Sell Price, Cost Price */}
+                    {/* Inputs Grid: Category, Cost Price, Sell Price */}
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Category</label>
@@ -1247,16 +1431,6 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                           value={product.categoryName}
                           onChange={e => handleUpdateProductField(product.id, 'categoryName', e.target.value)}
                           className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-medium text-gray-900 dark:text-zinc-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Selling (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={product.sellingPrice}
-                          onChange={e => handleUpdateProductField(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-bold text-purple-900 dark:text-purple-100"
                         />
                       </div>
                       <div>
@@ -1269,57 +1443,78 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
                           className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 text-gray-700 dark:text-zinc-200"
                         />
                       </div>
-                    </div>
-
-                    {/* Barcode & Regenerate */}
-                    <div className="grid grid-cols-2 gap-2 items-center">
                       <div>
-                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase flex items-center justify-between">
-                          <span>Barcode</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRegenerateBarcode(product.id)}
-                            className="text-purple-600 hover:underline text-[10px]"
-                          >
-                            Generate New
-                          </button>
-                        </label>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Selling (₹)</label>
                         <input
-                          type="text"
-                          value={product.barcode}
-                          onChange={e => handleUpdateProductField(product.id, 'barcode', e.target.value)}
-                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-mono font-bold"
+                          type="number"
+                          step="0.01"
+                          value={product.sellingPrice}
+                          onChange={e => handleUpdateProductField(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-bold text-purple-900 dark:text-purple-100"
                         />
                       </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">GST %</label>
-                          <input
-                            type="number"
-                            value={product.taxRate}
-                            onChange={e => handleUpdateProductField(product.id, 'taxRate', parseFloat(e.target.value) || 0)}
-                            className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1.5 py-1 text-center"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Stock</label>
-                          <input
-                            type="number"
-                            value={product.currentStock}
-                            onChange={e => handleUpdateProductField(product.id, 'currentStock', parseInt(e.target.value) || 0)}
-                            className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1.5 py-1 text-center font-bold"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Unit</label>
-                          <input
-                            type="text"
-                            value={product.unit}
-                            onChange={e => handleUpdateProductField(product.id, 'unit', e.target.value)}
-                            className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1 py-1 text-center"
-                          />
-                        </div>
+                    </div>
+
+                    {/* Stock, Unit, GST % */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Stock</label>
+                        <input
+                          type="number"
+                          value={product.currentStock}
+                          onChange={e => handleUpdateProductField(product.id, 'currentStock', parseInt(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1.5 py-1 text-center font-bold"
+                        />
                       </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">Unit</label>
+                        <input
+                          type="text"
+                          value={product.unit}
+                          onChange={e => handleUpdateProductField(product.id, 'unit', e.target.value)}
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1 py-1 text-center"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase">GST %</label>
+                        <input
+                          type="number"
+                          value={product.taxRate}
+                          onChange={e => handleUpdateProductField(product.id, 'taxRate', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-1.5 py-1 text-center"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Barcode & Origin */}
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase flex items-center justify-between mb-1">
+                        <span className="flex items-center gap-1.5">
+                          Barcode
+                          {product.isExistingBarcode ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 whitespace-nowrap inline-flex items-center gap-1">
+                              <FileText className="w-2.5 h-2.5" /> Doc
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 whitespace-nowrap inline-flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5" /> Auto
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerateBarcode(product.id)}
+                          className="text-purple-600 dark:text-purple-400 hover:underline text-[10px] flex items-center gap-1"
+                        >
+                          <RotateCw className="w-3 h-3" /> Generate New
+                        </button>
+                      </label>
+                      <input
+                        type="text"
+                        value={product.barcode}
+                        onChange={e => handleUpdateProductField(product.id, 'barcode', e.target.value)}
+                        className="w-full bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 font-mono font-bold text-gray-900 dark:text-gray-100"
+                      />
                     </div>
                   </div>
                   )
@@ -1332,7 +1527,7 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
               <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40 flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                 <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
-                  {SEZ_AI_IMPORT_MESSAGES[loadingMsgIdx % SEZ_AI_IMPORT_MESSAGES.length]}
+                  {IMPORT_LOADING_MESSAGES[loadingMsgIdx % IMPORT_LOADING_MESSAGES.length]}
                 </p>
               </div>
             )}
@@ -1376,10 +1571,10 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
               {/* Description */}
               <div className="space-y-2 text-xs text-slate-700 dark:text-zinc-300 leading-relaxed">
                 <p>
-                  The downloaded Excel template contains <strong>5 demo sample products</strong> (<em>Parle-G, Amul Butter, etc.</em>).
+                  If you used our template, it includes <strong>5 demo sample products</strong> (<em>Parle-G, Amul Butter, etc.</em>).
                 </p>
                 <p>
-                  Before we upload and start executing the processing, please confirm that you have <strong>deleted rows 2 to 6</strong> (or replaced them with your real store catalog) so sample items are not added to your inventory.
+                  Before we proceed with parsing and importing, please ensure you have <strong>deleted demo sample rows</strong> (or replaced them with your own products) so sample test items are not imported into your inventory.
                 </p>
               </div>
 
@@ -1387,10 +1582,10 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
               <div className="p-3 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/25 text-[11px] text-amber-900 dark:text-amber-200/90 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-amber-950 dark:text-amber-300">
                   <CustomLightbulbIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>How to remove in Excel / Sheets:</span>
+                  <span>How to remove in Numbers / Excel / Sheets:</span>
                 </div>
                 <p className="text-slate-700 dark:text-zinc-300">
-                  Select rows <strong>2 through 6</strong> on the left &rarr; right-click &rarr; click <strong className="underline text-amber-950 dark:text-amber-200">Delete Rows</strong>.
+                  Select sample rows on the left &rarr; right-click &rarr; click <strong className="underline text-amber-950 dark:text-amber-200">Delete Rows</strong>.
                 </p>
               </div>
 

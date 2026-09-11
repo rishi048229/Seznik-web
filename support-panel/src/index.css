@@ -16,6 +16,7 @@ html[data-magicui-theme-vt="active"]::view-transition-group(root) {
   :root {
     --bg-main: #F4F7F9;
     --bg-card: #FFFFFF;
+    --card-bg: #FFFFFF;
     --border-color: #E2E8F0;
     --text-main: #0F172A;
     --text-muted: #64748B;
@@ -25,6 +26,7 @@ html[data-magicui-theme-vt="active"]::view-transition-group(root) {
   html.dark {
     --bg-main: #0A0A0A;
     --bg-card: #141414;
+    --card-bg: #141414;
     --border-color: #262626;
     --text-main: #F2F2F2;
     --text-muted: #888888;

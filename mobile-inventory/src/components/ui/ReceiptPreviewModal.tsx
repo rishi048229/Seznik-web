@@ -39,6 +39,7 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useTranslation } from '@/store/useLanguageStore';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
@@ -95,6 +96,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     receiptLogoSize,
     receiptQrSize,
   } = usePrinterStore();
+  const { t } = useTranslation();
   const storeProfile = useStoreProfile();
   const [isPrinting, setIsPrinting] = useState(false);
   const [hasPrinted, setHasPrinted] = useState(false);
@@ -108,6 +110,13 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const storeProfileRef = useRef(storeProfile);
   storeProfileRef.current = storeProfile;
   const [joshConnected, setJoshConnected] = useState(false);
+
+  const isPrinterReady = Boolean((activeDevice && connectionState === 'connected') || joshConnected);
+  const printerDisplayName = (activeDevice && connectionState === 'connected')
+    ? activeDevice.name
+    : joshConnected
+    ? 'Josh Printer (Dual Mode)'
+    : null;
 
   // Local Editable Copy
   const [editableSale, setEditableSale] = useState<PrintSaleData | null>(null);
@@ -307,6 +316,37 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     }
   }, [autoCloseAfterPrint, onClose, onConfirmed]);
 
+  const handleSkipPrint = useCallback(() => {
+    onConfirmed?.();
+    setHasPrinted(true);
+    setTimeout(() => {
+      onClose();
+    }, 400);
+  }, [onClose, onConfirmed]);
+
+  const handleClose = useCallback(() => {
+    if (!hasPrinted && onConfirmed) {
+      Alert.alert(
+        t('saleNotSaved', 'Sale Not Saved'),
+        t('saleNotSavedPrompt', 'This bill has not been saved yet. Do you want to save it before closing, or discard it?'),
+        [
+          {
+            text: t('discardOrEdit', 'Discard / Edit'),
+            style: 'destructive',
+            onPress: onClose,
+          },
+          {
+            text: t('skipPrinting', 'Save Bill (Skip Print)'),
+            style: 'default',
+            onPress: handleSkipPrint,
+          },
+        ]
+      );
+      return;
+    }
+    onClose();
+  }, [hasPrinted, onClose, onConfirmed, handleSkipPrint, t]);
+
   // Multi-Channel Print Triggers
   const handlePrintThermal = async () => {
     if (!editableSale) return;
@@ -435,7 +475,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
         <Modal
           visible={modalVisible}
           animationType="slide"
-          onRequestClose={onClose}
+          onRequestClose={handleClose}
           presentationStyle="fullScreen"
         >
           <SafeAreaView
@@ -489,7 +529,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                   <Text style={[styles.headerA4BtnText, { color: theme.textPrimary }]}>A4 Print</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>
+                <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={12}>
                   <X size={20} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
@@ -940,8 +980,18 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
                 <View style={styles.actionRow}>
                   <TouchableOpacity
+                    onPress={handleSkipPrint}
+                    disabled={printDisabled || isSaleSaving}
+                    style={[styles.skipPrintBtn, printDisabled && { opacity: 0.5 }]}
+                  >
+                    <CheckCircle2 size={15} color="#10B981" />
+                    <Text style={styles.skipPrintBtnText}>
+                      {t('saveWithoutPrinting', 'Save (No Print)')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     onPress={handlePrintThermal}
-                    disabled={printDisabled}
+                    disabled={printDisabled || isSaleSaving}
                     style={[styles.primaryActionBtn, printDisabled && styles.actionBtnDisabled]}
                   >
                     {isPrinting ? (
@@ -963,7 +1013,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                 </View>
 
                 <TouchableOpacity
-                  onPress={onClose}
+                  onPress={handleClose}
                   style={[styles.closeBottomBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
                 >
                   <Text style={[styles.closeBottomBtnText, { color: theme.textPrimary }]}>Close</Text>
@@ -986,8 +1036,9 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
         showContinueWithoutPrinter={true}
         onContinueWithoutPrinter={() => {
           setShowConnectModal(false);
-          handleSystemPrint();
+          handleSkipPrint();
         }}
+        continueWithoutPrinterLabel={t('saveWithoutPrinting', 'Save (No Print)')}
       />
     </>
   );
@@ -1383,6 +1434,20 @@ const styles = StyleSheet.create({
   },
   reprintNoticeText: { fontSize: 11, fontWeight: '700', color: '#F59E0B', lineHeight: 15 },
   actionRow: { flexDirection: 'row', gap: 8 },
+  skipPrintBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderRadius: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 8,
+  },
+  skipPrintBtnText: { color: '#059669', fontWeight: '800', fontSize: 12 },
   primaryActionBtn: {
     flex: 1.6,
     flexDirection: 'row',

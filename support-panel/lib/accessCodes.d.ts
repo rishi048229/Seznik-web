@@ -2,6 +2,16 @@ export function clampGenerateCount(raw: unknown): number | null;
 
 export function ensureAccessCodeTable(pool: unknown): Promise<void>;
 
+export type RedeemedUserDetails = {
+  id: string | null;
+  email: string | null;
+  displayName: string | null;
+  businessName: string | null;
+  phone: string | null;
+  businessType: string | null;
+  usedAt: string | null;
+};
+
 export type AccessCodeRow = {
   id: string;
   code: string;
@@ -18,7 +28,22 @@ export type AccessCodeRow = {
   usedAt: string | null;
   usedByUserId: string | null;
   customerEmail: string | null;
+  redeemedUser?: RedeemedUserDetails | null;
 };
+
+export type AccessCodeLookupResult = {
+  found: boolean;
+  code: string;
+  status: 'redeemed' | 'available' | 'not_found';
+  isRedeemed: boolean;
+  record: AccessCodeRow | null;
+  message?: string;
+};
+
+export function lookupAccessCode(
+  pool: unknown,
+  rawCode: unknown
+): Promise<AccessCodeLookupResult>;
 
 export function generateAccessCodes(
   pool: unknown,

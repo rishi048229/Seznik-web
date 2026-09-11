@@ -385,7 +385,7 @@ export default function InvoicesTabScreen() {
           </View>
 
           <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Search size={16} color={theme.textSecondary} />
+            <Search size={18} color={theme.textSecondary} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -459,7 +459,7 @@ export default function InvoicesTabScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={t('view', 'View')}
                         >
-                          <Eye size={15} color={theme.textPrimary} />
+                          <Eye size={17} color={theme.textPrimary} />
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -472,7 +472,7 @@ export default function InvoicesTabScreen() {
                           {isBusy && busyAction === 'download' ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Download size={15} color="#FFFFFF" />
+                            <Download size={17} color="#FFFFFF" />
                           )}
                         </TouchableOpacity>
 
@@ -486,7 +486,7 @@ export default function InvoicesTabScreen() {
                           {isBusy && busyAction === 'share' ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Share2 size={15} color="#FFFFFF" />
+                            <Share2 size={17} color="#FFFFFF" />
                           )}
                         </TouchableOpacity>
 
@@ -500,7 +500,7 @@ export default function InvoicesTabScreen() {
                           {isBusy && busyAction === 'print' ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Printer size={15} color="#FFFFFF" />
+                            <Printer size={17} color="#FFFFFF" />
                           )}
                         </TouchableOpacity>
                       </View>
@@ -629,8 +629,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '900' },
   printerStatusChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1, maxWidth: '52%' },
   printerStatusText: { fontSize: 11, fontWeight: '800', marginLeft: 4, flexShrink: 1 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
-  searchInput: { flex: 1, fontSize: 13, marginLeft: 8 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
+  searchInput: { flex: 1, fontSize: 15, marginLeft: 8 },
   filtersPanel: {
     borderRadius: 16,
     borderWidth: 1,
@@ -682,20 +682,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   customRangeText: { fontSize: 12, fontWeight: '700', flex: 1 },
-  invoiceCard: { borderRadius: 12, borderWidth: 1, marginBottom: 8 },
-  invoiceRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10, gap: 8 },
+  invoiceCard: { borderRadius: 14, borderWidth: 1, marginBottom: 10 },
+  invoiceRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, gap: 10 },
   invoiceMain: { flex: 1, minWidth: 0 },
-  invoiceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  invoiceNumber: { fontSize: 13, fontWeight: '900', flexShrink: 1 },
-  paymentBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5, backgroundColor: 'rgba(37,99,235,0.1)' },
-  paymentBadgeText: { fontSize: 8, fontWeight: '900', color: BRAND_COLORS.blue600, marginLeft: 3 },
-  invoiceMeta: { fontSize: 10, marginTop: 2 },
-  invoiceAmount: { fontSize: 13, fontWeight: '900' },
-  iconActions: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  invoiceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  invoiceNumber: { fontSize: 16, fontWeight: '900', flexShrink: 1 },
+  paymentBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, backgroundColor: 'rgba(37,99,235,0.1)' },
+  paymentBadgeText: { fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600, marginLeft: 3 },
+  invoiceMeta: { fontSize: 12, marginTop: 4, lineHeight: 17 },
+  invoiceAmount: { fontSize: 16, fontWeight: '900' },
+  iconActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   iconActionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

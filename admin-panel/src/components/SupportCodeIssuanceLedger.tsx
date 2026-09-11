@@ -8,8 +8,13 @@ import {
   Search,
   Users,
 } from 'lucide-react';
-import { fetchAccessCodeIssuers, fetchAccessCodes } from '../services/api';
+import {
+  fetchAccessCodeIssuers,
+  fetchAccessCodes,
+  lookupAdminAccessCode,
+} from '../services/api';
 import type { AccessCodeIssuerStat, AccessCodeRecord } from '../types/admin';
+import { CodeSearchModal } from './CodeSearchModal';
 
 const controlStyle: React.CSSProperties = {
   padding: '8px 12px',
@@ -51,6 +56,8 @@ export const SupportCodeIssuanceLedger: React.FC<SupportCodeIssuanceLedgerProps>
   const [selectedIssuer, setSelectedIssuer] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [selectedSearchCode, setSelectedSearchCode] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -319,6 +326,28 @@ export const SupportCodeIssuanceLedger: React.FC<SupportCodeIssuanceLedgerProps>
                 placeholder="Search entries…"
               />
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSearchCode('');
+                setSearchModalOpen(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid var(--border-color)',
+                background: 'var(--accent-blue, #2563eb)',
+                color: '#fff',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <Search size={13} /> Search Code
+            </button>
           </div>
         </div>
 
@@ -402,12 +431,38 @@ export const SupportCodeIssuanceLedger: React.FC<SupportCodeIssuanceLedgerProps>
                         letterSpacing: '0.04em',
                       }}
                     >
-                      {row.code}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSearchCode(row.code);
+                          setSearchModalOpen(true);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: 'var(--accent-blue, #2563eb)',
+                          fontFamily: 'inherit',
+                          fontWeight: 'inherit',
+                          letterSpacing: 'inherit',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: '2px',
+                        }}
+                        title="Click to view code & redemption details"
+                      >
+                        {row.code}
+                      </button>
                     </td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>
                       {row.isUsed ? (
-                        <span
-                          title={`Redeemed by ${row.customerEmail || row.usedByUserId || 'User'}${row.usedAt ? ` on ${formatWhen(row.usedAt)}` : ''}`}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSearchCode(row.code);
+                            setSearchModalOpen(true);
+                          }}
+                          title={`Redeemed by ${row.customerEmail || row.usedByUserId || 'User'}${row.usedAt ? ` on ${formatWhen(row.usedAt)}` : ''}. Click to view details.`}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -419,13 +474,19 @@ export const SupportCodeIssuanceLedger: React.FC<SupportCodeIssuanceLedgerProps>
                             background: 'rgba(16, 185, 129, 0.12)',
                             color: '#059669',
                             border: '1px solid rgba(16, 185, 129, 0.3)',
+                            cursor: 'pointer',
                           }}
                         >
                           ✓ Redeemed
-                        </span>
+                        </button>
                       ) : (
-                        <span
-                          title="Available / Pending redemption"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSearchCode(row.code);
+                            setSearchModalOpen(true);
+                          }}
+                          title="Available / Pending redemption. Click to view details."
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -437,10 +498,11 @@ export const SupportCodeIssuanceLedger: React.FC<SupportCodeIssuanceLedgerProps>
                             background: 'rgba(59, 130, 246, 0.1)',
                             color: '#2563eb',
                             border: '1px solid rgba(59, 130, 246, 0.25)',
+                            cursor: 'pointer',
                           }}
                         >
                           Available
-                        </span>
+                        </button>
                       )}
                     </td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)' }}>
@@ -456,6 +518,14 @@ export const SupportCodeIssuanceLedger: React.FC<SupportCodeIssuanceLedgerProps>
           </table>
         </div>
       </section>
+
+      <CodeSearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        searchFn={lookupAdminAccessCode}
+        initialCode={selectedSearchCode}
+        title="Search Access Code"
+      />
     </div>
   );
 };

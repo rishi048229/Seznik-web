@@ -21,6 +21,7 @@ import { pgConnectionString, pgSslConfig } from './lib/pgSsl.js';
 import {
   generateAccessCodes,
   listAccessCodes,
+  lookupAccessCode,
   listAccessCodeBatches,
   getAccessCodesByBatch,
   issueCustomerAccessCode,
@@ -478,6 +479,18 @@ app.get('/api/admin/access-codes/batch/:batchId', async (req, res) => {
   }
 });
 
+// GET /api/admin/access-codes/search
+app.get(['/api/admin/access-codes/search', '/api/admin/access-codes/lookup'], async (req, res) => {
+  try {
+    const code = req.query.code || req.query.q || '';
+    const result = await lookupAccessCode(pool, code);
+    res.json(result);
+  } catch (err) {
+    console.error('Error searching access code:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to search access code' });
+  }
+});
+
 // GET /api/admin/access-codes
 app.get('/api/admin/access-codes', async (req, res) => {
   try {
@@ -616,6 +629,26 @@ app.post('/api/support/access-codes/issue', async (req, res) => {
   } catch (err) {
     console.error('Error issuing customer access code:', err);
     res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to issue code' });
+  }
+});
+
+// GET /api/support/access-codes/search
+app.get(['/api/support/access-codes/search', '/api/support/access-codes/lookup'], async (req, res) => {
+  try {
+    const session = getSupportSession(req);
+    if (!session) return res.status(401).json({ error: 'Unauthorized' });
+    const agent = await getSupportAgentById(pool, session.agentId);
+    if (!agent) return res.status(401).json({ error: 'Unauthorized' });
+    if (agent.isDisabled) {
+      res.setHeader('Set-Cookie', clearSupportSessionCookieHeader(isSupportSecureRequest(req)));
+      return res.status(403).json({ error: 'Access disabled. Contact an administrator.' });
+    }
+    const code = req.query.code || req.query.q || '';
+    const result = await lookupAccessCode(pool, code);
+    res.json(result);
+  } catch (err) {
+    console.error('Error searching support access code:', err);
+    res.status(err?.statusCode || 500).json({ error: err?.message || 'Failed to search access code' });
   }
 });
 

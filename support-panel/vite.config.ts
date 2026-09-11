@@ -16,6 +16,7 @@ import {
 import {
   issueCustomerAccessCode,
   listAccessCodes,
+  lookupAccessCode,
 } from './lib/accessCodes.js';
 
 export default defineConfig(({ mode }) => {
@@ -166,6 +167,15 @@ export default defineConfig(({ mode }) => {
                   throw lastErr;
                 })();
                 send(200, { success: true, record });
+                return;
+              }
+
+              if ((pathname === '/api/support/access-codes/search' || pathname === '/api/support/access-codes/lookup') && req.method === 'GET') {
+                const agent = await requireAgent();
+                if (!agent) return;
+                const code = parsedUrl.searchParams.get('code') || parsedUrl.searchParams.get('q') || '';
+                const result = await lookupAccessCode(pool, code);
+                send(200, result);
                 return;
               }
 

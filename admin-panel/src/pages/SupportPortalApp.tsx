@@ -11,9 +11,11 @@ import {
   Search,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from '../components/AnimatedThemeToggler';
+import { CodeSearchModal } from '../components/CodeSearchModal';
 import {
   fetchSupportAccessCodes,
   issueSupportAccessCode,
+  lookupSupportAccessCode,
   logoutSupport,
 } from '../services/api';
 import type { AccessCodeRecord, SupportAgentRecord } from '../types/admin';
@@ -74,6 +76,8 @@ export const SupportPortalApp: React.FC<SupportPortalAppProps> = ({ agent, onLog
   const [listError, setListError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [selectedSearchCode, setSelectedSearchCode] = useState('');
 
   const loadEntries = useCallback(async () => {
     setLoading(true);
@@ -161,6 +165,28 @@ export const SupportPortalApp: React.FC<SupportPortalAppProps> = ({ agent, onLog
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedSearchCode('');
+              setSearchModalOpen(true);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-main)',
+              color: 'var(--text-main)',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <Search size={14} /> Search Code
+          </button>
           <AnimatedThemeToggler variant="circle" duration={500} />
           <button
             type="button"
@@ -330,7 +356,7 @@ export const SupportPortalApp: React.FC<SupportPortalAppProps> = ({ agent, onLog
                   }}
                 >
                   {submitting ? <Loader2 size={15} className="spin" /> : <KeyRound size={15} />}
-                  {submitting ? 'Generating…' : 'Generate code'}
+                  {submitting ? 'Generating…' : 'Generate access code'}
                 </button>
               </div>
             </form>
@@ -528,13 +554,21 @@ export const SupportPortalApp: React.FC<SupportPortalAppProps> = ({ agent, onLog
                           {row.printer || '—'}
                         </td>
                         <td
+                          onClick={() => {
+                            setSelectedSearchCode(row.code);
+                            setSearchModalOpen(true);
+                          }}
                           style={{
                             padding: '10px 12px',
                             borderBottom: '1px solid var(--border-color)',
                             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                             fontWeight: 700,
                             letterSpacing: '0.04em',
+                            cursor: 'pointer',
+                            textDecoration: 'underline dotted',
+                            color: 'var(--accent-blue)',
                           }}
+                          title="Click to view details and status"
                         >
                           {row.code}
                         </td>
@@ -553,6 +587,14 @@ export const SupportPortalApp: React.FC<SupportPortalAppProps> = ({ agent, onLog
           </section>
         </div>
       </main>
+
+      <CodeSearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        searchFn={lookupSupportAccessCode}
+        initialCode={selectedSearchCode}
+        title="Search Access Code"
+      />
     </div>
   );
 };

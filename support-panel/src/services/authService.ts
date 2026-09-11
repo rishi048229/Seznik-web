@@ -1,4 +1,4 @@
-import type { AccessCodeListResponse, AccessCodeRecord, SupportAgentRecord } from '../types/support';
+import type { AccessCodeListResponse, AccessCodeRecord, AccessCodeLookupResult, SupportAgentRecord } from '../types/support';
 
 function isLocalDev(): boolean {
   return (
@@ -99,3 +99,15 @@ export async function fetchSupportAccessCodes(params: {
   }
   return (await res.json()) as AccessCodeListResponse;
 }
+
+export async function lookupSupportAccessCode(code: string): Promise<AccessCodeLookupResult> {
+  const res = await fetch(`${getSupportApiBase()}/access-codes/search?code=${encodeURIComponent(code.trim())}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    notifyUnauthorized(res.status);
+    throw new Error(await parseError(res, 'Failed to search access code'));
+  }
+  return (await res.json()) as AccessCodeLookupResult;
+}
+

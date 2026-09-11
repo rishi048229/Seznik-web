@@ -14,6 +14,7 @@ import type {
   AccessCodeBatchListResponse,
   AccessCodeGenerateResponse,
   AccessCodeRecord,
+  AccessCodeLookupResult,
   AccessCodeIssuerListResponse,
   SectionsSummary,
   SupportAgentListResponse,
@@ -326,6 +327,10 @@ export async function fetchAccessCodes(params: {
   return fetchAdminEndpoint<AccessCodeListResponse>(`/access-codes${qs ? `?${qs}` : ''}`);
 }
 
+export async function lookupAdminAccessCode(code: string): Promise<AccessCodeLookupResult> {
+  return fetchAdminEndpoint<AccessCodeLookupResult>(`/access-codes/search?code=${encodeURIComponent(code.trim())}`);
+}
+
 export async function fetchAccessCodeIssuers(): Promise<AccessCodeIssuerListResponse> {
   return fetchAdminEndpoint<AccessCodeIssuerListResponse>('/access-codes/issuers');
 }
@@ -467,3 +472,15 @@ export async function fetchSupportAccessCodes(params: {
   }
   return (await res.json()) as AccessCodeListResponse;
 }
+
+export async function lookupSupportAccessCode(code: string): Promise<AccessCodeLookupResult> {
+  const res = await fetch(`${getSupportApiBase()}/access-codes/search?code=${encodeURIComponent(code.trim())}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    notifySupportUnauthorized(res.status);
+    throw new Error(await parseSupportError(res, 'Failed to search access code'));
+  }
+  return (await res.json()) as AccessCodeLookupResult;
+}
+

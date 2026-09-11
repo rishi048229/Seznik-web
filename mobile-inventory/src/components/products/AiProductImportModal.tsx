@@ -214,7 +214,19 @@ export function AiProductImportModal({ visible, onClose, onSuccessImport }: Prop
   const handleDocumentPick = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*', 'application/pdf', 'text/csv', 'text/plain', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        type: [
+          'image/*',
+          'application/pdf',
+          'text/csv',
+          'text/plain',
+          'text/tab-separated-values',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'application/vnd.apple.numbers',
+          'application/x-iwork-numbers-sffnumbers',
+          'application/vnd.oasis.opendocument.spreadsheet',
+          '*/*'
+        ],
         copyToCacheDirectory: true,
       });
 

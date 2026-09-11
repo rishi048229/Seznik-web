@@ -9,6 +9,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Search,
   ShieldOff,
   ShieldCheck,
   Trash2,
@@ -19,10 +20,12 @@ import {
   disableSupportAgent,
   enableSupportAgent,
   fetchSupportAgents,
+  lookupAdminAccessCode,
   resetSupportAgentPassword,
   revokeSupportAgent,
 } from '../services/api';
 import type { SupportAgentRecord } from '../types/admin';
+import { CodeSearchModal } from './CodeSearchModal';
 
 const controlStyle: React.CSSProperties = {
   padding: '8px 12px',
@@ -113,6 +116,8 @@ export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ on
   const [createdCreds, setCreatedCreds] = useState<CreatedCreds | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [selectedSearchCode, setSelectedSearchCode] = useState('');
 
   const loadAgents = useCallback(async () => {
     setLoading(true);
@@ -284,6 +289,16 @@ export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ on
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            style={actionBtnStyle}
+            onClick={() => {
+              setSelectedSearchCode('');
+              setSearchModalOpen(true);
+            }}
+          >
+            <Search size={13} color="var(--accent-blue)" /> Search Code
+          </button>
           {onViewReports ? (
             <button type="button" style={actionBtnStyle} onClick={onViewReports}>
               <FileBarChart2 size={13} /> View reports
@@ -617,6 +632,14 @@ export const SupportAccessView: React.FC<{ onViewReports?: () => void }> = ({ on
           </div>
         </div>
       )}
+
+      <CodeSearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        searchFn={lookupAdminAccessCode}
+        initialCode={selectedSearchCode}
+        title="Search Access Code"
+      />
     </div>
   );
 };

@@ -220,6 +220,7 @@ function PosScreen() {
   // longer matches what gets printed.
   const pendingSalePayloadRef = useRef<any | null>(null);
   const saleCommittedRef = useRef(false);
+  const directSaveRequestedRef = useRef(false);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [isSavingSalePreview, setIsSavingSalePreview] = useState(false);
@@ -487,8 +488,8 @@ function PosScreen() {
     storeProfile,
   ]);
 
-  /** Print to thermal, open preview, and save the invoice — all at once when Print Bill is tapped. */
-  const handlePrintCheckout = () => {
+  /** Build the pending sale once so print and no-print checkout share validation and totals. */
+  const prepareCheckout = () => {
     if (getCartItems().length === 0 || checkoutLockRef.current || isCreating) return;
 
     if (paymentMethod === 'credit' && !selectedCustomerId) {
@@ -555,7 +556,22 @@ function PosScreen() {
     pendingSalePayloadRef.current = { payload: salePayload, provisionalInv };
     saleCommittedRef.current = false;
     setPreviewSaleData(saleData);
+    return true;
+  };
+
+  /** Print to thermal, open preview, and save the invoice when the bill is confirmed. */
+  const handlePrintCheckout = () => {
+    directSaveRequestedRef.current = false;
+    if (!prepareCheckout()) return;
     setShowReceiptPreviewModal(true);
+  };
+
+  /** Standalone POS path: save the sale directly without opening any printer flow. */
+  const handleDirectSaveCheckout = () => {
+    if (!prepareCheckout()) return;
+    directSaveRequestedRef.current = true;
+    setCheckoutModalOpen(false);
+    commitPendingSale();
   };
 
   /**
@@ -580,12 +596,17 @@ function PosScreen() {
         setCreditAmountReceivedInput('0');
         setBillDiscountInput('');
         clearCart();
+        if (directSaveRequestedRef.current) {
+          directSaveRequestedRef.current = false;
+          Alert.alert(t('saleSavedSuccess', 'Sale saved'), `${t('invoiceNumber', 'Invoice')} #${finalInv}`);
+        }
       },
       onError: (err) => {
         checkoutLockRef.current = false;
         setIsSavingSalePreview(false);
         // Allow another attempt — the bill printed but nothing was recorded.
         saleCommittedRef.current = false;
+        directSaveRequestedRef.current = false;
         Alert.alert(
           t('saleFailed', 'Sale Not Saved'),
           err.message ||
@@ -1647,6 +1668,14 @@ function PosScreen() {
 
             <View style={styles.checkoutActionRow}>
               <TouchableOpacity
+                onPress={handleDirectSaveCheckout}
+                disabled={cartItems.length === 0 || isCreating}
+                style={[styles.skipCheckoutBtn, { flex: 1 }, (cartItems.length === 0 || isCreating) && { opacity: 0.5 }]}
+              >
+                <CheckCircle2 size={16} color="#10B981" style={{ marginRight: 6 }} />
+                <Text style={styles.skipCheckoutBtnText}>{t('saveWithoutPrinting', 'Save (No Print)')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 onPress={handlePrintCheckout}
                 disabled={cartItems.length === 0 || isCreating}
                 style={[styles.submitBtn, { flex: 1 }, (cartItems.length === 0 || isCreating) && { opacity: 0.5 }]}
@@ -2117,6 +2146,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   checkoutActionRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  skipCheckoutBtn: { borderWidth: 1, borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  skipCheckoutBtnText: { color: '#059669', fontWeight: '800', fontSize: 13 },
   previewBtn: {
     borderWidth: 1,
     borderRadius: 14,
