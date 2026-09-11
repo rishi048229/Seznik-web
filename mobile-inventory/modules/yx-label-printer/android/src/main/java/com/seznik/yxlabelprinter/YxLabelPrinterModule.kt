@@ -604,6 +604,9 @@ class YxLabelPrinterModule : Module() {
 
     val build = h.build(printCall(h))
     build.enable()
+    if (jobSendIndex == 1 && isGap) {
+      build.backoffPaper()
+    }
     build.paperType(jobPaperType)
     build.printImg(jobImgNames.removeAt(0))
     if (isGap) {
