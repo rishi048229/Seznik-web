@@ -65,8 +65,8 @@ export default function RegisterScreen() {
     isRegistering,
   } = useAuth();
 
-  // Registration step: 1 = Email, 2 = Verify OTP, 3 = Basic Details, 4 = Hardware Verification
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  // Registration step: 1 = Email, 2 = Verify OTP, 3 = Basic Details, 4 = Language Selection, 5 = Hardware Verification
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Form State
   const [email, setEmail] = useState('');
@@ -206,8 +206,8 @@ export default function RegisterScreen() {
     }
   };
 
-  // Step 3: Advance from Basic Details to Hardware Setup
-  const handleAdvanceToHardwareStep = async () => {
+  // Step 3: Advance from Basic Details to Language Selection
+  const handleAdvanceToLanguageStep = async () => {
     setErrorMessage(null);
     const cleanName = displayName.trim();
     const cleanPhone = phone.replace(/\D/g, '');
@@ -245,6 +245,12 @@ export default function RegisterScreen() {
     }
 
     setStep(4);
+  };
+
+  // Step 4: Advance from Language Selection to Hardware Setup
+  const handleAdvanceToHardwareStep = () => {
+    setErrorMessage(null);
+    setStep(5);
   };
 
   // Verify access code preflight
@@ -309,7 +315,8 @@ export default function RegisterScreen() {
   };
 
   const handleBackNavigation = () => {
-    if (step === 4) setStep(3);
+    if (step === 5) setStep(4);
+    else if (step === 4) setStep(3);
     else if (step === 3) setStep(2);
     else if (step === 2) setStep(1);
     else router.replace('/(auth)/login' as any);
@@ -376,16 +383,18 @@ export default function RegisterScreen() {
                 {step === 1 && t('createAccount', 'Create Store Account')}
                 {step === 2 && t('verifyEmail', 'Verify Your Email')}
                 {step === 3 && t('storeProfileSecurity', 'Store Profile & Password')}
-                {step === 4 && t('hardwareVerificationTitle', 'Seznik Hardware Setup')}
+                {step === 4 && t('chooseLanguage', 'Choose Preferred Language')}
+                {step === 5 && t('hardwareVerificationTitle', 'Seznik Hardware Setup')}
               </Text>
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                 {step === 1 && t('enterEmailToStart', 'Step 1: Enter your business email to get started')}
                 {step === 2 && t('enterOtpSent', `Step 2: Enter the 6-digit code sent to ${email}`)}
                 {step === 3 && t('completeProfile', 'Step 3: Setup your store name, contact & password')}
-                {step === 4 && t('hardwareVerificationSub', 'Step 4: Hardware setup & printer verification')}
+                {step === 4 && t('languageStepSub', 'Step 4: Select your primary language for billing & app')}
+                {step === 5 && t('hardwareVerificationSub', 'Step 5: Hardware setup & printer verification')}
               </Text>
 
-              {/* Stepper Progress Bar (4 steps) */}
+              {/* Stepper Progress Bar (5 steps) */}
               <View style={styles.stepperContainer}>
                 <View
                   style={[
@@ -409,6 +418,12 @@ export default function RegisterScreen() {
                   style={[
                     styles.stepperPill,
                     { backgroundColor: step >= 4 ? BRAND_COLORS.blue600 : theme.borderColor },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.stepperPill,
+                    { backgroundColor: step >= 5 ? BRAND_COLORS.blue600 : theme.borderColor },
                   ]}
                 />
               </View>
@@ -849,8 +864,119 @@ export default function RegisterScreen() {
                 </View>
 
                 <TouchableOpacity
-                  onPress={handleAdvanceToHardwareStep}
+                  onPress={handleAdvanceToLanguageStep}
                   style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }]}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {t('continueToLanguage', 'Continue to Language Selection')}
+                  </Text>
+                  <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* STEP 4: LANGUAGE SELECTION */}
+            {step === 4 && (
+              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <Globe size={20} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
+                  <Text style={[styles.cardHeading, { color: theme.textPrimary, marginBottom: 0 }]}>
+                    {t('selectPreferredLanguage', 'Select Your Language')}
+                  </Text>
+                </View>
+                <Text style={[styles.cardSubheading, { color: theme.textSecondary }]}>
+                  {t('selectLanguageSubtitle', 'Choose the language you would like to use for your billing & store operations')}
+                </Text>
+
+                {/* Language Selection Grid/List */}
+                <View style={styles.languageListContainer}>
+                  {SUPPORTED_LANGUAGES.map((lang) => {
+                    const isSelected = lang.code === currentLanguage;
+                    return (
+                      <TouchableOpacity
+                        key={lang.code}
+                        onPress={() => setLanguage(lang.code)}
+                        activeOpacity={0.75}
+                        style={[
+                          styles.languageSelectCard,
+                          {
+                            backgroundColor: isSelected
+                              ? theme.isDark
+                                ? 'rgba(37, 99, 235, 0.16)'
+                                : 'rgba(37, 99, 235, 0.08)'
+                              : theme.bg,
+                            borderColor: isSelected ? BRAND_COLORS.blue600 : theme.borderColor,
+                            borderWidth: isSelected ? 2 : 1,
+                          },
+                        ]}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              styles.langCardNativeName,
+                              {
+                                color: isSelected ? BRAND_COLORS.blue600 : theme.textPrimary,
+                                fontWeight: isSelected ? '800' : '700',
+                              },
+                            ]}
+                          >
+                            {lang.nativeName}
+                          </Text>
+                          <Text style={[styles.langCardEnglishName, { color: theme.textSecondary }]}>
+                            {lang.name}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.radioOuter,
+                            {
+                              borderColor: isSelected ? BRAND_COLORS.blue600 : theme.borderColor,
+                              marginRight: 0,
+                            },
+                          ]}
+                        >
+                          {isSelected && (
+                            <View
+                              style={[
+                                styles.radioInner,
+                                { backgroundColor: BRAND_COLORS.blue600 },
+                              ]}
+                            />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Disclaimer Callout Box */}
+                <View
+                  style={[
+                    styles.languageDisclaimerBox,
+                    {
+                      backgroundColor: theme.isDark ? 'rgba(30, 58, 138, 0.2)' : '#EFF6FF',
+                      borderColor: theme.isDark ? 'rgba(59, 130, 246, 0.3)' : '#BFDBFE',
+                    },
+                  ]}
+                >
+                  <HelpCircle size={18} color={BRAND_COLORS.blue600} style={{ marginRight: 10, marginTop: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.disclaimerTitle, { color: theme.isDark ? '#93C5FD' : '#1E40AF' }]}>
+                      {t('languageNoticeTitle', 'Language Preference Notice')}
+                    </Text>
+                    <Text style={[styles.disclaimerBody, { color: theme.isDark ? '#BFDBFE' : '#1E3A8A' }]}>
+                      {t(
+                        'languageSelectionDisclaimer',
+                        'The entire system and all upcoming screens will be shown in your selected language. You can change your preferred language anytime as per requirement from Settings.'
+                      )}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleAdvanceToHardwareStep}
+                  style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk, marginTop: 18 }]}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.primaryButtonText}>
@@ -861,8 +987,8 @@ export default function RegisterScreen() {
               </View>
             )}
 
-            {/* STEP 4: SEZNIK HARDWARE VERIFICATION (PAGE 2) */}
-            {step === 4 && (
+            {/* STEP 5: SEZNIK HARDWARE VERIFICATION (PAGE 2) */}
+            {step === 5 && (
               <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <Text style={[styles.cardHeading, { color: theme.textPrimary }]}>
                   {t('hardwareVerificationQuestion', 'Are you a Seznik Printer user?')}
@@ -1579,5 +1705,43 @@ const styles = StyleSheet.create({
   langEnglish: {
     fontSize: 11,
     marginTop: 1,
+  },
+  languageListContainer: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  languageSelectCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  langCardNativeName: {
+    fontSize: 15,
+  },
+  langCardEnglishName: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  languageDisclaimerBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 4,
+  },
+  disclaimerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  disclaimerBody: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
   },
 });
