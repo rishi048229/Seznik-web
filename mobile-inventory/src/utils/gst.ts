@@ -1,4 +1,4 @@
-import { calculateGstBill, round2, BillInput, LineItemInput } from '@shared/gstTaxEngine';
+import { calculateGstBill, round2, type BillInput, type LineItemInput } from '@shared/gstTaxEngine';
 
 /** Round to 2 decimal places (paise) as per GST invoicing practice. */
 export function roundGstAmount(value: number): number {
