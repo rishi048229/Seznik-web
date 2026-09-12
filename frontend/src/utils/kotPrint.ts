@@ -118,7 +118,7 @@ export const generateKotSlipEscPos = (data: KotSlipData, paperSize: '58mm' | '80
   b.hr(cols, '=')
   b.align('center')
   b.line('-- Kitchen Copy --')
-  b.feed(6)
+  b.feed(3)
   b.cut()
   return b.toBytes()
 }
@@ -232,7 +232,7 @@ export const generateKotDeltaSlipEscPos = (
   b.align('center')
   b.line('This ticket shows CHANGES ONLY')
   b.hr(cols, '=')
-  b.feed(6)
+  b.feed(3)
   b.cut()
   return b.toBytes()
 }

@@ -28,6 +28,7 @@ import {
   ArrowLeft,
   Barcode,
   ChevronDown,
+  ChevronUp,
   Info,
   QrCode,
   Zap,
@@ -44,6 +45,8 @@ import {
   MinusCircle,
   ImageIcon,
   Sparkles,
+  UploadCloud,
+  FileSpreadsheet,
   Percent,
   Receipt,
 } from 'lucide-react-native';
@@ -61,7 +64,7 @@ import {
 } from '@/utils/barcodeGenerator';
 import { BarcodeQRCodeLabel } from '@/components/ui/BarcodeQRCodeLabel';
 import { BarcodePrintModal } from '@/components/ui/BarcodePrintModal';
-import { AiProductImportModal } from '@/components/products/AiProductImportModal';
+import { BulkProductUploadModal } from '@/components/products/BulkProductUploadModal';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
@@ -77,6 +80,23 @@ import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { isKotFirstNav, isProductAvailable, usesStockTracking } from '@/utils/businessFeatures';
+
+const getProductInitials = (name: string): string => {
+  if (!name || !name.trim()) return 'P';
+  const clean = name.trim().replace(/[^a-zA-Z0-9\s]/g, '');
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase() || 'P';
+};
+
+const getInitialsColor = (isDark: boolean): { bg: string; text: string } => {
+  return {
+    bg: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(37, 99, 235, 0.1)',
+    text: isDark ? '#38BDF8' : BRAND_COLORS.blue600,
+  };
+};
 
 export default function ProductsScreen() {
   const router = useRouter();
@@ -106,6 +126,7 @@ export default function ProductsScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
 
   // Barcode & QR Label Printing Modal State
   const [barcodePrintProduct, setBarcodePrintProduct] = useState<Product | null>(null);
@@ -638,20 +659,22 @@ export default function ProductsScreen() {
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={styles.headerActionsGroup}>
             <TouchableOpacity
               onPress={() => setShowAiModal(true)}
+              activeOpacity={0.75}
               style={[
-                styles.headerBtn,
+                styles.headerActionBtn,
                 {
-                  backgroundColor: isDark ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.1)',
-                  borderColor: isDark ? 'rgba(37, 99, 235, 0.35)' : 'transparent',
-                  borderWidth: isDark ? 1 : 0,
+                  backgroundColor: isDark ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.08)',
+                  borderColor: isDark ? 'rgba(37, 99, 235, 0.35)' : 'rgba(37, 99, 235, 0.2)',
                 },
               ]}
             >
-              <Sparkles size={13} color={isDark ? '#60A5FA' : BRAND_COLORS.blue600} />
-              <Text style={[styles.headerBtnText, { color: isDark ? '#60A5FA' : BRAND_COLORS.blue600 }]}>{t('bulkUpload', 'Bulk upload')}</Text>
+              <UploadCloud size={14} color={isDark ? '#60A5FA' : BRAND_COLORS.blue600} />
+              <Text style={[styles.headerActionBtnText, { color: isDark ? '#60A5FA' : BRAND_COLORS.blue600 }]}>
+                {t('bulkUpload', 'Bulk upload')}
+              </Text>
             </TouchableOpacity>
 
             {trackStock ? (
@@ -662,17 +685,19 @@ export default function ProductsScreen() {
                   setLastScannedBarcode(null);
                   setShowStockScanMode(true);
                 }}
+                activeOpacity={0.75}
                 style={[
-                  styles.headerBtn,
+                  styles.headerActionBtn,
                   {
-                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.1)',
-                    borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : 'transparent',
-                    borderWidth: isDark ? 1 : 0,
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.08)',
+                    borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.2)',
                   },
                 ]}
               >
                 <Zap size={13} color="#10B981" />
-                <Text style={[styles.headerBtnText, { color: '#10B981' }]}>{t('scanStock', 'Scan Stock')}</Text>
+                <Text style={[styles.headerActionBtnText, { color: '#10B981' }]}>
+                  {t('scanStock', 'Scan Stock')}
+                </Text>
               </TouchableOpacity>
             ) : null}
 
@@ -680,21 +705,16 @@ export default function ProductsScreen() {
               onPress={handleOpenAddModal}
               activeOpacity={0.8}
               style={[
-                styles.addBtn,
+                styles.headerActionBtn,
+                styles.addPrimaryBtn,
                 {
                   backgroundColor: BRAND_COLORS.blue600,
                   borderColor: isDark ? 'rgba(56, 189, 248, 0.55)' : BRAND_COLORS.blue600,
-                  borderWidth: 1,
-                  shadowColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.blue600,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: isDark ? 0.6 : 0.3,
-                  shadowRadius: 8,
-                  elevation: 6,
                 },
               ]}
             >
-              <Plus size={15} color="#FFFFFF" strokeWidth={2.8} />
-              <Text style={styles.addBtnText}>{t('addProduct', 'Add Product')}</Text>
+              <Plus size={14} color="#FFFFFF" strokeWidth={2.8} />
+              <Text style={styles.addPrimaryBtnText}>{t('addProduct', 'Add Product')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -705,45 +725,66 @@ export default function ProductsScreen() {
             : t('productsPageTitle', 'Products & Inventory')}
         </Text>
 
-        {/* Stat Cards Strip */}
-        <View style={{ height: 68, marginVertical: 12 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
-            <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalItems', 'Total Items')}</Text>
-              <Text style={[styles.statValue, { color: theme.textPrimary }]}>{products.length}</Text>
-            </View>
+        {/* Stat Cards 2*2 Grid */}
+        <View style={styles.statGridContainer}>
+          <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalItems', 'Total Items')}</Text>
+            <Text style={[styles.statValue, { color: theme.textPrimary }]}>{products.length}</Text>
+          </View>
 
-            {trackStock ? (
-              <>
-                <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                  <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('outOfStock', 'Out of Stock')}</Text>
-                  <Text style={[styles.statValue, { color: outOfStockCount > 0 ? '#EF4444' : '#10B981' }]}>{outOfStockCount}</Text>
-                </View>
-
-                <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                  <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
-                  <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#F59E0B' : '#10B981' }]}>{lowStockCount}</Text>
-                </View>
-
-                <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                  <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalStockValue', 'Total Stock Value')}</Text>
-                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>₹{totalStockValue.toFixed(2)}</Text>
-                </View>
-              </>
-            ) : (
-              <View style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('unavailable', 'Unavailable')}</Text>
-                <Text style={[styles.statValue, { color: unavailableCount > 0 ? '#EF4444' : '#10B981' }]}>
-                  {unavailableCount}
-                </Text>
+          {trackStock ? (
+            <>
+              <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('outOfStock', 'Out of Stock')}</Text>
+                <Text style={[styles.statValue, { color: outOfStockCount > 0 ? '#EF4444' : '#10B981' }]}>{outOfStockCount}</Text>
               </View>
-            )}
-          </ScrollView>
+
+              <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
+                <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#F59E0B' : '#10B981' }]}>{lowStockCount}</Text>
+              </View>
+
+              <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalStockValue', 'Total Stock Value')}</Text>
+                <Text style={[styles.statValue, { color: theme.textPrimary }]}>₹{totalStockValue.toFixed(2)}</Text>
+              </View>
+            </>
+          ) : (
+            <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('unavailable', 'Unavailable')}</Text>
+              <Text style={[styles.statValue, { color: unavailableCount > 0 ? '#EF4444' : '#10B981' }]}>
+                {unavailableCount}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Category Pills Bar */}
-        <View style={{ height: 44, marginBottom: 12 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
+        {/* Category Pills - Expandable Section */}
+        <View style={styles.categorySection}>
+          <View style={styles.categoryHeaderRow}>
+            <Text style={[styles.categorySectionTitle, { color: theme.textSecondary }]}>
+              {t('categories', 'Categories')} ({categories.length + 1})
+            </Text>
+            {categories.length > 3 && (
+              <TouchableOpacity
+                onPress={() => setCategoriesExpanded(!categoriesExpanded)}
+                style={styles.expandCategoryBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.expandCategoryBtnText, { color: BRAND_COLORS.blue600 }]}>
+                  {categoriesExpanded ? t('showLess', 'Show Less') : `${t('allCategories', 'Show All')} (${categories.length + 1})`}
+                </Text>
+                {categoriesExpanded ? (
+                  <ChevronUp size={13} color={BRAND_COLORS.blue600} />
+                ) : (
+                  <ChevronDown size={13} color={BRAND_COLORS.blue600} />
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.categoryWrapContainer}>
             <TouchableOpacity
               onPress={() => setSelectedCategoryId(null)}
               style={[
@@ -759,8 +800,9 @@ export default function ProductsScreen() {
               </Text>
             </TouchableOpacity>
 
-            {categories.map((c) => {
+            {(categoriesExpanded ? categories : categories.slice(0, 3)).map((c) => {
               const selected = selectedCategoryId === c.id;
+              const count = products.filter((p) => p.categoryId === c.id).length;
               return (
                 <TouchableOpacity
                   key={c.id}
@@ -773,11 +815,13 @@ export default function ProductsScreen() {
                     },
                   ]}
                 >
-                  <Text style={[styles.catPillText, { color: selected ? '#FFFFFF' : theme.textPrimary }]}>{c.name}</Text>
+                  <Text style={[styles.catPillText, { color: selected ? '#FFFFFF' : theme.textPrimary }]}>
+                    {c.name} {count > 0 ? `(${count})` : ''}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </View>
         </View>
 
         {/* Search & Camera Barcode Bar */}
@@ -801,7 +845,7 @@ export default function ProductsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Product Cards List */}
+        {/* Product Cards List (2*2 Grid) */}
         {isInitialLoading ? (
           <ScreenLoadingState
             message={t('loadingProducts', 'Loading products...')}
@@ -827,103 +871,132 @@ export default function ProductsScreen() {
           </View>
         ) : (
           <FlatList
+            key="products-2col-grid"
             data={filteredProducts}
             keyExtractor={(item) => item.id}
-            initialNumToRender={8}
-            maxToRenderPerBatch={6}
+            numColumns={2}
+            columnWrapperStyle={styles.gridColumnWrapper}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
             windowSize={5}
             updateCellsBatchingPeriod={100}
             removeClippedSubviews={Platform.OS === 'android'}
-            contentContainerStyle={{ paddingBottom: 60 }}
+            contentContainerStyle={{ paddingBottom: 80 }}
             renderItem={({ item }) => {
               const isOutOfStock = item.currentStock <= 0 || !isProductAvailable(item);
               const isLowStock = !isOutOfStock && item.currentStock <= item.lowStockThreshold;
               const available = isProductAvailable(item);
+              const catName = categories.find((c) => c.id === item.categoryId)?.name || 'General';
+              const initials = getProductInitials(item.name);
+              const initialsPalette = getInitialsColor(isDark);
 
               return (
                 <TouchableOpacity
                   onPress={() => handleOpenDetailModal(item)}
                   activeOpacity={0.8}
                   style={[
-                    styles.card,
+                    styles.compactCard,
                     {
                       backgroundColor: theme.cardBg,
-                      borderColor: theme.borderColor,
-                      opacity: !trackStock && !available ? 0.72 : (trackStock && isOutOfStock ? 0.82 : 1),
+                      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(15, 23, 42, 0.08)',
+                      opacity: !trackStock && !available ? 0.72 : (trackStock && isOutOfStock ? 0.88 : 1),
                     },
                   ]}
                 >
-                  {/* Product Image Thumbnail */}
-                  {item.imageUrl ? (
-                    <Image source={{ uri: item.imageUrl }} style={styles.cardImageThumb} />
-                  ) : (
-                    <View style={[styles.cardImagePlaceholder, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
-                      <Package size={20} color={BRAND_COLORS.blue600} />
-                    </View>
-                  )}
+                  {/* Visual Showcase (Image or Intuitive Starting Letter Casing) */}
+                  <View style={styles.gridVisualShowcase}>
+                    {item.imageUrl ? (
+                      <Image
+                        source={{ uri: item.imageUrl }}
+                        style={styles.gridCardImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.gridInitialsContainer, { backgroundColor: initialsPalette.bg }]}>
+                        <Text style={[styles.gridInitialsText, { color: initialsPalette.text }]}>
+                          {initials}
+                        </Text>
+                      </View>
+                    )}
 
-                  <View style={{ flex: 1, marginHorizontal: 10 }}>
-                    <Text style={[styles.productName, { color: theme.textPrimary }]}>{item.name}</Text>
-                    <Text style={[styles.productMeta, { color: theme.textSecondary }]}>
-                      Selling: ₹{item.sellingPrice.toFixed(2)} | Cost: ₹{(item.costPrice || 0).toFixed(2)}
-                    </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
-                      {trackStock ? (
-                        <>
-                          {isOutOfStock ? (
-                            <View style={[styles.stockPill, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-                              <Text style={[styles.stockPillText, { color: '#EF4444', fontWeight: '800' }]}>
-                                Out of Stock
-                              </Text>
-                            </View>
-                          ) : isLowStock ? (
-                            <View style={[styles.stockPill, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-                              <Text style={[styles.stockPillText, { color: '#F59E0B' }]}>
-                                Low Stock: {item.currentStock} {item.unit || 'pcs'}
-                              </Text>
-                            </View>
-                          ) : (
-                            <View style={[styles.stockPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                              <Text style={[styles.stockPillText, { color: '#10B981' }]}>
-                                Stock: {item.currentStock} {item.unit || 'pcs'}
-                              </Text>
-                            </View>
-                          )}
-                        </>
-                      ) : (
-                        <View
-                          style={[
-                            styles.stockPill,
-                            {
-                              backgroundColor: available
-                                ? 'rgba(16, 185, 129, 0.15)'
-                                : 'rgba(239, 68, 68, 0.15)',
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.stockPillText, { color: available ? '#10B981' : '#EF4444' }]}>
-                            {available ? 'Available' : 'Not available'}
-                          </Text>
-                        </View>
-                      )}
-                      {item.discountValue && item.discountValue > 0 ? (
-                        <View style={[styles.stockPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)', flexDirection: 'row', alignItems: 'center' }]}>
-                          <Tag size={10} color="#10B981" />
-                          <Text style={[styles.stockPillText, { color: '#10B981', marginLeft: 2 }]}>
-                            {item.discountType === 'percent' ? `${item.discountValue}% OFF` : `₹${item.discountValue} OFF`}
-                          </Text>
-                        </View>
-                      ) : null}
-                      {item.barcode ? (
-                        <Text style={[styles.barcodeText, { color: theme.textSecondary }]}>| Barcode: {item.barcode}</Text>
-                      ) : null}
-                    </View>
+                    {/* Overlaid Edit Button (Top-Right of Image) */}
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditModal(item);
+                      }}
+                      style={[
+                        styles.gridEditOverlayBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.9)',
+                          borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+                        },
+                      ]}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Edit3 size={11} color={theme.textPrimary} />
+                    </TouchableOpacity>
                   </View>
 
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TouchableOpacity onPress={() => handleOpenEditModal(item)} style={styles.iconBtn}>
-                      <Edit3 size={16} color={theme.textSecondary} />
-                    </TouchableOpacity>
+                  {/* Product Details Section */}
+                  <View style={{ paddingHorizontal: 2 }}>
+                    {/* Top Row of Details: Category (Left) + Cost Price (Top-Right) */}
+                    <View style={styles.compactDetailsHeader}>
+                      <Text style={[styles.compactCategoryText, { color: theme.textSecondary }]} numberOfLines={1}>
+                        {catName}
+                      </Text>
+                      {item.costPrice && item.costPrice > 0 ? (
+                        <Text style={[styles.compactCostText, { color: theme.textSecondary }]} numberOfLines={1}>
+                          Cost ₹{item.costPrice.toFixed(0)}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {/* Product Name */}
+                    <Text style={[styles.compactProductName, { color: theme.textPrimary }]} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                  </View>
+
+                  {/* Price & Stock Footer Row */}
+                  <View style={styles.compactFooterRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={[styles.compactPriceText, { color: isDark ? '#38BDF8' : BRAND_COLORS.blue600 }]}>
+                        ₹{item.sellingPrice.toFixed(2)}
+                      </Text>
+                      {item.discountValue && item.discountValue > 0 ? (
+                        <View style={[styles.compactDiscountBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                          <Text style={styles.compactDiscountText}>
+                            {item.discountType === 'percent' ? `${item.discountValue}%` : `₹${item.discountValue}`} OFF
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {/* Stock Status Pill (Bottom-Right) */}
+                    {trackStock ? (
+                      isOutOfStock ? (
+                        <View style={[styles.compactStockPill, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.14)' }]}>
+                          <View style={[styles.compactDot, { backgroundColor: '#EF4444' }]} />
+                          <Text style={[styles.compactStockText, { color: '#EF4444' }]} numberOfLines={1}>Out</Text>
+                        </View>
+                      ) : isLowStock ? (
+                        <View style={[styles.compactStockPill, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.14)' }]}>
+                          <View style={[styles.compactDot, { backgroundColor: '#F59E0B' }]} />
+                          <Text style={[styles.compactStockText, { color: '#F59E0B' }]} numberOfLines={1}>Low: {item.currentStock}</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.compactStockPill, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.14)' }]}>
+                          <View style={[styles.compactDot, { backgroundColor: '#10B981' }]} />
+                          <Text style={[styles.compactStockText, { color: '#10B981' }]} numberOfLines={1}>{item.currentStock} in stock</Text>
+                        </View>
+                      )
+                    ) : (
+                      <View style={[styles.compactStockPill, { backgroundColor: available ? (isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.14)') : (isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.14)') }]}>
+                        <View style={[styles.compactDot, { backgroundColor: available ? '#10B981' : '#EF4444' }]} />
+                        <Text style={[styles.compactStockText, { color: available ? '#10B981' : '#EF4444' }]} numberOfLines={1}>{available ? 'In Stock' : 'Out'}</Text>
+                      </View>
+                    )}
                   </View>
                 </TouchableOpacity>
               );
@@ -1852,8 +1925,8 @@ export default function ProductsScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* AI SMART PRODUCT IMPORT MODAL */}
-      <AiProductImportModal
+      {/* BULK PRODUCT UPLOAD MODAL */}
+      <BulkProductUploadModal
         visible={showAiModal}
         onClose={() => setShowAiModal(false)}
       />
@@ -1868,27 +1941,176 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingTop: 2 },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
-  headerBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
-  headerBtnText: { fontSize: 12, fontWeight: '800', marginLeft: 4 },
-  addBtn: {
-    backgroundColor: BRAND_COLORS.blue600,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: 12,
+  headerActionsGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerActionBtn: {
+    height: 38,
+    paddingHorizontal: 11,
+    borderRadius: 11,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
   },
-  addBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12.5, letterSpacing: 0.2 },
+  headerActionBtnText: { fontSize: 12, fontWeight: '800' },
+  addPrimaryBtn: {
+    borderWidth: 1,
+    shadowColor: BRAND_COLORS.blue600,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  addPrimaryBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
   title: { fontSize: 24, fontWeight: '900' },
-  statCard: { width: 140, padding: 12, borderRadius: 16, borderWidth: 1, marginRight: 10, height: 60, justifyContent: 'center' },
-  statLabel: { fontSize: 10, fontWeight: '600' },
+  statGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginVertical: 12,
+  },
+  statGridCard: {
+    width: '48.6%',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 56,
+  },
+  statLabel: { fontSize: 10.5, fontWeight: '600' },
   statValue: { fontSize: 16, fontWeight: '900', marginTop: 2 },
-  catPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, marginRight: 8, height: 36, justifyContent: 'center' },
-  catPillText: { fontSize: 12, fontWeight: '700' },
+  categorySection: { marginBottom: 14 },
+  categoryHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  categorySectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  expandCategoryBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 2 },
+  expandCategoryBtnText: { fontSize: 12, fontWeight: '700' },
+  categoryWrapContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  catPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, height: 32, justifyContent: 'center', alignItems: 'center' },
+  catPillText: { fontSize: 11.5, fontWeight: '700' },
   searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14 },
   cameraBtn: { backgroundColor: BRAND_COLORS.sky500, padding: 8, borderRadius: 10 },
+  gridColumnWrapper: { gap: 10, marginBottom: 10 },
+  compactCard: {
+    flex: 1,
+    maxWidth: '48.8%',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 8,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  gridVisualShowcase: {
+    height: 80,
+    width: '100%',
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: 8,
+  },
+  gridCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  gridInitialsContainer: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridInitialsText: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  gridEditOverlayBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    zIndex: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 0.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  compactStockPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  compactDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    marginRight: 4,
+  },
+  compactStockText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  compactDetailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  compactCategoryText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    flex: 1,
+    marginRight: 4,
+  },
+  compactCostText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+  },
+  compactProductName: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 16.5,
+    minHeight: 33,
+  },
+  compactFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    paddingTop: 5,
+    paddingHorizontal: 2,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(100, 116, 139, 0.15)',
+  },
+  compactPriceText: {
+    fontSize: 14.5,
+    fontWeight: '900',
+  },
+  compactDiscountBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  compactDiscountText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#10B981',
+  },
   card: { borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardImageThumb: { width: 44, height: 44, borderRadius: 12 },
   cardImagePlaceholder: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

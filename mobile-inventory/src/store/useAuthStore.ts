@@ -2,20 +2,6 @@ import { create } from 'zustand';
 import { UserPermissions, UserProfile } from '@/types/auth';
 import { getAuthToken, getStoredUser, removeAuthToken, removeStoredUser, setAuthToken, setStoredUser } from '@/services/secureStore';
 
-/** Shared dev bypass credentials — always the same store for every tester/device. */
-export const DEV_BYPASS_TOKEN = 'dev-token-bypass';
-
-export const DEV_BYPASS_USER: UserProfile = {
-  id: '6f183b3c-2753-4144-b723-dd366eb53526',
-  email: 'owner@seznik.com',
-  displayName: 'Seznik Owner',
-  businessName: 'Seznik POS Store',
-  businessType: 'restaurant_cafe',
-  role: 'admin',
-  onboardingCompleted: true,
-  accountType: 'user',
-};
-
 interface AuthState {
   token: string | null;
   user: UserProfile | null;
@@ -23,17 +9,16 @@ interface AuthState {
   isAuthenticated: boolean;
   initializeAuth: () => Promise<void>;
   setAuth: (token: string, user: UserProfile) => Promise<void>;
-  loginWithDevBypass: () => Promise<void>;
   updateUser: (user: UserProfile) => Promise<void>;
   logout: () => Promise<void>;
   hasPermission: (permission: keyof UserPermissions) => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  token: DEV_BYPASS_TOKEN,
-  user: DEV_BYPASS_USER,
+  token: null,
+  user: null,
   isLoading: true,
-  isAuthenticated: true, // Default to true to bypass login directly to dashboard for dev
+  isAuthenticated: false,
 
   initializeAuth: async () => {
     try {
@@ -50,20 +35,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
         });
       } else {
-        // Bypass login for quick dev testing; fallback to default dev admin user
         set({
-          token: DEV_BYPASS_TOKEN,
-          user: DEV_BYPASS_USER,
-          isAuthenticated: true,
+          token: null,
+          user: null,
+          isAuthenticated: false,
           isLoading: false,
         });
       }
     } catch (e) {
       console.error('Failed to initialize auth from SecureStore:', e);
       set({
-        token: DEV_BYPASS_TOKEN,
-        user: DEV_BYPASS_USER,
-        isAuthenticated: true,
+        token: null,
+        user: null,
+        isAuthenticated: false,
         isLoading: false,
       });
     }
@@ -84,47 +68,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: true,
       isLoading: false,
     });
-  },
-
-  /** Wipe any prior login and always open the shared Seznik POS Store dev account. */
-  loginWithDevBypass: async () => {
-    await removeAuthToken();
-    await removeStoredUser();
-
-    await setAuthToken(DEV_BYPASS_TOKEN);
-    await setStoredUser(DEV_BYPASS_USER);
-    try {
-      const { useCartStore } = await import('@/store/useCartStore');
-      useCartStore.getState().clearCart();
-    } catch {
-      // ignore
-    }
-    set({
-      token: DEV_BYPASS_TOKEN,
-      user: DEV_BYPASS_USER,
-      isAuthenticated: true,
-      isLoading: false,
-    });
-
-    try {
-      const { authApi } = await import('@/api/auth');
-      const profile = await authApi.getProfile();
-      const syncedUser: UserProfile = {
-        ...profile,
-        id: profile.id,
-        email: DEV_BYPASS_USER.email,
-        displayName: DEV_BYPASS_USER.displayName,
-        businessName: DEV_BYPASS_USER.businessName,
-        businessType: profile.businessType ?? DEV_BYPASS_USER.businessType,
-        role: 'admin',
-        onboardingCompleted: true,
-        accountType: 'user',
-      };
-      await setStoredUser(syncedUser);
-      set({ user: syncedUser });
-    } catch {
-      // Backend unreachable — local dev user is still usable for UI testing
-    }
   },
 
   updateUser: async (user: UserProfile) => {

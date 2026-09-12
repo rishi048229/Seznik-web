@@ -123,7 +123,7 @@ export async function fetchApi<T = any>(
 ): Promise<T> {
   const { timeoutMs = 15000, ...fetchOptions } = options;
   const storedToken = await getAuthToken();
-  const token = storedToken || useAuthStore.getState().token || (__DEV__ ? 'dev-token-bypass' : undefined);
+  const token = storedToken || useAuthStore.getState().token || undefined;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-client-platform': 'mobile',
@@ -152,7 +152,7 @@ export async function fetchApi<T = any>(
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        if (response.status === 401 && !__DEV__) {
+        if (response.status === 401) {
           await removeAuthToken();
           await removeStoredUser();
         }

@@ -833,6 +833,7 @@ interface GenerateReceiptEscPosParams {
   invoiceConfig?: unknown
   templateOverride?: CustomReceiptTemplate
   businessLogoURL?: string
+  upiId?: string
   isRestaurant?: boolean
   tableNo?: string
   waiterName?: string
@@ -853,6 +854,7 @@ export const generateReceiptEscPos = async ({
   customerPhone,
   templateOverride,
   businessLogoURL,
+  upiId,
   invoiceConfig,
   isRestaurant,
   tableNo,
@@ -881,6 +883,8 @@ export const generateReceiptEscPos = async ({
 
   const effectiveCustomerName = (customerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer').trim() || 'Walk-in Customer'
   const effectiveCustomerPhone = (customerPhone || (sale as any)?.customerPhone || (sale as any)?.customer?.phone || '').trim() || undefined
+  const effectiveUpiId =
+    (upiId || printConfig?.upiId || effectiveConfig?.upiId || (sale as any)?.upiId || (printerConfig as any)?.upiId || '').trim()
 
   const context = saleToReceiptContext(sale, {
     businessName: businessName || printConfig?.companyName || effectiveConfig?.companyName || (sale as any)?.storeName,
@@ -888,7 +892,7 @@ export const generateReceiptEscPos = async ({
     businessPhone: businessPhone || printConfig?.phone || effectiveConfig?.phone || (sale as any)?.storePhone,
     businessGSTIN: businessGSTIN || printConfig?.gstin || effectiveConfig?.gstin || (sale as any)?.storeGstin,
     businessLogoURL: resolvedLogo,
-    upiId: printConfig?.upiId || effectiveConfig?.upiId,
+    upiId: effectiveUpiId,
     footerMessage: printConfig?.footerMessage || effectiveConfig?.footerMessage,
     customerName: effectiveCustomerName,
     customerPhone: effectiveCustomerPhone,
@@ -912,8 +916,11 @@ export const generateReceiptEscPos = async ({
       receiptLogoSize: effectiveConfig?.receiptLogoSize,
       receiptQrSize: effectiveConfig?.receiptQrSize,
       receiptFont: effectiveReceiptFont,
+      showPaymentQR: effectiveConfig?.showPaymentQR ?? printConfig?.showPaymentQR,
+      enableBillQrCode: effectiveConfig?.enableBillQrCode,
+      paymentQrURL: printConfig?.paymentQrURL || effectiveConfig?.paymentQrURL,
     })
-    b.feed(6)
+    b.feed(3)
     b.cut()
     return b.toBytes()
   }
@@ -995,7 +1002,7 @@ export const generateReceiptEscPos = async ({
     b.qr(billPdfUrl, receiptQrEscPosModuleSize(effectivePaper))
   }
 
-  b.feed(6)
+  b.feed(3)
   b.cut()
 
   return b.toBytes()

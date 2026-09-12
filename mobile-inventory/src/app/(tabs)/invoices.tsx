@@ -432,9 +432,14 @@ export default function InvoicesTabScreen() {
                 const isBusy = busySaleId === item.id;
                 return (
                   <View style={[styles.invoiceCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                    <View style={styles.invoiceRow}>
-                      <TouchableOpacity style={styles.invoiceMain} onPress={() => openA4Preview(item)} activeOpacity={0.85}>
-                        <View style={styles.invoiceTopRow}>
+                    {/* Top Info Section: Invoice Number, Payment Badge, Customer & Amount */}
+                    <TouchableOpacity
+                      style={styles.invoiceCardHeader}
+                      onPress={() => openA4Preview(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.invoiceHeaderTop}>
+                        <View style={styles.invoiceHeaderLeft}>
                           <Text style={[styles.invoiceNumber, { color: theme.textPrimary }]} numberOfLines={1}>
                             {item.invoiceNumber}
                           </Text>
@@ -443,67 +448,92 @@ export default function InvoicesTabScreen() {
                             <Text style={styles.paymentBadgeText}>{item.paymentMethod.toUpperCase()}</Text>
                           </View>
                         </View>
-                        <Text style={[styles.invoiceMeta, { color: theme.textSecondary }]} numberOfLines={1}>
-                          {formatInvoiceDateTime(item.createdAt)}
-                          {item.customerName ? ` · ${item.customerName}` : ''}
-                          {` · ${item.items?.length || 0} items`}
+                        <Text style={[styles.invoiceAmount, { color: BRAND_COLORS.blue600 }]}>
+                          {formatCurrency(item.grandTotal)}
+                        </Text>
+                      </View>
+
+                      <Text style={[styles.invoiceMeta, { color: theme.textSecondary }]} numberOfLines={1}>
+                        {formatInvoiceDateTime(item.createdAt)}
+                        {item.customerName ? ` · ${item.customerName}` : ''}
+                        {` · ${item.items?.length || 0} items`}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Bottom Actions Row Below */}
+                    <View style={[styles.cardActionsRow, { borderTopColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
+                      <TouchableOpacity
+                        onPress={() => openA4Preview(item)}
+                        style={[styles.cardActionBtn, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('view', 'View')}
+                        activeOpacity={0.7}
+                      >
+                        <Eye size={15} color={theme.textPrimary} />
+                        <Text style={[styles.cardActionBtnText, { color: theme.textPrimary }]}>
+                          {t('preview', 'Preview')}
                         </Text>
                       </TouchableOpacity>
 
-                      <Text style={[styles.invoiceAmount, { color: BRAND_COLORS.blue600 }]}>{formatCurrency(item.grandTotal)}</Text>
+                      <TouchableOpacity
+                        onPress={() => handleDownload(item)}
+                        disabled={isBusy}
+                        style={[styles.cardActionBtn, styles.downloadIconBtn]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('download', 'Download')}
+                        activeOpacity={0.7}
+                      >
+                        {isBusy && busyAction === 'download' ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Download size={15} color="#FFFFFF" />
+                            <Text style={[styles.cardActionBtnText, { color: '#FFFFFF' }]}>
+                              {t('pdf', 'PDF')}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
 
-                      <View style={styles.iconActions}>
-                        <TouchableOpacity
-                          onPress={() => openA4Preview(item)}
-                          style={[styles.iconActionBtn, { backgroundColor: theme.bg, borderColor: theme.borderColor }]}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('view', 'View')}
-                        >
-                          <Eye size={17} color={theme.textPrimary} />
-                        </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleShare(item)}
+                        disabled={isBusy}
+                        style={[styles.cardActionBtn, styles.whatsappIconBtn]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('shareInvoice', 'Share invoice PDF')}
+                        activeOpacity={0.7}
+                      >
+                        {isBusy && busyAction === 'share' ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Share2 size={15} color="#FFFFFF" />
+                            <Text style={[styles.cardActionBtnText, { color: '#FFFFFF' }]}>
+                              {t('share', 'Share')}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
 
-                        <TouchableOpacity
-                          onPress={() => handleDownload(item)}
-                          disabled={isBusy}
-                          style={[styles.iconActionBtn, styles.downloadIconBtn]}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('download', 'Download')}
-                        >
-                          {isBusy && busyAction === 'download' ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Download size={17} color="#FFFFFF" />
-                          )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          onPress={() => handleShare(item)}
-                          disabled={isBusy}
-                          style={[styles.iconActionBtn, styles.whatsappIconBtn]}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('shareInvoice', 'Share invoice PDF')}
-                        >
-                          {isBusy && busyAction === 'share' ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Share2 size={17} color="#FFFFFF" />
-                          )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          onPress={() => handlePrint(item)}
-                          disabled={isBusy}
-                          style={[styles.iconActionBtn, styles.printIconBtn]}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('print', 'Print')}
-                        >
-                          {isBusy && busyAction === 'print' ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Printer size={17} color="#FFFFFF" />
-                          )}
-                        </TouchableOpacity>
-                      </View>
+                      <TouchableOpacity
+                        onPress={() => handlePrint(item)}
+                        disabled={isBusy}
+                        style={[styles.cardActionBtn, styles.printIconBtn]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('print', 'Print')}
+                        activeOpacity={0.7}
+                      >
+                        {isBusy && busyAction === 'print' ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Printer size={15} color="#FFFFFF" />
+                            <Text style={[styles.cardActionBtnText, { color: '#FFFFFF' }]}>
+                              {t('print', 'Print')}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
                 );
@@ -682,27 +712,78 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   customRangeText: { fontSize: 12, fontWeight: '700', flex: 1 },
-  invoiceCard: { borderRadius: 14, borderWidth: 1, marginBottom: 10 },
-  invoiceRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, gap: 10 },
-  invoiceMain: { flex: 1, minWidth: 0 },
-  invoiceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  invoiceNumber: { fontSize: 16, fontWeight: '900', flexShrink: 1 },
-  paymentBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, backgroundColor: 'rgba(37,99,235,0.1)' },
-  paymentBadgeText: { fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600, marginLeft: 3 },
-  invoiceMeta: { fontSize: 12, marginTop: 4, lineHeight: 17 },
-  invoiceAmount: { fontSize: 16, fontWeight: '900' },
-  iconActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  iconActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  invoiceCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  invoiceCardHeader: {
+    padding: 14,
+  },
+  invoiceHeaderTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  invoiceHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  invoiceNumber: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    backgroundColor: 'rgba(37,99,235,0.1)',
+  },
+  paymentBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: BRAND_COLORS.blue600,
+    marginLeft: 3,
+  },
+  invoiceAmount: {
+    fontSize: 16.5,
+    fontWeight: '900',
+  },
+  invoiceMeta: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    padding: 8,
+    gap: 6,
+  },
+  cardActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 4,
+    minHeight: 34,
   },
-  downloadIconBtn: { backgroundColor: BRAND_COLORS.blue600, borderColor: BRAND_COLORS.blue600 },
-  whatsappIconBtn: { backgroundColor: '#16A34A', borderColor: '#16A34A' },
-  printIconBtn: { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.navyInk },
+  cardActionBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  downloadIconBtn: { backgroundColor: BRAND_COLORS.blue600 },
+  whatsappIconBtn: { backgroundColor: '#16A34A' },
+  printIconBtn: { backgroundColor: BRAND_COLORS.navyInk },
   emptyContainer: { paddingVertical: 60, alignItems: 'center' },
   emptyTitle: { fontSize: 16, fontWeight: '800', marginTop: 12 },
   emptySub: { fontSize: 12, textAlign: 'center', marginTop: 4, paddingHorizontal: 24 },

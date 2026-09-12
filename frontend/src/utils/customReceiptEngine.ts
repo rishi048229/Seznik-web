@@ -110,14 +110,37 @@ export function saleToReceiptContext(
     quantity: it.quantity ?? 1,
     unitPrice: it.sellingPrice ?? 0,
     total: it.total ?? it.quantity * (it.sellingPrice ?? 0),
-    gstRate: coerceGstRate(it.taxRate),
-    discount: it.discount,
+    gstRate: coerceGstRate(it.taxRate ?? (it as any).gstRate),
+    discount: it.discount ?? 0,
     priceIncludesGst: it.priceIncludesGst,
   }))
   const subtotal = sale.subtotal ?? items.reduce((s, i) => s + i.total, 0)
-  const totalDiscount = sale.totalDiscount ?? 0
-  const totalTax = sale.totalTax ?? 0
-  const grandTotal = sale.grandTotal ?? subtotal - totalDiscount + totalTax
+  const itemDiscounts = items.reduce((s, i) => s + (i.discount || 0), 0)
+  const totalDiscount = (sale.totalDiscount != null && sale.totalDiscount > 0)
+    ? sale.totalDiscount
+    : itemDiscounts
+
+  let computedTax = sale.totalTax ?? 0
+  if (computedTax <= 0) {
+    const itemTaxSum = (sale.items || []).reduce((s, i) => s + (i.taxAmount || 0), 0)
+    if (itemTaxSum > 0) {
+      computedTax = itemTaxSum
+    } else {
+      const summary = gstSummaryFromCart(
+        items.map((i) => ({
+          sellingPrice: i.unitPrice,
+          quantity: i.quantity,
+          discount: i.discount || 0,
+          taxRate: i.gstRate || 0,
+          priceIncludesGst: i.priceIncludesGst ?? true,
+        })),
+        Math.max(0, totalDiscount - itemDiscounts)
+      )
+      computedTax = summary.totalGst
+    }
+  }
+  const totalTax = Number(computedTax.toFixed(2))
+  const grandTotal = sale.grandTotal ?? Math.round(subtotal - totalDiscount + totalTax)
   const d = sale.createdAt ? new Date(sale.createdAt as string | number | Date) : new Date()
   const saleExtra = sale as Sale & { tableNo?: string; waiterName?: string; tokenNumber?: string | number }
   const tokenNo = opts?.tokenNo || (saleExtra.tokenNumber != null ? String(saleExtra.tokenNumber) : undefined)
@@ -255,6 +278,9 @@ export interface CustomReceiptGstOpts {
   receiptQrSize?: ReceiptSizeChip
   /** Shared receipt font library id — CSS / RN typeface for preview + HTML prints. */
   receiptFont?: import('@shared/receiptFonts').ReceiptFontId
+  showPaymentQR?: boolean
+  enableBillQrCode?: boolean
+  paymentQrURL?: string
 }
 
 /** Format thermal table amounts without ₹ or Indian grouping to preserve column width. */
@@ -560,9 +586,9 @@ export function compileGstBreakdownPairs(
   data: ReceiptPrintContext,
   opts?: CustomReceiptGstOpts
 ): { left: string; right: string }[] {
-  if (!opts?.showTaxBreakdown || data.totalTax <= 0) return []
+  if (data.totalTax <= 0) return []
 
-  const gstStyle = opts.gstStyle ?? 'tax_invoice'
+  const gstStyle = opts?.gstStyle ?? 'tax_invoice'
   const lineDisc = data.items.reduce((s, i) => s + (i.discount || 0), 0)
   const orderDisc = Math.max(0, data.totalDiscount - lineDisc)
   const summary = gstSummaryFromCart(
@@ -576,26 +602,27 @@ export function compileGstBreakdownPairs(
     orderDisc
   )
 
-  if (gstStyle === 'compact') {
+  if (gstStyle === 'compact' || summary.totalGst <= 0) {
     return [{ left: 'GST', right: thermalAmount(data.totalTax) }]
   }
 
   if (gstStyle === 'slab_wise') {
-    const pairs: { left: string; right: string }[] = []
-    summary.slabs
-      .filter((s) => s.gstRate > 0)
-      .forEach((s) => {
+    const activeSlabs = summary.slabs.filter((s) => s.gstRate > 0)
+    if (activeSlabs.length > 0) {
+      const pairs: { left: string; right: string }[] = []
+      activeSlabs.forEach((s) => {
         pairs.push({ left: `Taxable @ ${s.gstRate}%`, right: thermalAmount(s.taxableValue) })
         pairs.push({ left: `  CGST @ ${s.cgstRate}%`, right: thermalAmount(s.cgstAmount) })
         pairs.push({ left: `  SGST @ ${s.sgstRate}%`, right: thermalAmount(s.sgstAmount) })
       })
-    return pairs
+      return pairs
+    }
   }
 
   return [
-    { left: 'Taxable Value', right: thermalAmount(summary.taxableValue) },
-    { left: '  CGST', right: thermalAmount(summary.cgstAmount) },
-    { left: '  SGST', right: thermalAmount(summary.sgstAmount) },
+    { left: 'Taxable Value', right: thermalAmount(summary.taxableValue || (data.subtotal - data.totalDiscount)) },
+    { left: '  CGST', right: thermalAmount(summary.cgstAmount || (data.totalTax / 2)) },
+    { left: '  SGST', right: thermalAmount(summary.sgstAmount || (data.totalTax / 2)) },
   ]
 }
 
@@ -769,7 +796,11 @@ export function compileCustomReceiptHtml(
     }
 
     if (entry.type === 'left_right_text') {
-      if (isDiscountEntry(entry) && data.totalDiscount <= 0) continue
+      if (isDiscountEntry(entry)) {
+        if (data.totalDiscount <= 0) continue
+        parts.push(htmlTwoColRow(entry.left || 'Discount', `-₹${data.totalDiscount.toFixed(2)}`, smallFS, Boolean(entry.bold)))
+        continue
+      }
       if (isTaxEntry(entry)) {
         if (data.totalTax <= 0) continue
         const gstPairs = compileGstBreakdownPairs(data, gstOpts)
@@ -777,12 +808,8 @@ export function compileCustomReceiptHtml(
           gstPairs.forEach(({ left, right }) => {
             parts.push(htmlTwoColRow(left, right, smallFS))
           })
-        } else if (gstOpts.showTaxBreakdown !== false) {
-          const l = interpolateReceiptVariables(entry.left, data).trim()
-          const r = interpolateReceiptVariables(entry.right, data).trim()
-          if (l || r) {
-            parts.push(htmlTwoColRow(l, r, smallFS))
-          }
+        } else {
+          parts.push(htmlTwoColRow(entry.left || 'Tax', `₹${data.totalTax.toFixed(2)}`, smallFS, Boolean(entry.bold)))
         }
         continue
       }
@@ -830,27 +857,33 @@ export function compileCustomReceiptHtml(
 
     if (entry.type === 'barcode') {
       let rawVal = interpolateReceiptVariables(entry.value || '', data)
-      if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
-        const upi = entry.upiId || data.upiId
-        if (isValidUpiVpa(upi)) {
+      const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
+      if (isUpi) {
+        const upi = (entry.upiId || data.upiId || '').trim()
+        if (upi) {
           rawVal = buildUpiPayLink({
-            upiId: (upi || '').trim(),
+            upiId: upi,
             payeeName: data.storeName,
             amount: data.grandTotal,
             note: data.invoiceNumber,
           })
+        } else if (rawVal && rawVal !== '{{upi_qr}}') {
+          // custom rawVal
         } else {
-          rawVal = ''
+          const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-0001')
+          rawVal = typeof window !== 'undefined'
+            ? `${window.location.origin}/receipt/${targetId}`
+            : `https://api.seznik.com/receipt/${targetId}`
         }
       } else if (entry.qrType === 'custom') {
         rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
       } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
-        const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
+        const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-0001')
         rawVal = typeof window !== 'undefined'
           ? `${window.location.origin}/receipt/${targetId}`
           : `https://api.seznik.com/receipt/${targetId}`
       } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
-        rawVal = data.invoiceNumber || 'INV-2026-0001'
+        rawVal = data.invoiceNumber || 'INV-0001'
       }
 
       const align = entry.align || 'center'
@@ -867,7 +900,6 @@ export function compileCustomReceiptHtml(
         rawVal.startsWith('https://') ||
         rawVal.startsWith('upi://')
 
-      const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
       if (isQr && rawVal) {
         const qrDim =
           isUpi || entry.qrType === 'digital_bill' || !entry.size
@@ -963,6 +995,7 @@ export async function appendCustomTemplateToEscPos(
   const enabledEntries = template.entries.filter(isReceiptEntryEnabled)
   const hasImageBlock = enabledEntries.some((e) => e.type === 'image')
   let logoPrinted = false
+  let qrPrinted = false
 
   // Legacy behaviour: always print store logo when template has no image block.
   if (fallbackLogo && !hasImageBlock) {
@@ -1027,18 +1060,20 @@ export async function appendCustomTemplateToEscPos(
         break
       }
       case 'left_right_text': {
-        if (isDiscountEntry(entry) && data.totalDiscount <= 0) break
+        if (isDiscountEntry(entry)) {
+          if (data.totalDiscount <= 0) break
+          const discAmt = formatThermalAmount(data.totalDiscount)
+          padTwoColLines(entry.left || 'Discount', `-${discAmt}`, width).forEach((line) => b.line(line))
+          break
+        }
         if (isTaxEntry(entry)) {
           if (data.totalTax <= 0) break
           const gstLines = compileGstBreakdownLines(data, width, gstOpts)
           if (gstLines.length > 0) {
             gstLines.forEach((line) => b.line(line))
-          } else if (gstOpts.showTaxBreakdown !== false) {
-            const l = interpolateReceiptVariables(entry.left, data, thermal).trim()
-            const r = interpolateReceiptVariables(entry.right, data, thermal).trim()
-            if (l || r) {
-              padLine(l, r)
-            }
+          } else {
+            const taxAmt = formatThermalAmount(data.totalTax)
+            padTwoColLines(entry.left || 'Tax', taxAmt, width).forEach((line) => b.line(line))
           }
           break
         }
@@ -1086,43 +1121,48 @@ export async function appendCustomTemplateToEscPos(
       }
       case 'barcode': {
         let rawVal = interpolateReceiptVariables(entry.value || '', data, thermal)
-        if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
-          const upi = entry.upiId || data.upiId
-          if (isValidUpiVpa(upi)) {
+        const isUpi = entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || Boolean(entry.upiId)
+        if (isUpi) {
+          const upi = (entry.upiId || data.upiId || '').trim()
+          if (upi) {
             rawVal = buildUpiPayLink({
-              upiId: upi!,
+              upiId: upi,
               payeeName: data.storeName,
               amount: data.grandTotal,
               note: data.invoiceNumber,
             })
+          } else if (rawVal && rawVal !== '{{upi_qr}}') {
+            // rawVal already has custom URI or payment link
           } else {
-            rawVal = ''
+            // Fallback to digital bill PDF URL so QR is never skipped
+            const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-0001')
+            rawVal = typeof window !== 'undefined'
+              ? `${window.location.origin}/receipt/${targetId}`
+              : `https://api.seznik.com/receipt/${targetId}`
           }
         } else if (entry.qrType === 'custom') {
           rawVal = rawVal && rawVal !== '{{custom_url}}' ? rawVal : 'https://seznik.com'
         } else if (entry.qrType === 'digital_bill' || !rawVal || rawVal === '{{bill_pdf_url}}') {
-          const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-2026-0042')
+          const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-0001')
           rawVal = typeof window !== 'undefined'
             ? `${window.location.origin}/receipt/${targetId}`
             : `https://api.seznik.com/receipt/${targetId}`
         } else if (entry.qrType === 'invoice_barcode' || rawVal === '{{invoice_no}}') {
-          rawVal = data.invoiceNumber || 'INV-2026-0001'
+          rawVal = data.invoiceNumber || 'INV-0001'
         }
 
         const isQr =
           entry.format === 'qr' ||
           entry.codeType === 'qr_code' ||
-          entry.qrType === 'upi' ||
+          isUpi ||
           entry.qrType === 'digital_bill' ||
           entry.qrType === 'custom' ||
-          Boolean(entry.upiId) ||
-          Boolean(entry.value?.includes('{{upi_qr}}')) ||
-          Boolean(entry.value?.includes('{{bill_pdf_url}}')) ||
           rawVal.startsWith('http://') ||
           rawVal.startsWith('https://') ||
           rawVal.startsWith('upi://')
 
         if (isQr && rawVal) {
+          qrPrinted = true
           b.feed(1)
           b.align(toEscPosAlign(entry.align || 'center'))
           b.qr(rawVal, qrModuleSize(entry, opts?.receiptQrSize))
@@ -1140,6 +1180,40 @@ export async function appendCustomTemplateToEscPos(
           .forEach((l) => alignText(l, entry.align || 'left'))
         break
       }
+    }
+  }
+
+  // Fallback: If no QR was printed from template entries, but payment QR or bill QR was requested in options/config:
+  if (!qrPrinted) {
+    const shouldPrintUpi = Boolean(opts?.showPaymentQR || (data.upiId && opts?.showPaymentQR !== false))
+    if (shouldPrintUpi && data.upiId) {
+      b.feed(1)
+      b.align('center')
+      b.bold(true)
+      b.line('SCAN TO PAY VIA UPI')
+      b.bold(false)
+      const upiLink = buildUpiPayLink({
+        upiId: data.upiId,
+        payeeName: data.storeName,
+        amount: data.grandTotal,
+        note: data.invoiceNumber,
+      })
+      b.qr(upiLink, receiptQrEscPosModuleSize(paperSize, opts?.receiptQrSize))
+      b.feed(1)
+      b.align('left')
+      qrPrinted = true
+    } else if (opts?.enableBillQrCode) {
+      const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-0001')
+      const billPdfUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/receipt/${targetId}`
+        : `https://api.seznik.com/receipt/${targetId}`
+      b.feed(1)
+      b.align('center')
+      b.line('Scan QR to View & Download Bill PDF')
+      b.qr(billPdfUrl, receiptQrEscPosModuleSize(paperSize, opts?.receiptQrSize))
+      b.feed(1)
+      b.align('left')
+      qrPrinted = true
     }
   }
 

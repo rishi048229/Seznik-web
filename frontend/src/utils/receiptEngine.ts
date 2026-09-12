@@ -242,7 +242,8 @@ export function calculateReceiptTotals(
 ): ReceiptTotalsResult {
   const items = sale.items ?? []
   const docTitle = getDocumentTitle(gstin, items)
-  const isTaxInvoice = docTitle === 'TAX INVOICE'
+  const hasItemTax = items.some(item => (item.taxRate || 0) > 0 || (item.taxAmount || 0) > 0)
+  const hasTax = hasItemTax || (sale.totalTax != null && sale.totalTax > 0)
 
   let totalQty = 0
   let rawSubTotal = 0
@@ -255,7 +256,7 @@ export function calculateReceiptTotals(
   })
 
   const subTotal = sale.subtotal || rawSubTotal
-  const totalDiscount = sale.totalDiscount || itemDiscounts
+  const totalDiscount = (sale.totalDiscount != null && sale.totalDiscount > 0) ? sale.totalDiscount : itemDiscounts
   const orderDiscount = Math.max(0, totalDiscount - itemDiscounts)
   const netPayableBeforeTax = subTotal - totalDiscount
 
@@ -265,7 +266,7 @@ export function calculateReceiptTotals(
   let cgstSum = 0
   let sgstSum = 0
 
-  if (isTaxInvoice) {
+  if (hasTax) {
     const gstSummary = gstSummaryFromCart(
       items.map((item) => ({
         sellingPrice: item.sellingPrice,
@@ -286,15 +287,15 @@ export function calculateReceiptTotals(
         sgst: s.sgstAmount,
       }))
     taxableSum = gstSummary.taxableValue
-    totalTaxSum = gstSummary.totalGst
-    cgstSum = gstSummary.cgstAmount
-    sgstSum = gstSummary.sgstAmount
+    totalTaxSum = gstSummary.totalGst > 0 ? gstSummary.totalGst : (sale.totalTax || 0)
+    cgstSum = gstSummary.cgstAmount > 0 ? gstSummary.cgstAmount : (totalTaxSum / 2)
+    sgstSum = gstSummary.sgstAmount > 0 ? gstSummary.sgstAmount : (totalTaxSum / 2)
   }
 
-  const taxableAmount = isTaxInvoice ? Number(taxableSum.toFixed(2)) : netPayableBeforeTax
-  const totalTax = isTaxInvoice ? Number(totalTaxSum.toFixed(2)) : 0
-  const cgstTotal = isTaxInvoice ? Number(cgstSum.toFixed(2)) : 0
-  const sgstTotal = isTaxInvoice ? Number(sgstSum.toFixed(2)) : 0
+  const taxableAmount = taxableSum > 0 ? Number(taxableSum.toFixed(2)) : netPayableBeforeTax
+  const totalTax = totalTaxSum > 0 ? Number(totalTaxSum.toFixed(2)) : (sale.totalTax ? Number(sale.totalTax.toFixed(2)) : 0)
+  const cgstTotal = cgstSum > 0 ? Number(cgstSum.toFixed(2)) : Number((totalTax / 2).toFixed(2))
+  const sgstTotal = sgstSum > 0 ? Number(sgstSum.toFixed(2)) : Number((totalTax / 2).toFixed(2))
 
   const hasExclGst = items.some((i) => !i.priceIncludesGst && (i.taxRate || 0) > 0)
   const rawGrandTotal =
@@ -535,19 +536,23 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     lines.push(divider('-', COLS))
   }
 
-  if (showTaxBreakdown && totals.docTitle === 'TAX INVOICE' && totals.totalTax > 0) {
-    if (effectiveGstStyle === 'compact') {
-      lines.push(row('GST', formatThermalAmount(totals.totalTax), COLS))
-    } else if (effectiveGstStyle === 'slab_wise' && totals.taxGroups.length > 0) {
-      totals.taxGroups.forEach((g) => {
-        lines.push(row(`Taxable @ ${g.taxRate}%`, formatThermalAmount(g.taxableAmount), COLS))
-        lines.push(row(`  CGST @ ${g.taxRate / 2}%`, formatThermalAmount(g.cgst), COLS))
-        lines.push(row(`  SGST @ ${g.taxRate / 2}%`, formatThermalAmount(g.sgst), COLS))
-      })
-    } else if (effectiveGstStyle === 'tax_invoice') {
-      lines.push(row('Taxable Value', formatThermalAmount(totals.taxableAmount), COLS))
-      lines.push(row('  CGST', formatThermalAmount(totals.cgstTotal), COLS))
-      lines.push(row('  SGST', formatThermalAmount(totals.sgstTotal), COLS))
+  if (totals.totalTax > 0) {
+    if (showTaxBreakdown && totals.docTitle === 'TAX INVOICE') {
+      if (effectiveGstStyle === 'compact') {
+        lines.push(row('GST', formatThermalAmount(totals.totalTax), COLS))
+      } else if (effectiveGstStyle === 'slab_wise' && totals.taxGroups.length > 0) {
+        totals.taxGroups.forEach((g) => {
+          lines.push(row(`Taxable @ ${g.taxRate}%`, formatThermalAmount(g.taxableAmount), COLS))
+          lines.push(row(`  CGST @ ${g.taxRate / 2}%`, formatThermalAmount(g.cgst), COLS))
+          lines.push(row(`  SGST @ ${g.taxRate / 2}%`, formatThermalAmount(g.sgst), COLS))
+        })
+      } else {
+        lines.push(row('Taxable Value', formatThermalAmount(totals.taxableAmount), COLS))
+        lines.push(row('  CGST', formatThermalAmount(totals.cgstTotal), COLS))
+        lines.push(row('  SGST', formatThermalAmount(totals.sgstTotal), COLS))
+      }
+    } else {
+      lines.push(row('GST / Tax', formatThermalAmount(totals.totalTax), COLS))
     }
     lines.push(divider('-', COLS))
   }

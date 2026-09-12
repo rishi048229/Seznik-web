@@ -28,13 +28,10 @@ import {
   Globe,
   Check,
   X,
-  Zap,
   QrCode,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthStore } from '@/store/useAuthStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
@@ -44,7 +41,7 @@ import { SUPPORTED_LANGUAGES } from '@/constants/translations';
 import { LoginQrScanner } from '@/components/auth/LoginQrScanner';
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Invalid email address'),
+  email: z.string().min(1, 'Email or username is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -52,7 +49,6 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginScreen() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const theme = useAppTheme();
   const { t, currentLanguage, setLanguage } = useTranslation();
   const { login, isLoggingIn, loginWithQr, isLoggingInWithQr } = useAuth();
@@ -174,10 +170,10 @@ export default function LoginScreen() {
                 </View>
               ) : null}
 
-              {/* Email Field */}
+              {/* Email / Username Field */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.textPrimary }]}>
-                  {t('emailAddress', 'Email Address')}
+                  {t('emailOrUsername', 'Email or Username')}
                 </Text>
                 <Controller
                   control={control}
@@ -196,7 +192,7 @@ export default function LoginScreen() {
                       <Mail size={18} color={emailFocused ? BRAND_COLORS.blue600 : theme.textSecondary} style={{ marginRight: 10 }} />
                       <TextInput
                         style={[styles.input, { color: theme.textPrimary }]}
-                        placeholder="store@seznik.com"
+                        placeholder={t('enterEmailOrUsername', 'store@seznik.com or username')}
                         placeholderTextColor="#94A3B8"
                         keyboardType="email-address"
                         autoCapitalize="none"
@@ -328,23 +324,6 @@ export default function LoginScreen() {
               <Text style={[styles.qrHint, { color: theme.textSecondary }]}>
                 {t('scanDashboardQrSub', 'Sign in with the QR on your web dashboard')}
               </Text>
-
-              {/* Dev Bypass Login Button */}
-              <TouchableOpacity
-                onPress={async () => {
-                  await useAuthStore.getState().loginWithDevBypass();
-                  queryClient.clear();
-                  queryClient.setQueryData(['auth', 'profile'], useAuthStore.getState().user);
-                  router.replace('/');
-                }}
-                style={styles.bypassButton}
-                activeOpacity={0.8}
-              >
-                <Zap size={15} color="#D97706" style={{ marginRight: 6 }} />
-                <Text style={styles.bypassButtonText}>
-                  Bypass Login (Development Only)
-                </Text>
-              </TouchableOpacity>
             </View>
 
             {/* Bottom Register Prompt */}
@@ -637,22 +616,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     fontWeight: '500',
-  },
-  bypassButton: {
-    marginTop: 12,
-    borderRadius: 14,
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bypassButtonText: {
-    color: '#B45309',
-    fontSize: 12,
-    fontWeight: '800',
   },
   registerPromptRow: {
     flexDirection: 'row',

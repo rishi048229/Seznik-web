@@ -5,9 +5,25 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  ScrollView,
+  LayoutChangeEvent,
 } from 'react-native';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react-native';
+import Svg, {
+  Path,
+  Defs,
+  LinearGradient,
+  Stop,
+  Circle,
+  Line,
+  G,
+} from 'react-native-svg';
+import {
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  RotateCcw,
+  Sparkles,
+  Award,
+} from 'lucide-react-native';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import type { RevenueTrendData } from '@/api/reports';
@@ -27,177 +43,61 @@ interface RevenueTrendChartProps {
 }
 
 const PERIOD_OPTIONS: { id: TrendPeriod; labelKey: string; fallback: string }[] = [
-  { id: 'month', labelKey: 'trendThisMonth', fallback: 'This Month' },
   { id: 'daily', labelKey: 'trend7Days', fallback: '7 Days' },
+  { id: 'month', labelKey: 'trendThisMonth', fallback: 'This Month' },
   { id: 'monthly', labelKey: 'trend3Months', fallback: '3 Months' },
 ];
 
-const BAR_MAX_HEIGHT = 112;
-const BAR_MIN_HEIGHT = 4;
-const BAR_WIDTH = 46;
-const BAR_GAP = 6;
+const CHART_HEIGHT = 160;
+const PADDING_TOP = 20;
+const PADDING_BOTTOM = 28;
+const PADDING_HORIZONTAL = 18;
 
-function formatFullCurrency(val: number): string {
+function formatCurrency(val: number): string {
   return `₹${Math.round(val || 0).toLocaleString('en-IN')}`;
 }
 
-/** Readable on-bar label — full ₹ for typical shop-day amounts, compact only when large. */
-function formatBarLabel(val: number): string {
+function formatCompact(val: number): string {
   const n = Math.max(0, val || 0);
   if (n === 0) return '₹0';
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
   if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 10000) return `₹${(n / 1000).toFixed(1)}k`;
-  return formatFullCurrency(n);
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
+  return `₹${n}`;
 }
 
-function ChangeBadge({
-  changePct,
-  textSecondary,
-  vsLabel,
-}: {
-  changePct: number | null;
-  textSecondary: string;
-  vsLabel: string;
-}) {
-  const icon =
-    changePct === null || changePct === 0 ? (
-      <Minus size={12} color={textSecondary} />
-    ) : changePct > 0 ? (
-      <TrendingUp size={12} color="#10B981" />
-    ) : (
-      <TrendingDown size={12} color="#EF4444" />
-    );
+/** Converts array of points into a smooth cubic Catmull-Rom spline path */
+function getSmoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
-  const color =
-    changePct === null || changePct === 0 ? textSecondary : changePct > 0 ? '#10B981' : '#EF4444';
+  let d = `M ${points[0].x} ${points[0].y}`;
 
-  return (
-    <View style={styles.changeBlock}>
-      {icon}
-      <Text style={[styles.changeText, { color }]}>
-        {changePct === null
-          ? vsLabel
-          : `${changePct > 0 ? '+' : ''}${changePct}% ${vsLabel}`}
-      </Text>
-    </View>
-  );
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? i : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+
+    const cp1x = p1.x + (p2.x - p0.x) / 5.5;
+    const cp1y = p1.y + (p2.y - p0.y) / 5.5;
+
+    const cp2x = p2.x - (p3.x - p1.x) / 5.5;
+    const cp2y = p2.y - (p3.y - p1.y) / 5.5;
+
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+
+  return d;
 }
 
-interface BarChartProps {
-  labels: string[];
-  values: number[];
-  selectedIdx: number;
-  lastIdx: number;
-  onSelect: (idx: number) => void;
-  textPrimary: string;
-  textSecondary: string;
-  borderColor: string;
-}
-
-function BarChart({ labels, values, selectedIdx, lastIdx, onSelect, textPrimary, textSecondary, borderColor }: BarChartProps) {
-  const max = Math.max(1, ...values);
-  const bestIdx = values.reduce((best, v, i) => (v > values[best] ? i : best), 0);
-  const scrollable = values.length > 8;
-
-  const showValueLabel = (idx: number, val: number) => {
-    if (idx === selectedIdx || idx === lastIdx || idx === bestIdx) return true;
-    if (values.length <= 10) return val > 0;
-    return false;
-  };
-
-  const bars = values.map((val, idx) => {
-    const isToday = idx === lastIdx;
-    const isSelected = idx === selectedIdx;
-    const isBest = idx === bestIdx && val > 0;
-    const barHeight = val > 0 ? Math.max(BAR_MIN_HEIGHT, (val / max) * BAR_MAX_HEIGHT) : BAR_MIN_HEIGHT;
-    const active = isSelected;
-
-    return (
-      <TouchableOpacity
-        key={`bar-${idx}`}
-        activeOpacity={0.85}
-        onPress={() => onSelect(idx)}
-        style={[
-          styles.barCol,
-          scrollable
-            ? { width: BAR_WIDTH, marginRight: BAR_GAP }
-            : { flex: 1, marginHorizontal: 2, maxWidth: 56 },
-        ]}
-      >
-        <Text
-          style={[
-            styles.barValueLabel,
-            {
-              color: active ? BRAND_COLORS.blue600 : val > 0 ? textPrimary : textSecondary,
-              fontWeight: active || isToday ? '900' : '700',
-              opacity: showValueLabel(idx, val) ? 1 : 0,
-            },
-          ]}
-          numberOfLines={1}
-        >
-          {formatBarLabel(val)}
-        </Text>
-
-        <View style={styles.barTrack}>
-          <View
-            style={[
-              styles.barFill,
-              {
-                height: barHeight,
-                backgroundColor: active
-                  ? BRAND_COLORS.blue600
-                  : isToday
-                    ? BRAND_COLORS.sky500
-                    : val > 0
-                      ? 'rgba(37, 99, 235, 0.35)'
-                      : 'rgba(148, 163, 184, 0.25)',
-              },
-            ]}
-          />
-        </View>
-
-        <Text
-          style={[
-            styles.barXLabel,
-            {
-              color: active || isToday ? BRAND_COLORS.blue600 : textSecondary,
-              fontWeight: active || isToday ? '900' : '700',
-            },
-          ]}
-          numberOfLines={1}
-        >
-          {labels[idx]}
-        </Text>
-
-        {isBest && val > 0 ? (
-          <View style={[styles.bestDot, { backgroundColor: '#10B981' }]} />
-        ) : null}
-      </TouchableOpacity>
-    );
-  });
-
-  const chartBody = (
-    <View style={[styles.barChartInner, scrollable && { paddingHorizontal: 4 }]}>
-      {bars}
-    </View>
-  );
-
-  return (
-    <View style={[styles.barChartBox, { borderColor }]}>
-      {scrollable ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.barScrollContent}
-        >
-          {chartBody}
-        </ScrollView>
-      ) : (
-        <View style={styles.barChartFit}>{chartBody}</View>
-      )}
-    </View>
-  );
+/** Generates closed polygon path for smooth gradient fill */
+function getAreaPath(points: { x: number; y: number }[], baselineY: number): string {
+  if (points.length === 0) return '';
+  const linePath = getSmoothPath(points);
+  const first = points[0];
+  const last = points[points.length - 1];
+  return `${linePath} L ${last.x.toFixed(1)} ${baselineY} L ${first.x.toFixed(1)} ${baselineY} Z`;
 }
 
 export function RevenueTrendChart({
@@ -213,6 +113,7 @@ export function RevenueTrendChart({
 }: RevenueTrendChartProps) {
   const { t } = useTranslation();
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [chartWidth, setChartWidth] = useState<number>(330);
 
   const revenue = trend.revenue || [];
   const labels = trend.labels || [];
@@ -224,6 +125,7 @@ export function RevenueTrendChart({
     const prevIdx = lastIdx - 1;
     const lastVal = revenue[lastIdx] ?? 0;
     const prevVal = prevIdx >= 0 ? revenue[prevIdx] ?? 0 : 0;
+
     let changePct: number | null = null;
     if (prevVal > 0) {
       changePct = Math.round(((lastVal - prevVal) / prevVal) * 100);
@@ -231,11 +133,19 @@ export function RevenueTrendChart({
       changePct = 100;
     }
 
-    const bestIdx = revenue.length
-      ? revenue.reduce((best, v, i) => (v > revenue[best] ? i : best), 0)
-      : 0;
-    const bestVal = revenue[bestIdx] ?? 0;
-    const bestLabel = labels[bestIdx] || '';
+    const nonZeroCount = revenue.filter((v) => v > 0).length;
+    const avgPerDay = nonZeroCount > 0 ? Math.round(total / (revenue.length || 1)) : 0;
+
+    let bestIdx = 0;
+    let bestVal = 0;
+    revenue.forEach((v, i) => {
+      if (v > bestVal) {
+        bestVal = v;
+        bestIdx = i;
+      }
+    });
+
+    const maxVal = Math.max(100, bestVal * 1.12);
 
     return {
       total,
@@ -245,120 +155,395 @@ export function RevenueTrendChart({
       changePct,
       bestIdx,
       bestVal,
-      bestLabel,
+      bestLabel: labels[bestIdx] || '',
+      avgPerDay,
+      maxVal,
       isLatestToday: (labels[lastIdx] || '').toLowerCase() === 'today',
     };
   }, [revenue, labels]);
 
-  const highlightIdx = selectedIdx ?? stats.lastIdx;
-  const highlightVal = revenue[highlightIdx] ?? 0;
-  const highlightLabel = labels[highlightIdx] || '—';
+  const activeIdx = selectedIdx !== null ? selectedIdx : stats.lastIdx;
+  const activeVal = revenue[activeIdx] ?? 0;
+  const activeLabel = labels[activeIdx] || '—';
+  const isCustomSelected = selectedIdx !== null;
 
   const periodTitle =
     timeframe === 'month'
-      ? t('trendThisMonthTitle', 'Revenue this month')
+      ? t('trendThisMonthTitle', 'This Month Flow')
       : timeframe === 'daily'
-        ? t('trend7DaysTitle', 'Revenue last 7 days')
-        : t('trend3MonthsTitle', 'Revenue last 3 months');
+        ? t('trend7DaysTitle', 'Last 7 Days Flow')
+        : t('trend3MonthsTitle', '3 Months Overview');
 
   const vsPreviousLabel =
     timeframe === 'monthly'
-      ? t('trendVsPreviousMonth', 'vs last month')
-      : t('trendVsPrevious', 'vs previous');
+      ? t('trendVsPreviousMonth', 'vs prev month')
+      : t('trendVsPrevious', 'vs prev day');
 
-  const heroTitle = stats.isLatestToday
-    ? t('todayRevenue', "Today's Revenue")
-    : timeframe === 'monthly'
-      ? t('trendLatestMonth', 'Latest Month')
-      : t('trendLatest', 'Latest');
+  // Compute SVG Points
+  const usableWidth = Math.max(100, chartWidth - PADDING_HORIZONTAL * 2);
+  const usableHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+  const baselineY = CHART_HEIGHT - PADDING_BOTTOM;
+
+  const points = useMemo(() => {
+    if (!revenue.length) return [];
+    const step = revenue.length > 1 ? usableWidth / (revenue.length - 1) : usableWidth;
+
+    return revenue.map((val, i) => {
+      const x = PADDING_HORIZONTAL + i * step;
+      const ratio = val / stats.maxVal;
+      const y = baselineY - ratio * usableHeight;
+      return { x, y: Math.max(PADDING_TOP, Math.min(baselineY, y)), val, idx: i };
+    });
+  }, [revenue, stats.maxVal, usableWidth, usableHeight, baselineY]);
+
+  const areaD = useMemo(() => getAreaPath(points, baselineY), [points, baselineY]);
+  const lineD = useMemo(() => getSmoothPath(points), [points]);
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const width = e.nativeEvent.layout.width;
+    if (width > 50) {
+      setChartWidth(width);
+    }
+  };
+
+  const activePoint = points[activeIdx] || points[points.length - 1];
 
   return (
-    <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: textPrimary }]}>{t('revenueTrend', 'Revenue Trend')}</Text>
-          <Text style={[styles.subtitle, { color: textSecondary }]}>{periodTitle}</Text>
+    <View style={[styles.containerCard, { backgroundColor: cardBg, borderColor }]}>
+      {/* 1. Header with Title & Period Selector */}
+      <View style={styles.cardHeader}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[styles.headerIconBox, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+              <Sparkles size={16} color={BRAND_COLORS.blue600} />
+            </View>
+            <Text style={[styles.chartTitle, { color: textPrimary }]}>
+              {t('revenueTrend', 'Revenue Curve')}
+            </Text>
+          </View>
+          <Text style={[styles.chartSubtitle, { color: textSecondary }]}>
+            {periodTitle}
+          </Text>
+        </View>
+
+        {/* Timeframe Segmented Control */}
+        <View style={[styles.timeframePillContainer, { backgroundColor: surfaceBg, borderColor }]}>
+          {PERIOD_OPTIONS.map((opt) => {
+            const active = timeframe === opt.id;
+            return (
+              <TouchableOpacity
+                key={opt.id}
+                onPress={() => {
+                  setSelectedIdx(null);
+                  onTimeframeChange(opt.id);
+                }}
+                activeOpacity={0.7}
+                style={[
+                  styles.timeframeSegment,
+                  active && styles.timeframeSegmentActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.timeframeSegmentText,
+                    { color: active ? '#FFFFFF' : textSecondary },
+                  ]}
+                >
+                  {t(opt.labelKey, opt.fallback)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
-      <View style={[styles.periodRow, { backgroundColor: surfaceBg, borderColor }]}>
-        {PERIOD_OPTIONS.map((opt) => {
-          const active = timeframe === opt.id;
-          return (
-            <TouchableOpacity
-              key={opt.id}
-              onPress={() => {
-                setSelectedIdx(null);
-                onTimeframeChange(opt.id);
-              }}
-              style={[styles.periodChip, active && styles.periodChipActive]}
-            >
-              <Text style={[styles.periodChipText, { color: active ? '#FFFFFF' : textSecondary }]}>
-                {t(opt.labelKey, opt.fallback)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
+      {/* 2. Loading / Empty State or Chart Body */}
       {isLoading ? (
-        <View style={styles.loadingBox}>
+        <View style={styles.stateContainer}>
           <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+          <Text style={[styles.stateText, { color: textSecondary }]}>
+            {t('loadingTrend', 'Generating revenue flow...')}
+          </Text>
         </View>
       ) : !hasData ? (
-        <View style={styles.loadingBox}>
-          <Text style={[styles.emptyText, { color: textSecondary }]}>
-            {t('trendNoSales', 'No sales in this period yet. Bills from POS will appear here.')}
+        <View style={styles.stateContainer}>
+          <Calendar size={28} color={textSecondary} style={{ opacity: 0.6, marginBottom: 6 }} />
+          <Text style={[styles.stateText, { color: textSecondary }]}>
+            {t('trendNoSales', 'No sales recorded in this period yet. New bills will appear here live.')}
           </Text>
         </View>
       ) : (
         <>
-          <View style={[styles.heroBlock, { backgroundColor: surfaceBg, borderColor }]}>
-            <View style={styles.heroTopRow}>
+          {/* 3. Hero Showcase Card */}
+          <View style={[styles.heroDisplayCard, { backgroundColor: surfaceBg, borderColor }]}>
+            <View style={styles.heroMainRow}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.heroKicker, { color: textSecondary }]}>{heroTitle}</Text>
-                <Text style={[styles.heroValue, { color: textPrimary }]}>{formatFullCurrency(stats.lastVal)}</Text>
-              </View>
-              <ChangeBadge
-                changePct={stats.changePct}
-                textSecondary={textSecondary}
-                vsLabel={vsPreviousLabel}
-              />
-            </View>
-            <View style={styles.heroMetaRow}>
-              <Text style={[styles.heroMeta, { color: textSecondary }]}>
-                {t('trendTotal', 'Period total')}:{' '}
-                <Text style={{ color: textPrimary, fontWeight: '800' }}>{formatFullCurrency(stats.total)}</Text>
-              </Text>
-              {stats.bestVal > 0 ? (
-                <Text style={[styles.heroMeta, { color: textSecondary }]}>
-                  {t('trendBestDay', 'Best')}:{' '}
-                  <Text style={{ color: '#10B981', fontWeight: '800' }}>
-                    {stats.bestLabel} · {formatBarLabel(stats.bestVal)}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.heroDateLabel, { color: textSecondary }]}>
+                    {isCustomSelected
+                      ? `${activeLabel} ${activeIdx === stats.bestIdx && stats.bestVal > 0 ? '• Peak' : ''}`
+                      : stats.isLatestToday
+                        ? t('todayRevenue', "Today's Revenue")
+                        : activeLabel}
                   </Text>
+                  {isCustomSelected && (
+                    <TouchableOpacity
+                      onPress={() => setSelectedIdx(null)}
+                      style={styles.resetSelectionBtn}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <RotateCcw size={10} color={BRAND_COLORS.blue600} />
+                      <Text style={styles.resetSelectionText}>Latest</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <Text style={[styles.heroAmountText, { color: textPrimary }]}>
+                  {formatCurrency(activeVal)}
                 </Text>
+              </View>
+
+              {/* Growth Badge */}
+              {stats.changePct !== null ? (
+                <View
+                  style={[
+                    styles.growthBadge,
+                    {
+                      backgroundColor:
+                        stats.changePct >= 0
+                          ? 'rgba(16, 185, 129, 0.12)'
+                          : 'rgba(239, 68, 68, 0.12)',
+                      borderColor:
+                        stats.changePct >= 0
+                          ? 'rgba(16, 185, 129, 0.25)'
+                          : 'rgba(239, 68, 68, 0.25)',
+                    },
+                  ]}
+                >
+                  {stats.changePct >= 0 ? (
+                    <TrendingUp size={13} color="#10B981" />
+                  ) : (
+                    <TrendingDown size={13} color="#EF4444" />
+                  )}
+                  <Text
+                    style={[
+                      styles.growthBadgeText,
+                      { color: stats.changePct >= 0 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    {stats.changePct >= 0 ? `+${stats.changePct}%` : `${stats.changePct}%`}
+                  </Text>
+                  <Text style={[styles.growthSubText, { color: textSecondary }]}>
+                    {vsPreviousLabel}
+                  </Text>
+                </View>
               ) : null}
             </View>
           </View>
 
-          <BarChart
-            labels={labels}
-            values={revenue}
-            selectedIdx={highlightIdx}
-            lastIdx={stats.lastIdx}
-            onSelect={setSelectedIdx}
-            textPrimary={textPrimary}
-            textSecondary={textSecondary}
-            borderColor={borderColor}
-          />
+          {/* 4. Smooth Gradient Area Spline Chart (SVG) */}
+          <View style={[styles.chartWrapper, { borderColor }]} onLayout={onLayout}>
+            <Svg width={chartWidth} height={CHART_HEIGHT}>
+              <Defs>
+                {/* Glowing Smooth Gradient */}
+                <LinearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0%" stopColor={BRAND_COLORS.blue600} stopOpacity="0.45" />
+                  <Stop offset="60%" stopColor="#38BDF8" stopOpacity="0.15" />
+                  <Stop offset="100%" stopColor="#38BDF8" stopOpacity="0.0" />
+                </LinearGradient>
+              </Defs>
 
-          <View style={[styles.tooltip, { backgroundColor: surfaceBg, borderColor }]}>
-            <Text style={[styles.tooltipValue, { color: textPrimary }]}>{formatFullCurrency(highlightVal)}</Text>
-            <Text style={[styles.tooltipLabel, { color: textSecondary }]}>
-              {highlightLabel}
-              {highlightIdx === stats.lastIdx ? ` · ${t('trendLatest', 'Latest')}` : ''}
-              {highlightIdx === stats.bestIdx && stats.bestVal > 0 ? ` · ${t('trendPeak', 'Peak')}` : ''}
-            </Text>
+              {/* Horizontal Reference Grid Guide Lines */}
+              <G opacity={0.25}>
+                <Line
+                  x1={PADDING_HORIZONTAL}
+                  y1={PADDING_TOP}
+                  x2={chartWidth - PADDING_HORIZONTAL}
+                  y2={PADDING_TOP}
+                  stroke={borderColor}
+                  strokeDasharray="4, 4"
+                  strokeWidth={1}
+                />
+                <Line
+                  x1={PADDING_HORIZONTAL}
+                  y1={PADDING_TOP + usableHeight / 2}
+                  x2={chartWidth - PADDING_HORIZONTAL}
+                  y2={PADDING_TOP + usableHeight / 2}
+                  stroke={borderColor}
+                  strokeDasharray="4, 4"
+                  strokeWidth={1}
+                />
+                <Line
+                  x1={PADDING_HORIZONTAL}
+                  y1={baselineY}
+                  x2={chartWidth - PADDING_HORIZONTAL}
+                  y2={baselineY}
+                  stroke={borderColor}
+                  strokeWidth={1}
+                />
+              </G>
+
+              {/* Gradient Area Fill */}
+              {areaD ? <Path d={areaD} fill="url(#revenueGrad)" /> : null}
+
+              {/* Spline Line */}
+              {lineD ? (
+                <Path
+                  d={lineD}
+                  fill="none"
+                  stroke={BRAND_COLORS.blue600}
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ) : null}
+
+              {/* Active Scrubber Line */}
+              {activePoint ? (
+                <Line
+                  x1={activePoint.x}
+                  y1={PADDING_TOP}
+                  x2={activePoint.x}
+                  y2={baselineY}
+                  stroke={BRAND_COLORS.blue600}
+                  strokeWidth={1.5}
+                  strokeDasharray="3, 3"
+                  opacity={0.7}
+                />
+              ) : null}
+
+              {/* Data Points on Line */}
+              {points.map((pt, i) => {
+                const isSelected = i === activeIdx;
+                const isBest = i === stats.bestIdx && pt.val > 0;
+
+                if (isSelected) {
+                  return (
+                    <G key={`point-${i}`}>
+                      <Circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={10}
+                        fill={BRAND_COLORS.blue600}
+                        opacity={0.22}
+                      />
+                      <Circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={5}
+                        fill={BRAND_COLORS.blue600}
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                      />
+                    </G>
+                  );
+                }
+
+                if (isBest) {
+                  return (
+                    <Circle
+                      key={`point-${i}`}
+                      cx={pt.x}
+                      cy={pt.y}
+                      r={4.5}
+                      fill="#10B981"
+                      stroke="#FFFFFF"
+                      strokeWidth={1.5}
+                    />
+                  );
+                }
+
+                if (points.length <= 10 && pt.val > 0) {
+                  return (
+                    <Circle
+                      key={`point-${i}`}
+                      cx={pt.x}
+                      cy={pt.y}
+                      r={3}
+                      fill={BRAND_COLORS.blue600}
+                      opacity={0.7}
+                    />
+                  );
+                }
+
+                return null;
+              })}
+            </Svg>
+
+            {/* Interactive Touch Overlay Zones */}
+            <View style={styles.touchOverlayLayer}>
+              {points.map((pt, i) => (
+                <TouchableOpacity
+                  key={`touch-zone-${i}`}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedIdx(i)}
+                  style={styles.touchTarget}
+                />
+              ))}
+            </View>
+
+            {/* X-Axis Labels Row */}
+            <View style={styles.xAxisRow}>
+              {labels.map((label, i) => {
+                const isSelected = i === activeIdx;
+                return (
+                  <TouchableOpacity
+                    key={`label-${i}`}
+                    onPress={() => setSelectedIdx(i)}
+                    style={{ flex: 1, alignItems: 'center' }}
+                  >
+                    <Text
+                      style={[
+                        styles.xAxisText,
+                        {
+                          color: isSelected ? BRAND_COLORS.blue600 : textSecondary,
+                          fontWeight: isSelected ? '900' : '600',
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 5. 3-Column KPI Summary Tiles */}
+          <View style={styles.kpiTilesRow}>
+            {/* Tile 1: Period Total */}
+            <View style={[styles.kpiTile, { backgroundColor: surfaceBg, borderColor }]}>
+              <Text style={[styles.kpiLabel, { color: textSecondary }]}>
+                {t('trendTotal', 'Period Total')}
+              </Text>
+              <Text style={[styles.kpiValue, { color: BRAND_COLORS.blue600 }]} numberOfLines={1}>
+                {formatCompact(stats.total)}
+              </Text>
+            </View>
+
+            {/* Tile 2: Daily Average */}
+            <View style={[styles.kpiTile, { backgroundColor: surfaceBg, borderColor }]}>
+              <Text style={[styles.kpiLabel, { color: textSecondary }]}>
+                {t('avgPerDay', 'Daily Avg')}
+              </Text>
+              <Text style={[styles.kpiValue, { color: textPrimary }]} numberOfLines={1}>
+                {formatCompact(stats.avgPerDay)}
+              </Text>
+            </View>
+
+            {/* Tile 3: Peak Day */}
+            <View style={[styles.kpiTile, { backgroundColor: surfaceBg, borderColor }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Award size={11} color="#10B981" />
+                <Text style={[styles.kpiLabel, { color: textSecondary }]}>
+                  {t('peakDay', 'Peak Day')}
+                </Text>
+              </View>
+              <Text style={[styles.kpiValue, { color: '#10B981' }]} numberOfLines={1}>
+                {stats.bestVal > 0 ? formatCompact(stats.bestVal) : '₹0'}
+              </Text>
+            </View>
           </View>
         </>
       )}
@@ -367,94 +552,183 @@ export function RevenueTrendChart({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 18, padding: 16, borderWidth: 1, marginBottom: 20 },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  title: { fontSize: 15, fontWeight: '900' },
-  subtitle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
-  periodRow: { flexDirection: 'row', padding: 3, borderRadius: 12, borderWidth: 1, marginBottom: 14 },
-  periodChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10 },
-  periodChipActive: { backgroundColor: BRAND_COLORS.blue600 },
-  periodChipText: { fontSize: 11, fontWeight: '800' },
-  loadingBox: { height: 160, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontSize: 12, textAlign: 'center', paddingHorizontal: 12, lineHeight: 18 },
-  heroBlock: {
-    borderRadius: 14,
+  containerCard: {
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    padding: 14,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 14,
   },
-  heroTopRow: {
+  headerIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartTitle: {
+    fontSize: 15.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+  chartSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  timeframePillContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 2,
   },
-  heroKicker: {
-    fontSize: 10,
+  timeframeSegment: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeframeSegmentActive: {
+    backgroundColor: BRAND_COLORS.blue600,
+    shadowColor: BRAND_COLORS.blue600,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  timeframeSegmentText: {
+    fontSize: 10.5,
     fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
-  heroValue: { fontSize: 26, fontWeight: '900', marginTop: 4 },
-  heroMetaRow: { marginTop: 10, gap: 4 },
-  heroMeta: { fontSize: 11, fontWeight: '600' },
-  changeBlock: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '46%' },
-  changeText: { fontSize: 11, fontWeight: '700', flexShrink: 1 },
-  barChartBox: {
-    borderRadius: 12,
+  stateContainer: {
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  stateText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  heroDisplayCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  heroMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroDateLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  resetSelectionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+  },
+  resetSelectionText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: BRAND_COLORS.blue600,
+  },
+  heroAmountText: {
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  growthBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  growthBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  growthSubText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+  },
+  chartWrapper: {
+    borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
-    marginBottom: 10,
-    minHeight: BAR_MAX_HEIGHT + 56,
+    height: CHART_HEIGHT,
+    marginBottom: 12,
+    position: 'relative',
+    justifyContent: 'flex-start',
   },
-  barChartFit: {
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
-  barScrollContent: {
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
-  barChartInner: {
+  touchOverlayLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 24,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    width: '100%',
   },
-  barCol: {
-    alignItems: 'center',
+  touchTarget: {
+    flex: 1,
+    height: '100%',
   },
-  barValueLabel: {
-    fontSize: 9,
-    marginBottom: 4,
-    minHeight: 12,
+  xAxisRow: {
+    position: 'absolute',
+    bottom: 6,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    paddingHorizontal: PADDING_HORIZONTAL - 10,
+  },
+  xAxisText: {
+    fontSize: 9.5,
     textAlign: 'center',
   },
-  barTrack: {
-    width: '100%',
-    height: BAR_MAX_HEIGHT,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+  kpiTilesRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  barFill: {
-    width: 22,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-    minHeight: BAR_MIN_HEIGHT,
+  kpiTile: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
   },
-  barXLabel: {
-    fontSize: 9,
-    marginTop: 6,
-    textAlign: 'center',
+  kpiLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2,
   },
-  bestDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    marginTop: 3,
+  kpiValue: {
+    fontSize: 14,
+    fontWeight: '900',
   },
-  tooltip: { borderRadius: 10, padding: 10, borderWidth: 1, alignItems: 'center' },
-  tooltipValue: { fontSize: 18, fontWeight: '900' },
-  tooltipLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },
 });

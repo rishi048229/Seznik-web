@@ -82,7 +82,7 @@ import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
-import { AiProductImportModal } from '@/components/products/AiProductImportModal';
+import { BulkProductUploadModal } from '@/components/products/BulkProductUploadModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { SeznikPrinterGrid } from '@/components/printers/SeznikPrinterGrid';
 import { SeznikPrinterModel, SeznikPrinterModelId, SEZNIK_PRINTER_MODELS, PRINTER_MODEL_LIST } from '@/constants/printerModels';
@@ -1301,8 +1301,8 @@ export default function DashboardScreen() {
           </View>
         </Modal>
 
-        {/* AI Catalog Bulk Import Modal */}
-        <AiProductImportModal
+        {/* Bulk Product Upload Modal */}
+        <BulkProductUploadModal
           visible={showAiImportModal}
           onClose={() => setShowAiImportModal(false)}
           onSuccessImport={() => {

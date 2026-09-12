@@ -322,46 +322,65 @@ export default function SalesHistoryScreen() {
               onRefresh={refetch}
               contentContainerStyle={{ paddingBottom: 24 }}
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => setSelectedSale(item)}
+                <View
                   style={[styles.saleCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                 >
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.invoiceNumber, { color: theme.textPrimary }]}>
-                        {item.invoiceNumber}
-                      </Text>
-                      <View style={[styles.paymentBadge, { backgroundColor: 'rgba(37, 99, 235, 0.1)' }]}>
-                        {getPaymentIcon(item.paymentMethod)}
-                        <Text style={styles.paymentBadgeText}>{item.paymentMethod.toUpperCase()}</Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectedSale(item)}
+                    activeOpacity={0.7}
+                    style={styles.saleCardHeader}
+                  >
+                    <View style={styles.saleHeaderTop}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+                        <Text style={[styles.invoiceNumber, { color: theme.textPrimary }]} numberOfLines={1}>
+                          {item.invoiceNumber}
+                        </Text>
+                        <View style={[styles.paymentBadge, { backgroundColor: 'rgba(37, 99, 235, 0.1)' }]}>
+                          {getPaymentIcon(item.paymentMethod)}
+                          <Text style={styles.paymentBadgeText}>{item.paymentMethod.toUpperCase()}</Text>
+                        </View>
                       </View>
-                    </View>
-                    <Text style={[styles.saleMeta, { color: theme.textSecondary }]}>
-                      {new Date(item.createdAt).toLocaleDateString('en-GB')} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      {item.customerName ? ` • ${item.customerName}` : ''}
-                    </Text>
-                  </View>
-
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[styles.saleAmount, { color: BRAND_COLORS.blue600 }]}>
-                      {formatCurrency(item.grandTotal)}
-                    </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
-                      <Text style={[styles.itemCountText, { color: theme.textSecondary }]}>
-                        {item.items?.length || 0} items
+                      <Text style={[styles.saleAmount, { color: BRAND_COLORS.blue600 }]}>
+                        {formatCurrency(item.grandTotal)}
                       </Text>
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleThermalReprint(item);
-                        }}
-                        style={[styles.quickPrintBtn, { backgroundColor: 'rgba(37, 99, 235, 0.1)' }]}
-                      >
-                        <Printer size={13} color={BRAND_COLORS.blue600} />
-                      </TouchableOpacity>
                     </View>
+
+                    <Text style={[styles.saleMeta, { color: theme.textSecondary }]} numberOfLines={1}>
+                      {new Date(item.createdAt).toLocaleDateString('en-GB')} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {item.customerName ? ` • ${item.customerName}` : ''} • {item.items?.length || 0} items
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Actions Row Below */}
+                  <View style={[styles.saleCardActions, { borderTopColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
+                    <TouchableOpacity
+                      onPress={() => setSelectedSale(item)}
+                      style={[styles.saleActionBtn, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}
+                      activeOpacity={0.7}
+                    >
+                      <FileText size={14} color={theme.textPrimary} />
+                      <Text style={[styles.saleActionBtnText, { color: theme.textPrimary }]}>Details</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => setPdfPreviewSale(item)}
+                      style={[styles.saleActionBtn, { backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.2)' : 'rgba(37, 99, 235, 0.1)' }]}
+                      activeOpacity={0.7}
+                    >
+                      <Receipt size={14} color={BRAND_COLORS.blue600} />
+                      <Text style={[styles.saleActionBtnText, { color: BRAND_COLORS.blue600 }]}>A4 Bill</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => handleThermalReprint(item)}
+                      style={[styles.saleActionBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
+                      activeOpacity={0.7}
+                    >
+                      <Printer size={14} color="#FFFFFF" />
+                      <Text style={[styles.saleActionBtnText, { color: '#FFFFFF' }]}>Print</Text>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                </View>
               )}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -545,14 +564,47 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
   filterChipText: { fontSize: 11, fontWeight: '800' },
-  saleCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 8 },
-  invoiceNumber: { fontSize: 14, fontWeight: '800' },
+  saleCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  saleCardHeader: {
+    padding: 14,
+  },
+  saleHeaderTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  invoiceNumber: { fontSize: 15, fontWeight: '900' },
   paymentBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginLeft: 6 },
-  paymentBadgeText: { fontSize: 9, fontWeight: '900', color: BRAND_COLORS.blue600, marginLeft: 3 },
-  saleMeta: { fontSize: 11, marginTop: 4 },
-  saleAmount: { fontSize: 15, fontWeight: '900' },
-  itemCountText: { fontSize: 10 },
-  quickPrintBtn: { padding: 5, borderRadius: 8 },
+  paymentBadgeText: { fontSize: 9.5, fontWeight: '900', color: BRAND_COLORS.blue600, marginLeft: 3 },
+  saleMeta: { fontSize: 11.5, lineHeight: 16 },
+  saleAmount: { fontSize: 16, fontWeight: '900' },
+  saleCardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    padding: 8,
+    gap: 6,
+  },
+  saleActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 9,
+    gap: 4,
+    minHeight: 32,
+  },
+  saleActionBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
   emptyContainer: { paddingVertical: 60, alignItems: 'center' },
   emptyTitle: { fontSize: 16, fontWeight: '800', marginTop: 12 },
   emptySub: { fontSize: 12, textAlign: 'center', marginTop: 4 },
