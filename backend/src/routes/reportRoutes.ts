@@ -13,21 +13,25 @@ import {
   getExpenseSummary,
 } from '../controllers/reportController';
 import { protect } from '../middlewares/authMiddleware';
+import { requirePermission } from '../middlewares/requirePermission';
 
 const router = express.Router();
 
 router.use(protect);
 
-router.get('/dashboard', getDashboardStats);
-router.get('/sales', getSalesReport);
-router.get('/pl', getPLReport);
-router.get('/tax', getTaxReport);
-router.get('/trend', getRevenueTrend);
-router.get('/top-customers', getTopCustomers);
-router.get('/payment-modes', getPaymentModeBreakdown);
-router.get('/profit-breakdown', getProfitBreakdown);
-router.get('/top-products', getTopProducts);
-router.get('/top-categories', getTopCategories);
-router.get('/expense-summary', getExpenseSummary);
+const canViewOps = requirePermission('canAccessReports', 'canAccessSales');
+const canViewReports = requirePermission('canAccessReports');
+
+router.get('/dashboard', canViewOps, getDashboardStats);
+router.get('/sales', canViewReports, getSalesReport);
+router.get('/pl', canViewReports, getPLReport);
+router.get('/tax', canViewReports, getTaxReport);
+router.get('/trend', canViewOps, getRevenueTrend);
+router.get('/top-customers', canViewReports, getTopCustomers);
+router.get('/payment-modes', canViewOps, getPaymentModeBreakdown);
+router.get('/profit-breakdown', canViewOps, getProfitBreakdown);
+router.get('/top-products', canViewOps, getTopProducts);
+router.get('/top-categories', canViewReports, getTopCategories);
+router.get('/expense-summary', requirePermission('canAccessReports', 'canAccessExpenses'), getExpenseSummary);
 
 export default router;

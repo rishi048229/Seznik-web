@@ -1,18 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { ensureAdditiveSchema, resetAdditiveSchemaCache } from '../utils/ensureAdditiveSchema';
-
-const getOwnerUserId = async (rawUserId: string): Promise<string> => {
-  if (!rawUserId) return rawUserId;
-
-  const user = await prisma.user.findUnique({ where: { id: rawUserId } });
-  if (user) return user.id;
-
-  const managedUser = await prisma.managedUser.findUnique({ where: { id: rawUserId } });
-  if (managedUser && managedUser.adminId) return managedUser.adminId;
-
-  return rawUserId;
-};
+import { getTenantUserId } from '../utils/ownerUser';
 
 const isMissingColumnError = (error: unknown) =>
   error instanceof Error && /column .* does not exist/i.test(error.message);
@@ -31,8 +20,7 @@ const withSettingsSchema = async <T>(fn: () => Promise<T>): Promise<T> => {
 
 export const getSettings = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
+    const userId = getTenantUserId(req);
 
     let settings = await withSettingsSchema(() =>
       prisma.settings.findUnique({
@@ -78,8 +66,7 @@ const sanitizeSettingsData = (raw: Record<string, any>): Record<string, any> => 
 
 export const createSettings = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
+    const userId = getTenantUserId(req);
     const data = sanitizeSettingsData(req.body || {});
     
     const settings = await withSettingsSchema(() =>
@@ -98,8 +85,7 @@ export const createSettings = async (req: Request, res: Response) => {
 
 export const updateSettings = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
+    const userId = getTenantUserId(req);
     const data = sanitizeSettingsData(req.body || {});
     
     const settings = await withSettingsSchema(() =>
@@ -118,8 +104,7 @@ export const updateSettings = async (req: Request, res: Response) => {
 
 export const updateInvoiceConfig = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
+    const userId = getTenantUserId(req);
     const { invoiceConfig } = req.body;
     
     const settings = await withSettingsSchema(() =>
@@ -138,8 +123,7 @@ export const updateInvoiceConfig = async (req: Request, res: Response) => {
 
 export const updateNotificationConfig = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
+    const userId = getTenantUserId(req);
     const { notificationConfig } = req.body;
     
     const settings = await withSettingsSchema(() =>
@@ -158,8 +142,7 @@ export const updateNotificationConfig = async (req: Request, res: Response) => {
 
 export const updatePrinterConfig = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
+    const userId = getTenantUserId(req);
     const { printerConfig } = req.body;
 
     const settings = await withSettingsSchema(() =>

@@ -4,35 +4,34 @@ import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Use
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
-import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
+import { hasAnyPermission, hasPermission } from '@/utils/permissions'
 import { prefetchPage } from '@/utils/prefetchPages'
+import type { UserPermissions } from '@/types/auth.types'
 
-const primaryItems = [
+const getPrimaryItems = (permissions: UserPermissions | null) => [
   { path: ROUTES.DASHBOARD, label: 'Home', icon: <Home size={20} /> },
-  { path: ROUTES.POS, label: 'Scan To Bill', icon: <ShoppingCart size={20} /> },
-  { path: ROUTES.PRODUCTS, label: 'Products', icon: <Package size={20} /> },
-  { path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> },
+  ...(hasPermission(permissions, 'canAccessSales') ? [{ path: ROUTES.POS, label: 'Scan To Bill', icon: <ShoppingCart size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessProducts') ? [{ path: ROUTES.PRODUCTS, label: 'Products', icon: <Package size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessSales') ? [{ path: ROUTES.SALES, label: 'Sales', icon: <FileText size={20} /> }] : []),
 ]
 
-const getMoreItems = (permissions: ReturnType<typeof useAuth>['permissions']) => {
-  const p = permissions ?? undefined
-  return [
-    { path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> },
-    { path: ROUTES.KOT, label: 'Tables / KOT', icon: <UtensilsCrossed size={20} /> },
-    { path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> },
-    { path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> },
-    ...(canAccessSuppliers(p) ? [{ path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: <Truck size={20} /> }] : []),
-    ...(canAccessPurchases(p) ? [{ path: ROUTES.PURCHASES, label: 'Purchases', icon: <TrendingUp size={20} /> }] : []),
-    ...(canAccessExpenses(p) ? [{ path: ROUTES.EXPENSES, label: 'Expenses', icon: <Wallet size={20} /> }] : []),
-    { path: ROUTES.CREDITS, label: 'Credits', icon: <CreditCard size={20} /> },
-    ...(canAccessReports(p) ? [{ path: ROUTES.REPORTS, label: 'Reports', icon: <BarChart3 size={20} /> }] : []),
-    { path: ROUTES.SETTINGS, label: 'Settings', icon: <Settings size={20} /> },
-  ]
-}
+const getMoreItems = (permissions: UserPermissions | null) => [
+  ...(hasPermission(permissions, 'canAccessSales') ? [{ path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessSales') ? [{ path: ROUTES.KOT, label: 'Tables / KOT', icon: <UtensilsCrossed size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessProducts') ? [{ path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessCustomers') ? [{ path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessSuppliers') ? [{ path: ROUTES.SUPPLIERS, label: 'Suppliers', icon: <Truck size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessPurchases') ? [{ path: ROUTES.PURCHASES, label: 'Purchases', icon: <TrendingUp size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessExpenses') ? [{ path: ROUTES.EXPENSES, label: 'Expenses', icon: <Wallet size={20} /> }] : []),
+  ...(hasAnyPermission(permissions, ['canAccessCustomers', 'canAccessSales']) ? [{ path: ROUTES.CREDITS, label: 'Credits', icon: <CreditCard size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessReports') ? [{ path: ROUTES.REPORTS, label: 'Reports', icon: <BarChart3 size={20} /> }] : []),
+  { path: ROUTES.SETTINGS, label: 'Settings', icon: <Settings size={20} /> },
+]
 
 export const MobileNav = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const { permissions } = useAuth()
+  const primaryItems = getPrimaryItems(permissions)
   const moreItems = getMoreItems(permissions)
 
   return (

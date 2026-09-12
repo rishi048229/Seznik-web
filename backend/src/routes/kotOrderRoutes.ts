@@ -11,10 +11,12 @@ import {
   cancelOrder,
 } from '../controllers/kotOrderController';
 import { protect } from '../middlewares/authMiddleware';
+import { requirePermission } from '../middlewares/requirePermission';
 
 const router = express.Router();
 
 router.use(protect);
+router.use(requirePermission('canAccessSales'));
 
 router.get('/', getOrders);
 router.get('/:id', getOrderById);

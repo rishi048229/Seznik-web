@@ -27,16 +27,18 @@ import {
   UtensilsCrossed,
 } from 'lucide-react'
 import { FeedbackModal } from '@/components/common/FeedbackModal'
-import { canAccessSuppliers, canAccessPurchases, canAccessExpenses, canAccessReports } from '@/utils/permissions'
+import { hasAnyPermission, hasPermission } from '@/utils/permissions'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { prefetchPage } from '@/utils/prefetchPages'
 import type { TranslationKey } from '@/i18n/translations'
+import type { UserPermissions } from '@/types/auth.types'
 
 interface NavItem {
   path: string
   labelKey: TranslationKey
   icon: typeof LayoutDashboard
-  permission?: 'canAccessSuppliers' | 'canAccessPurchases' | 'canAccessExpenses' | 'canAccessReports'
+  permission?: keyof UserPermissions
+  anyOf?: (keyof UserPermissions)[]
   /** Per-icon click animation — each icon moves in a way that matches what it depicts. */
   animClass: string
   /** Clip the icon box so slide-through animations (truck/cart) exit and re-enter invisibly. */
@@ -45,20 +47,20 @@ interface NavItem {
 
 const getAllNavItems = (): NavItem[] => [
   { path: ROUTES.DASHBOARD, labelKey: 'nav.dashboard', icon: LayoutDashboard, animClass: 'animate-nav-pop' },
-  { path: ROUTES.PRINTERS, labelKey: 'nav.printers', icon: Printer, animClass: 'animate-nav-pop' },
-  { path: ROUTES.POS, labelKey: 'nav.pos', icon: ShoppingCart, animClass: 'animate-nav-drive', clip: true },
-  { path: ROUTES.POS_LITE, labelKey: 'nav.posLite', icon: MoveLeft, animClass: 'animate-nav-drive-back', clip: true },
-  { path: ROUTES.TOKENS, labelKey: 'page.tokens', icon: Ticket, animClass: 'animate-nav-pop' },
-  { path: ROUTES.KOT, labelKey: 'nav.kot', icon: UtensilsCrossed, animClass: 'animate-nav-pop' },
-  { path: ROUTES.PRODUCTS, labelKey: 'nav.products', icon: Package, animClass: 'animate-nav-bounce' },
-  { path: ROUTES.DAYBOOK, labelKey: 'page.daybook', icon: BookOpen, animClass: 'animate-nav-swing origin-top' },
-  { path: ROUTES.CATEGORIES, labelKey: 'nav.categories', icon: Tag, animClass: 'animate-nav-swing origin-top' },
-  { path: ROUTES.CUSTOMERS, labelKey: 'nav.customers', icon: Users, animClass: 'animate-nav-pulse' },
+  { path: ROUTES.PRINTERS, labelKey: 'nav.printers', icon: Printer, anyOf: ['canAccessSettings', 'canAccessSales'], animClass: 'animate-nav-pop' },
+  { path: ROUTES.POS, labelKey: 'nav.pos', icon: ShoppingCart, permission: 'canAccessSales', animClass: 'animate-nav-drive', clip: true },
+  { path: ROUTES.POS_LITE, labelKey: 'nav.posLite', icon: MoveLeft, permission: 'canAccessSales', animClass: 'animate-nav-drive-back', clip: true },
+  { path: ROUTES.TOKENS, labelKey: 'page.tokens', icon: Ticket, permission: 'canAccessSales', animClass: 'animate-nav-pop' },
+  { path: ROUTES.KOT, labelKey: 'nav.kot', icon: UtensilsCrossed, permission: 'canAccessSales', animClass: 'animate-nav-pop' },
+  { path: ROUTES.PRODUCTS, labelKey: 'nav.products', icon: Package, permission: 'canAccessProducts', animClass: 'animate-nav-bounce' },
+  { path: ROUTES.DAYBOOK, labelKey: 'page.daybook', icon: BookOpen, anyOf: ['canAccessSales', 'canAccessReports'], animClass: 'animate-nav-swing origin-top' },
+  { path: ROUTES.CATEGORIES, labelKey: 'nav.categories', icon: Tag, permission: 'canAccessProducts', animClass: 'animate-nav-swing origin-top' },
+  { path: ROUTES.CUSTOMERS, labelKey: 'nav.customers', icon: Users, permission: 'canAccessCustomers', animClass: 'animate-nav-pulse' },
   { path: ROUTES.SUPPLIERS, labelKey: 'nav.suppliers', icon: Truck, permission: 'canAccessSuppliers', animClass: 'animate-nav-drive', clip: true },
-  { path: ROUTES.SALES, labelKey: 'nav.sales', icon: FileText, animClass: 'animate-nav-flip' },
+  { path: ROUTES.SALES, labelKey: 'nav.sales', icon: FileText, permission: 'canAccessSales', animClass: 'animate-nav-flip' },
   { path: ROUTES.PURCHASES, labelKey: 'nav.purchases', icon: TrendingUp, permission: 'canAccessPurchases', animClass: 'animate-nav-rise' },
   { path: ROUTES.EXPENSES, labelKey: 'nav.expenses', icon: Wallet, permission: 'canAccessExpenses', animClass: 'animate-nav-shake' },
-  { path: ROUTES.CREDITS, labelKey: 'nav.credits', icon: CreditCard, animClass: 'animate-nav-swipe' },
+  { path: ROUTES.CREDITS, labelKey: 'nav.credits', icon: CreditCard, anyOf: ['canAccessCustomers', 'canAccessSales'], animClass: 'animate-nav-swipe' },
   { path: ROUTES.REPORTS, labelKey: 'nav.reports', icon: BarChart3, permission: 'canAccessReports', animClass: 'animate-nav-grow origin-bottom' },
   { path: ROUTES.SETTINGS, labelKey: 'nav.settings', icon: Settings, animClass: 'animate-nav-spin' },
 ]
@@ -69,9 +71,10 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
-  const { data: products } = useProducts()
-  const { data: settings } = useSettings()
   const { user, userProfile, permissions } = useAuth()
+  const canSeeCatalog = userProfile?.role === 'admin' || hasAnyPermission(permissions, ['canAccessProducts', 'canAccessSales', 'canManipulateStock'])
+  const { data: products } = useProducts({ enabled: canSeeCatalog })
+  const { data: settings } = useSettings()
   const { t } = useLanguage()
   const lowStockCount = products?.filter(p => p.currentStock <= p.lowStockThreshold).length ?? 0
 
@@ -96,13 +99,9 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   }
 
   const navItems = getAllNavItems().filter(item => {
-    if (!item.permission) return true
     if (userProfile?.role === 'admin') return true
-
-    if (item.permission === 'canAccessSuppliers') return canAccessSuppliers(permissions ?? undefined)
-    if (item.permission === 'canAccessPurchases') return canAccessPurchases(permissions ?? undefined)
-    if (item.permission === 'canAccessExpenses') return canAccessExpenses(permissions ?? undefined)
-    if (item.permission === 'canAccessReports') return canAccessReports(permissions ?? undefined)
+    if (item.anyOf?.length) return hasAnyPermission(permissions, item.anyOf)
+    if (item.permission) return hasPermission(permissions, item.permission)
     return true
   })
 

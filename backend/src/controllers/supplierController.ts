@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getSuppliers = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const suppliers = await prisma.supplier.findMany({
       where: { userId },
       orderBy: { name: 'asc' },
@@ -16,7 +17,7 @@ export const getSuppliers = async (req: Request, res: Response) => {
 
 export const createSupplier = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const data = req.body;
     
     const supplier = await prisma.supplier.create({
@@ -30,7 +31,7 @@ export const createSupplier = async (req: Request, res: Response) => {
 
 export const updateSupplier = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const data = req.body;
     
@@ -46,7 +47,7 @@ export const updateSupplier = async (req: Request, res: Response) => {
 
 export const deleteSupplier = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     
     await prisma.supplier.deleteMany({

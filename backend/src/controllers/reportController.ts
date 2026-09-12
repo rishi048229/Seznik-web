@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { COMPLETED_SALE_WHERE } from '../utils/completedSales';
+import { getTenantUserId } from '../utils/ownerUser';
 
 const parseDate = (d: any, defaultDate: Date) => {
   if (!d || d === 'undefined' || d === 'null') return defaultDate;
@@ -13,7 +14,7 @@ const parseRangeEnd = (d: any, defaultDate: Date) => endOfDay(parseDate(d, defau
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const todayStart = startOfDay(new Date());
 
     const todaySales = await prisma.sale.findMany({
@@ -62,7 +63,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 
 export const getSalesReport = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { start, end } = req.query;
 
     const sales = await prisma.sale.findMany({
@@ -100,7 +101,7 @@ export const getSalesReport = async (req: Request, res: Response) => {
 
 export const getPLReport = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { start, end } = req.query;
 
     const sales = await prisma.sale.findMany({
@@ -140,7 +141,7 @@ export const getPLReport = async (req: Request, res: Response) => {
 
 export const getTaxReport = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { start, end } = req.query;
 
     const sales = await prisma.sale.findMany({
@@ -167,7 +168,7 @@ export const getTaxReport = async (req: Request, res: Response) => {
 
 export const getRevenueTrend = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { days } = req.query;
     const numDays = Number(days) || 7;
     const startDate = startOfDay(subDays(new Date(), numDays - 1));
@@ -226,7 +227,7 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
 
 export const getTopCustomers = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const limit = Number(req.query.limit) || 10;
 
     const sales = await prisma.sale.findMany({
@@ -266,7 +267,7 @@ export const getTopCustomers = async (req: Request, res: Response) => {
 
 export const getPaymentModeBreakdown = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const sales = await prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } });
 
     const totals = new Map<string, { amount: number; count: number }>();
@@ -297,7 +298,7 @@ export const getPaymentModeBreakdown = async (req: Request, res: Response) => {
 
 export const getProfitBreakdown = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
 
     const [sales, products] = await Promise.all([
       prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } }),
@@ -334,7 +335,7 @@ export const getProfitBreakdown = async (req: Request, res: Response) => {
 
 export const getTopProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const limit = Number(req.query.limit) || 5;
 
     const sales = await prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } });
@@ -369,7 +370,7 @@ export const getTopProducts = async (req: Request, res: Response) => {
 
 export const getTopCategories = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const limit = Number(req.query.limit) || 3;
 
     const [sales, products] = await Promise.all([
@@ -410,7 +411,7 @@ export const getTopCategories = async (req: Request, res: Response) => {
 
 export const getExpenseSummary = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const now = new Date();
     const todayStart = startOfDay(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

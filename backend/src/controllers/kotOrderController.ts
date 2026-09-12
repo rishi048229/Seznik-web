@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
 
@@ -52,7 +53,7 @@ const mapItemCreate = (it: any, userId: string, sentToKitchenAt: Date | null = n
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { status, orderType, tableId } = req.query;
 
     let statusFilter: any = undefined;
@@ -86,7 +87,7 @@ export const getOrders = async (req: Request, res: Response) => {
 
 export const getOrderById = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const id = String(req.params.id);
 
     const order = await prisma.kOTOrder.findFirst({
@@ -107,7 +108,7 @@ export const getOrderById = async (req: Request, res: Response) => {
 
 export const createOrder = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const {
       orderType = 'dine_in',
       tableId,
@@ -177,7 +178,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
 export const addItemsToOrder = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const id = String(req.params.id);
     const { items = [] } = req.body;
 
@@ -215,7 +216,7 @@ export const addItemsToOrder = async (req: Request, res: Response) => {
 
 export const sendToKitchen = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const id = String(req.params.id);
 
     const order = await prisma.kOTOrder.findFirst({
@@ -297,7 +298,7 @@ export const sendToKitchen = async (req: Request, res: Response) => {
 
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const id = String(req.params.id);
     const { status, priority, notes } = req.body;
 
@@ -338,7 +339,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
 export const generateBill = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const id = String(req.params.id);
     const {
       paymentMethod = 'cash',
@@ -534,7 +535,7 @@ export const generateBill = async (req: Request, res: Response) => {
 
 export const assignTable = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const id = String(req.params.id);
     const tableId = req.body?.tableId ? String(req.body.tableId) : null;
 
@@ -594,7 +595,7 @@ export const assignTable = async (req: Request, res: Response) => {
 
 export const cancelOrder = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const id = String(req.params.id);
     const reason = String(req.body?.reason || '').trim();
     const printCancelSlip = Boolean(req.body?.printCancelSlip);

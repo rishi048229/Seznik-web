@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 const syncFlatProductStock = async (tx: { productLocationStock: typeof prisma.productLocationStock; product: typeof prisma.product }, productId: string, userId: string) => {
   const agg = await tx.productLocationStock.aggregate({
@@ -17,7 +18,7 @@ const syncFlatProductStock = async (tx: { productLocationStock: typeof prisma.pr
 
 export const getLocations = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const locations = await prisma.location.findMany({
       where: { userId },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -40,7 +41,7 @@ export const getLocations = async (req: Request, res: Response) => {
 // switchable, transferable home for what used to be un-owned inventory.
 export const createLocation = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { name, sortOrder, seedFromCurrentStock } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -79,7 +80,7 @@ export const createLocation = async (req: Request, res: Response) => {
 
 export const updateLocation = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { name, sortOrder } = req.body;
 
@@ -110,7 +111,7 @@ export const updateLocation = async (req: Request, res: Response) => {
 
 export const toggleLocationActive = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { isActive } = req.body;
 
@@ -125,7 +126,7 @@ export const toggleLocationActive = async (req: Request, res: Response) => {
 
 export const deleteLocation = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
 
     await prisma.location.deleteMany({ where: { id: String(id), userId } });
@@ -141,7 +142,7 @@ export const deleteLocation = async (req: Request, res: Response) => {
 // stock table and the product edit modal's "Stock by Location" section.
 export const getLocationStock = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
 
     const location = await prisma.location.findFirst({ where: { id: String(id), userId } });
@@ -166,7 +167,7 @@ export const getLocationStock = async (req: Request, res: Response) => {
 // Location" section in the product edit form.
 export const getProductLocationStock = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { productId } = req.params;
 
     const product = await prisma.product.findFirst({ where: { id: String(productId), userId } });
@@ -189,7 +190,7 @@ export const getProductLocationStock = async (req: Request, res: Response) => {
 // Upserts one product's stock/price/threshold at one location.
 export const upsertProductLocationStock = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { productId, locationId } = req.params;
     const { stock, priceOverride, lowStockThreshold } = req.body;
 
@@ -235,7 +236,7 @@ export const upsertProductLocationStock = async (req: Request, res: Response) =>
 // entry at each end (mirrors how sale/adjustStock already log StockHistory).
 export const createStockTransfer = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { productId, fromLocationId, toLocationId, quantity, note } = req.body;
 
     const qty = Number(quantity);
@@ -301,7 +302,7 @@ export const createStockTransfer = async (req: Request, res: Response) => {
 
 export const getStockTransfers = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const transfers = await prisma.stockTransfer.findMany({
       where: { userId },
       include: {

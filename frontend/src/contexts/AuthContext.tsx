@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding } from '@/services/authService'
 import { getAuthToken } from '@/services/api'
 import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
+import { resolveUserPermissions } from '@/utils/permissions'
 import { queryClient } from '@/lib/queryClient'
 
 interface AuthContextType {
@@ -134,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         completeOnboarding: handleCompleteOnboarding,
         clearWorkspaceSelection: handleClearWorkspaceSelection,
         hasRole,
-        permissions: userProfile?.permissions || null,
+        permissions: resolveUserPermissions(userProfile),
       }}
     >
       {children}

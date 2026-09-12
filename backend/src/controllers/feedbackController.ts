@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 const VALID_AREAS = ['general', 'dashboard', 'pos', 'products', 'categories', 'customers', 'suppliers', 'sales', 'purchases', 'expenses', 'credits', 'reports', 'printers', 'settings', 'other'];
 
 export const createFeedback = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { area, rating, message } = req.body;
 
     if (!message || !String(message).trim()) {
@@ -38,7 +39,7 @@ export const createFeedback = async (req: Request, res: Response) => {
 
 export const getMyFeedback = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const feedbacks = await prisma.feedback.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },

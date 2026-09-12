@@ -5,12 +5,12 @@ import * as productService from '@/services/productService'
 import type { Product } from '@/types/product.types'
 import type { BarcodeStockEntry } from '@/types/barcode.types'
 
-export const useProducts = () => {
+export const useProducts = (opts?: { enabled?: boolean }) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: [QUERY_KEYS.PRODUCTS, user?.id || user?.uid],
     queryFn: () => productService.getProducts(user!.uid),
-    enabled: !!user,
+    enabled: !!user && opts?.enabled !== false,
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,

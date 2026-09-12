@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getPurchases = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const purchases = await prisma.purchase.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -16,7 +17,7 @@ export const getPurchases = async (req: Request, res: Response) => {
 
 export const getPurchaseById = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const purchase = await prisma.purchase.findFirst({
       where: { id: String(id), userId },
@@ -30,7 +31,7 @@ export const getPurchaseById = async (req: Request, res: Response) => {
 
 export const createPurchase = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const data = req.body;
     
     const count = await prisma.purchase.count({ where: { userId } });
@@ -75,7 +76,7 @@ export const createPurchase = async (req: Request, res: Response) => {
 
 export const deletePurchase = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     await prisma.purchase.deleteMany({
       where: { id: String(id), userId },

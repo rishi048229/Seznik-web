@@ -17,6 +17,7 @@ import {
   resetPasswordWithOtp,
 } from '../controllers/authController';
 import { protect } from '../middlewares/authMiddleware';
+import { requirePermission } from '../middlewares/requirePermission';
 
 const router = express.Router();
 
@@ -38,9 +39,9 @@ router.post('/onboard', protect, completeOnboarding);
 
 // Managed users (sub-account configuration). :adminUid in the path is kept for
 // the frontend contract, but the authenticated user is the source of truth.
-router.get('/managed-users/:adminUid', protect, getManagedUsers);
-router.post('/managed-users/:adminUid', protect, createManagedUser);
-router.post('/managed-users/:adminUid/bulk', protect, syncManagedUsers);
-router.post('/managed-users/:adminUid/password', protect, updateManagedUserPassword);
+router.get('/managed-users/:adminUid', protect, requirePermission('canManageUsers'), getManagedUsers);
+router.post('/managed-users/:adminUid', protect, requirePermission('canManageUsers'), createManagedUser);
+router.post('/managed-users/:adminUid/bulk', protect, requirePermission('canManageUsers'), syncManagedUsers);
+router.post('/managed-users/:adminUid/password', protect, requirePermission('canManageUsers'), updateManagedUserPassword);
 
 export default router;

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/jwt';
 import prisma from '../config/db';
+import { ADMIN_PERMISSIONS, resolveActor } from '../utils/ownerUser';
 
 export const protect = async (req: Request, res: Response, next: NextFunction) => {
   let token;
@@ -23,12 +24,23 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
             },
           });
         }
-        (req as any).user = { id: devUser.id, role: devUser.role || 'admin' };
+        (req as any).user = {
+          id: devUser.id,
+          role: devUser.role || 'admin',
+          ownerId: devUser.id,
+          permissions: ADMIN_PERMISSIONS,
+        };
         return next();
       }
 
       const decoded = verifyToken(token);
-      (req as any).user = decoded;
+      const actor = await resolveActor(decoded.id);
+      (req as any).user = {
+        id: actor.id,
+        role: actor.role,
+        ownerId: actor.ownerId,
+        permissions: actor.permissions,
+      };
       return next();
     } catch (error) {
       return res.status(401).json({ error: 'Not authorized, token failed' });

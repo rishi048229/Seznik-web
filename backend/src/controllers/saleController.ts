@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { COMPLETED_SALE_WHERE } from '../utils/completedSales';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getSales = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const sales = await prisma.sale.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -17,7 +18,7 @@ export const getSales = async (req: Request, res: Response) => {
 
 export const getSaleById = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const sale = await prisma.sale.findFirst({
       where: { id: String(id), userId },
@@ -31,7 +32,7 @@ export const getSaleById = async (req: Request, res: Response) => {
 
 export const createSale = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     // Strip any fields the frontend/mobile app sends that don't exist in the Sale Prisma model
     const { notes, id: _id, invoiceNumber: _inv, billCharges: _bc, extraChargesTotal: _ec, ...data } = req.body;
     
@@ -140,7 +141,7 @@ export const createSale = async (req: Request, res: Response) => {
 
 export const getSalesByDateRange = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { start, end } = req.query; // Expect ISO strings
     const sales = await prisma.sale.findMany({
       where: {
@@ -160,7 +161,7 @@ export const getSalesByDateRange = async (req: Request, res: Response) => {
 
 export const deleteSale = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     await prisma.sale.deleteMany({
       where: { id: String(id), userId },
@@ -173,7 +174,7 @@ export const deleteSale = async (req: Request, res: Response) => {
 
 export const bulkDeleteSales = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { saleIds } = req.body;
     await prisma.sale.deleteMany({
       where: { id: { in: saleIds }, userId },

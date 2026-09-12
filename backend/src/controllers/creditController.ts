@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getCreditTransactions = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { customerId } = req.query;
     
     const transactions = await prisma.creditTransaction.findMany({
@@ -21,7 +22,7 @@ export const getCreditTransactions = async (req: Request, res: Response) => {
 
 export const createCreditTransaction = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const data = req.body;
     
     const result = await prisma.$transaction(async (tx) => {
@@ -51,7 +52,7 @@ export const createCreditTransaction = async (req: Request, res: Response) => {
 
 export const deleteCreditTransaction = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     
     // Deleting should reverse the balance, but for now we just delete

@@ -10,6 +10,8 @@ import { Card } from '@/components/ui/Card'
 import { Pencil, Trash2, KeyRound, Plus, Shield, ShieldOff } from 'lucide-react'
 import type { UserProfile, UserRole, UserPermissions } from '@/types/auth.types'
 import { ADMIN_PERMISSIONS, AGENT_PERMISSIONS } from '@/types/auth.types'
+import { normalizePermissions } from '@/utils/permissions'
+import type { TranslationKey } from '@/i18n/translations'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAllUsers, saveManagedUser, saveManagedUsers, updateManagedUserPasswordDirectly } from '@/services/authService'
 import { validatePassword } from '@/utils/password'
@@ -20,9 +22,22 @@ interface ManagedUser extends UserProfile {
   password?: string
 }
 
+const PERMISSION_LABELS: { key: keyof UserPermissions; labelKey: TranslationKey }[] = [
+  { key: 'canAccessProducts', labelKey: 'permissions.canAccessProducts' },
+  { key: 'canManipulateStock', labelKey: 'permissions.canManipulateStock' },
+  { key: 'canAccessSales', labelKey: 'permissions.canAccessSales' },
+  { key: 'canAccessCustomers', labelKey: 'permissions.canAccessCustomers' },
+  { key: 'canAccessSuppliers', labelKey: 'permissions.canAccessSuppliers' },
+  { key: 'canAccessPurchases', labelKey: 'permissions.canAccessPurchases' },
+  { key: 'canAccessExpenses', labelKey: 'permissions.canAccessExpenses' },
+  { key: 'canAccessReports', labelKey: 'permissions.canAccessReports' },
+  { key: 'canAccessSettings', labelKey: 'permissions.canAccessSettings' },
+  { key: 'canManageUsers', labelKey: 'permissions.canManageUsers' },
+]
+
 export const PermissionsAndAccounts = () => {
   const { t } = useLanguage()
-  const { user, userProfile } = useAuth()
+  const { user, userProfile, permissions } = useAuth()
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [isAddUserOpen, setIsAddUserOpen] = useState(false)
   const [isEditUserOpen, setIsEditUserOpen] = useState(false)
@@ -44,6 +59,7 @@ export const PermissionsAndAccounts = () => {
   const [permissionsForm, setPermissionsForm] = useState<UserPermissions>(AGENT_PERMISSIONS)
 
   const isAdmin = userProfile?.role === 'admin'
+  const canManageAccounts = isAdmin || permissions?.canManageUsers === true
 
   useEffect(() => {
     const loadManagedUsers = async () => {
@@ -96,7 +112,7 @@ export const PermissionsAndAccounts = () => {
       displayName: form.name,
       email: normalizedEmail,
       role: form.role,
-      permissions: form.role === 'admin' ? ADMIN_PERMISSIONS : { ...permissionsForm },
+      permissions: form.role === 'admin' ? ADMIN_PERMISSIONS : normalizePermissions(permissionsForm, 'agent'),
       password: form.password,
       photoURL: null,
       businessName: '',
@@ -111,12 +127,18 @@ export const PermissionsAndAccounts = () => {
     toast.success(t('permissions.userAddedSuccess'))
     setIsAddUserOpen(false)
     setForm({ name: '', email: '', role: 'agent', password: '' })
+    setPermissionsForm({ ...AGENT_PERMISSIONS })
   }
 
   const handleUpdatePermissions = async () => {
     if (!selectedUser || !user) return
 
-    const updatedUser = { ...selectedUser, permissions: permissionsForm }
+    const updatedUser = {
+      ...selectedUser,
+      permissions: selectedUser.role === 'admin'
+        ? ADMIN_PERMISSIONS
+        : normalizePermissions(permissionsForm, 'agent'),
+    }
     const updatedUsers = users.map(u => u.uid === selectedUser.uid ? updatedUser : u)
     setUsers(updatedUsers)
     await saveManagedUsers(user.uid, updatedUsers)
@@ -187,7 +209,7 @@ export const PermissionsAndAccounts = () => {
 
   const openEditUser = (user: ManagedUser) => {
     setSelectedUser(user)
-    setPermissionsForm(user.permissions || AGENT_PERMISSIONS)
+    setPermissionsForm(normalizePermissions(user.permissions, user.role || 'agent'))
     setIsEditUserOpen(true)
   }
 
@@ -218,14 +240,16 @@ export const PermissionsAndAccounts = () => {
     },
     {
       key: 'permissions',
-      header: t('permissions.stockAccess'),
-      render: (row) => (
-        row.permissions?.canManipulateStock ? (
-          <Badge variant="success">{t('permissions.yes')}</Badge>
-        ) : (
-          <Badge variant="default">{t('permissions.no')}</Badge>
+      header: t('permissions.permissionsLabel'),
+      render: (row) => {
+        const perms = normalizePermissions(row.permissions, row.role || 'agent')
+        const enabled = PERMISSION_LABELS.filter(item => perms[item.key]).length
+        return (
+          <Badge variant={enabled > 0 ? 'success' : 'default'}>
+            {enabled}/{PERMISSION_LABELS.length}
+          </Badge>
         )
-      ),
+      },
     },
     {
       key: 'actions',
@@ -249,7 +273,7 @@ export const PermissionsAndAccounts = () => {
     },
   ]
 
-  if (!isAdmin) {
+  if (!canManageAccounts) {
     return (
       <div className="text-center py-12">
         <Shield size={48} className="mx-auto text-gray-400 mb-4" />
@@ -274,7 +298,10 @@ export const PermissionsAndAccounts = () => {
             {t('permissions.subtitle')}
           </p>
         </div>
-        <Button leftIcon={<Plus size={16} />} onClick={() => setIsAddUserOpen(true)}>
+        <Button leftIcon={<Plus size={16} />} onClick={() => {
+          setPermissionsForm({ ...AGENT_PERMISSIONS })
+          setIsAddUserOpen(true)
+        }}>
           {t('permissions.addUser')}
         </Button>
       </div>
@@ -345,36 +372,14 @@ export const PermissionsAndAccounts = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {t('permissions.permissionsLabel')}
               </label>
-              <Checkbox
-                checked={permissionsForm.canManipulateStock}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManipulateStock: e.target.checked })}
-                label={t('permissions.canManipulateStock')}
-              />
-              <Checkbox
-                checked={permissionsForm.canAccessSuppliers}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessSuppliers: e.target.checked })}
-                label={t('permissions.canAccessSuppliers')}
-              />
-              <Checkbox
-                checked={permissionsForm.canAccessPurchases}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessPurchases: e.target.checked })}
-                label={t('permissions.canAccessPurchases')}
-              />
-              <Checkbox
-                checked={permissionsForm.canAccessExpenses}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessExpenses: e.target.checked })}
-                label={t('permissions.canAccessExpenses')}
-              />
-              <Checkbox
-                checked={permissionsForm.canAccessReports}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessReports: e.target.checked })}
-                label={t('permissions.canAccessReports')}
-              />
-              <Checkbox
-                checked={permissionsForm.canManageUsers}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManageUsers: e.target.checked })}
-                label={t('permissions.canManageUsers')}
-              />
+              {PERMISSION_LABELS.map(item => (
+                <Checkbox
+                  key={item.key}
+                  checked={permissionsForm[item.key]}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, [item.key]: e.target.checked })}
+                  label={t(item.labelKey)}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -401,36 +406,14 @@ export const PermissionsAndAccounts = () => {
           <p className="text-sm text-gray-600 dark:text-gray-300">
             {t('permissions.editingPermissionsForPrefix')} <strong>{selectedUser?.displayName}</strong>
           </p>
-          <Checkbox
-            checked={permissionsForm.canManipulateStock}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManipulateStock: e.target.checked })}
-            label={t('permissions.canManipulateStock')}
-          />
-          <Checkbox
-            checked={permissionsForm.canAccessSuppliers}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessSuppliers: e.target.checked })}
-            label={t('permissions.canAccessSuppliers')}
-          />
-          <Checkbox
-            checked={permissionsForm.canAccessPurchases}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessPurchases: e.target.checked })}
-            label={t('permissions.canAccessPurchases')}
-          />
-          <Checkbox
-            checked={permissionsForm.canAccessExpenses}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessExpenses: e.target.checked })}
-            label={t('permissions.canAccessExpenses')}
-          />
-          <Checkbox
-            checked={permissionsForm.canAccessReports}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canAccessReports: e.target.checked })}
-            label={t('permissions.canAccessReports')}
-          />
-          <Checkbox
-            checked={permissionsForm.canManageUsers}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, canManageUsers: e.target.checked })}
-            label={t('permissions.canManageUsers')}
-          />
+          {PERMISSION_LABELS.map(item => (
+            <Checkbox
+              key={item.key}
+              checked={permissionsForm[item.key]}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPermissionsForm({ ...permissionsForm, [item.key]: e.target.checked })}
+              label={t(item.labelKey)}
+            />
+          ))}
         </div>
       </Modal>
 

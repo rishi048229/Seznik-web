@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getExpenses = async (req: Request, res: Response) => {
-  const userId = (req as any).user.id;
+  const userId = getTenantUserId(req);
   try {
     const expenses: any[] = await prisma.$queryRaw`
       SELECT * FROM "Expense" WHERE "userId" = ${userId} ORDER BY "expenseDate" DESC
@@ -25,7 +26,7 @@ export const getExpenses = async (req: Request, res: Response) => {
 
 export const createExpense = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { amount, category, description, paymentMethod, receiptImageURL, expenseDate } = req.body;
     const id = crypto.randomUUID();
     const now = new Date();
@@ -59,7 +60,7 @@ export const createExpense = async (req: Request, res: Response) => {
 
 export const updateExpense = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { amount, category, description, paymentMethod, receiptImageURL, expenseDate } = req.body;
 
@@ -91,7 +92,7 @@ export const updateExpense = async (req: Request, res: Response) => {
 
 export const deleteExpense = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     await prisma.$executeRaw`
       DELETE FROM "Expense" WHERE "id" = ${id} AND "userId" = ${userId}

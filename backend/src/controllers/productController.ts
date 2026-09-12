@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const products = await prisma.product.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -17,7 +18,7 @@ export const getProducts = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { imageUrl, sku, categoryId, ...rest } = req.body;
 
     // Map frontend `imageUrl` → Prisma column `imageURL`
@@ -55,7 +56,7 @@ export const createProduct = async (req: Request, res: Response) => {
 
 export const updateProduct = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { imageUrl, ...rest } = req.body;
 
@@ -83,7 +84,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
 export const softDeleteProduct = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     
     await prisma.product.updateMany({
@@ -98,7 +99,7 @@ export const softDeleteProduct = async (req: Request, res: Response) => {
 
 export const bulkSoftDeleteProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { productIds } = req.body; // array of ids
     
     await prisma.product.updateMany({
@@ -113,7 +114,7 @@ export const bulkSoftDeleteProducts = async (req: Request, res: Response) => {
 
 export const adjustStock = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     // Accept BOTH `qty` (legacy) and `change` (frontend) — `change` takes priority
     const { qty, change, reason } = req.body;
@@ -155,7 +156,7 @@ export const adjustStock = async (req: Request, res: Response) => {
 
 export const getProductByBarcode = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { barcode } = req.params;
     
     const product = await prisma.product.findFirst({
@@ -174,7 +175,7 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
 
 export const batchBarcodeStockUpdate = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { entries } = req.body; // array of { productId, qtyToAdd, barcode }
 
     await prisma.$transaction(
@@ -206,7 +207,7 @@ export const batchBarcodeStockUpdate = async (req: Request, res: Response) => {
 
 export const getLowStockProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { threshold } = req.query;
     
     const products = await prisma.product.findMany({
@@ -230,7 +231,7 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
 // entirely (this feature is invisible until a user opts in per-product).
 export const getExpiringProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const days = Number(req.query.days) || 30;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
@@ -385,7 +386,7 @@ export const checkAiStatus = async (_req: Request, res: Response) => {
 
 export const aiExtractFromDocument = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
+    const rawUserId = getTenantUserId(req);
     const { documentData, mimeType = 'image/jpeg' } = req.body;
 
     if (!documentData) {
@@ -853,7 +854,7 @@ RULES:
 
 export const bulkImportProducts = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
+    const rawUserId = getTenantUserId(req);
     const { products: items } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {

@@ -14,6 +14,7 @@ import { LANGUAGES } from '@/i18n/translations'
 import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
+import { useAuth } from '@/contexts/AuthContext'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
 import { KotSettingsFields } from '@/pages/kot/components/KotSettingsFields'
 import { mergeKotConfig } from '@/pages/kot/kotConfig'
@@ -46,6 +47,9 @@ const DEFAULT_SETTINGS = {
 
 export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
+  const { userProfile, permissions } = useAuth()
+  const canEditSettings = userProfile?.role === 'admin' || permissions?.canAccessSettings === true
+  const canManageAccounts = userProfile?.role === 'admin' || permissions?.canManageUsers === true
   const [activeTab, setActiveTab] = useState('business')
   const { data: settings, isLoading, isError, refetch } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
@@ -76,7 +80,17 @@ export const SettingsPage = () => {
     { key: 'permissions', label: t('settings.permissions'), icon: Users, description: t('settings.descPermissions') },
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
     { key: 'language', label: t('settings.language'), icon: Globe, description: t('settings.descLanguage') },
-  ]
+  ].filter(tab => {
+    if (tab.key === 'language' || tab.key === 'security') return true
+    if (tab.key === 'permissions') return canManageAccounts
+    return canEditSettings
+  })
+
+  useEffect(() => {
+    if (!settingsTabs.some(tab => tab.key === activeTab)) {
+      setActiveTab(settingsTabs[0]?.key ?? 'language')
+    }
+  }, [activeTab, canEditSettings, canManageAccounts])
 
   const activeTabMeta = settingsTabs.find(tab => tab.key === activeTab) ?? settingsTabs[0]
 

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
+import { ADMIN_PERMISSIONS, getTenantUserId, normalizePermissions } from '../utils/ownerUser';
 import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
@@ -364,7 +365,7 @@ export const login = async (req: Request, res: Response) => {
             displayName: managedUser.displayName,
             role: managedUser.role || 'agent',
             onboardingCompleted: true,
-            permissions: managedUser.permissions,
+            permissions: normalizePermissions(managedUser.permissions, managedUser.role || 'agent'),
             accountType: 'managed',
           },
           token,
@@ -422,7 +423,10 @@ export const getProfile = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (user) {
       const { password, ...userWithoutPassword } = user;
-      return res.json(userWithoutPassword);
+      return res.json({
+        ...userWithoutPassword,
+        permissions: ADMIN_PERMISSIONS,
+      });
     }
 
     const managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
@@ -430,6 +434,7 @@ export const getProfile = async (req: Request, res: Response) => {
       const { password, ...userWithoutPassword } = managedUser;
       return res.json({
         ...userWithoutPassword,
+        permissions: normalizePermissions(managedUser.permissions, managedUser.role || 'agent'),
         onboardingCompleted: true,
       });
     }
@@ -471,7 +476,7 @@ export const setRole = async (req: Request, res: Response) => {
           email: managedUser.email,
           displayName: managedUser.displayName,
           role: managedUser.role || 'agent',
-          permissions: managedUser.permissions,
+          permissions: normalizePermissions(managedUser.permissions, managedUser.role || 'agent'),
           accountType: 'managed',
           onboardingCompleted: true,
         },
@@ -524,7 +529,7 @@ export const setRole = async (req: Request, res: Response) => {
 
 export const updateManagedUserPassword = async (req: Request, res: Response) => {
   try {
-    const adminId = (req as any).user.id;
+    const adminId = getTenantUserId(req);
     const { uid, newPassword } = req.body;
 
     if (!uid || !newPassword) {
@@ -579,7 +584,7 @@ const serializeManagedUser = (m: any) => ({
   displayName: m.displayName,
   email: m.email,
   role: m.role,
-  permissions: m.permissions,
+  permissions: normalizePermissions(m.permissions, m.role || 'agent'),
   photoURL: m.photoURL,
   businessName: m.businessName,
   plan: m.plan,
@@ -588,7 +593,7 @@ const serializeManagedUser = (m: any) => ({
 
 export const getManagedUsers = async (req: Request, res: Response) => {
   try {
-    const adminId = (req as any).user.id;
+    const adminId = getTenantUserId(req);
     const managed = await prisma.managedUser.findMany({
       where: { adminId },
       orderBy: { createdAt: 'asc' },
@@ -602,7 +607,7 @@ export const getManagedUsers = async (req: Request, res: Response) => {
 
 export const createManagedUser = async (req: Request, res: Response) => {
   try {
-    const adminId = (req as any).user.id;
+    const adminId = getTenantUserId(req);
     const { uid, displayName, email, role, permissions, password, photoURL, businessName, plan } = req.body;
 
     if (!displayName || !password) {
@@ -625,7 +630,7 @@ export const createManagedUser = async (req: Request, res: Response) => {
         displayName,
         email: normalizedEmail,
         role: role || 'agent',
-        permissions: permissions ?? undefined,
+        permissions: normalizePermissions(permissions, role || 'agent'),
         password: hashedPassword,
         photoURL: photoURL || null,
         businessName: businessName || '',
@@ -646,7 +651,7 @@ export const createManagedUser = async (req: Request, res: Response) => {
 // (re)hashed when a plaintext password is included for that user.
 export const syncManagedUsers = async (req: Request, res: Response) => {
   try {
-    const adminId = (req as any).user.id;
+    const adminId = getTenantUserId(req);
     const incoming: any[] = req.body.users ?? [];
 
     const existing = await prisma.managedUser.findMany({ where: { adminId } });
@@ -686,7 +691,7 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
         displayName: u.displayName,
         email: u.email ? normalizeEmail(u.email) : null,
         role: u.role || 'agent',
-        permissions: u.permissions ?? undefined,
+        permissions: normalizePermissions(u.permissions, u.role || 'agent'),
         photoURL: u.photoURL || null,
         businessName: u.businessName || '',
         plan: u.plan || 'free',

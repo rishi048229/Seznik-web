@@ -203,16 +203,25 @@ const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Permission-gated route: admins bypass; agents need the specific flag, else
 // they're bounced to the dashboard (they also can't see the nav link).
-const PermissionRoute = ({ permission, children }: { permission: keyof UserPermissions; children: React.ReactNode }) => {
+const PermissionRoute = ({
+  permission,
+  anyOf,
+  children,
+}: {
+  permission?: keyof UserPermissions
+  anyOf?: (keyof UserPermissions)[]
+  children: React.ReactNode
+}) => {
   const { userProfile, permissions } = useAuth()
 
   if (userProfile?.role === 'admin') {
     return <>{children}</>
   }
-  if (!permissions || !permissions[permission]) {
-    return <Navigate to={ROUTES.DASHBOARD} replace />
+  const keys = anyOf ?? (permission ? [permission] : [])
+  if (keys.some(key => permissions?.[key] === true)) {
+    return <>{children}</>
   }
-  return <>{children}</>
+  return <Navigate to={ROUTES.DASHBOARD} replace />
 }
 
 function NumberInputWheelGuard() {
@@ -250,29 +259,29 @@ function App() {
               <Route path={ROUTES.ONBOARDING} element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
               <Route element={<AuthenticatedRoute><MainLayout /></AuthenticatedRoute>}>
                 <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-                <Route path={ROUTES.POS} element={<POSPage />} />
-                <Route path={ROUTES.POS_LITE} element={<POSLitePage />} />
-                <Route path={ROUTES.TOKENS} element={<QuickTokensPage />} />
-                <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
-                <Route path={ROUTES.CATEGORIES} element={<CategoriesPage />} />
+                <Route path={ROUTES.POS} element={<PermissionRoute permission="canAccessSales"><POSPage /></PermissionRoute>} />
+                <Route path={ROUTES.POS_LITE} element={<PermissionRoute permission="canAccessSales"><POSLitePage /></PermissionRoute>} />
+                <Route path={ROUTES.TOKENS} element={<PermissionRoute permission="canAccessSales"><QuickTokensPage /></PermissionRoute>} />
+                <Route path={ROUTES.PRODUCTS} element={<PermissionRoute permission="canAccessProducts"><ProductsPage /></PermissionRoute>} />
+                <Route path={ROUTES.CATEGORIES} element={<PermissionRoute permission="canAccessProducts"><CategoriesPage /></PermissionRoute>} />
                 <Route path={ROUTES.LOCATIONS} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-                <Route path={ROUTES.CUSTOMERS} element={<CustomersPage />} />
-                <Route path="/customers/:id" element={<CustomerDetailPage />} />
+                <Route path={ROUTES.CUSTOMERS} element={<PermissionRoute permission="canAccessCustomers"><CustomersPage /></PermissionRoute>} />
+                <Route path="/customers/:id" element={<PermissionRoute permission="canAccessCustomers"><CustomerDetailPage /></PermissionRoute>} />
                 <Route path={ROUTES.SUPPLIERS} element={<PermissionRoute permission="canAccessSuppliers"><SuppliersPage /></PermissionRoute>} />
-                <Route path={ROUTES.SALES} element={<SalesPage />} />
-                <Route path="/sales/:id" element={<SaleDetailPage />} />
+                <Route path={ROUTES.SALES} element={<PermissionRoute permission="canAccessSales"><SalesPage /></PermissionRoute>} />
+                <Route path="/sales/:id" element={<PermissionRoute anyOf={['canAccessSales', 'canAccessReports']}><SaleDetailPage /></PermissionRoute>} />
                 <Route path={ROUTES.PURCHASES} element={<PermissionRoute permission="canAccessPurchases"><PurchasesPage /></PermissionRoute>} />
                 <Route path={ROUTES.EXPENSES} element={<PermissionRoute permission="canAccessExpenses"><ExpensesPage /></PermissionRoute>} />
-                <Route path={ROUTES.CREDITS} element={<CreditsPage />} />
-                <Route path={ROUTES.DAYBOOK} element={<DaybookPage />} />
+                <Route path={ROUTES.CREDITS} element={<PermissionRoute anyOf={['canAccessCustomers', 'canAccessSales']}><CreditsPage /></PermissionRoute>} />
+                <Route path={ROUTES.DAYBOOK} element={<PermissionRoute anyOf={['canAccessSales', 'canAccessReports']}><DaybookPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS} element={<PermissionRoute permission="canAccessReports"><ReportsPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_SALES} element={<PermissionRoute permission="canAccessReports"><SalesReportPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_PL} element={<PermissionRoute permission="canAccessReports"><ProfitLossPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_TAX} element={<Navigate to={ROUTES.DAYBOOK} replace />} />
                 <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
-                <Route path={ROUTES.PRINTERS} element={<PrintersPage />} />
-                <Route path={ROUTES.KOT_KDS} element={<KDSPage />} />
-                <Route path={ROUTES.KOT} element={<KOTPage />} />
+                <Route path={ROUTES.PRINTERS} element={<PermissionRoute anyOf={['canAccessSettings', 'canAccessSales']}><PrintersPage /></PermissionRoute>} />
+                <Route path={ROUTES.KOT_KDS} element={<PermissionRoute permission="canAccessSales"><KDSPage /></PermissionRoute>} />
+                <Route path={ROUTES.KOT} element={<PermissionRoute permission="canAccessSales"><KOTPage /></PermissionRoute>} />
               </Route>
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>

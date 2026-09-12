@@ -16,6 +16,7 @@ import {
 } from '../controllers/productController';
 import { upsertProductLocationStock, getProductLocationStock } from '../controllers/locationController';
 import { protect } from '../middlewares/authMiddleware';
+import { requirePermission } from '../middlewares/requirePermission';
 
 const router = express.Router();
 
@@ -24,19 +25,23 @@ router.get('/ai-status', checkAiStatus);
 
 router.use(protect); // All product CRUD routes are protected
 
-router.get('/', getProducts);
-router.post('/', createProduct);
-router.post('/ai-extract-document', aiExtractFromDocument);
-router.post('/bulk-import', bulkImportProducts);
-router.get('/low-stock', getLowStockProducts);
-router.get('/expiring', getExpiringProducts);
-router.get('/:productId/location-stock', getProductLocationStock);
-router.put('/:productId/location-stock/:locationId', upsertProductLocationStock);
-router.post('/batch-stock-update', batchBarcodeStockUpdate);
-router.post('/bulk-delete', bulkSoftDeleteProducts);
-router.get('/barcode/:barcode', getProductByBarcode);
-router.put('/:id', updateProduct);
-router.delete('/:id', softDeleteProduct);
-router.post('/:id/stock', adjustStock);
+const canViewCatalog = requirePermission('canAccessProducts', 'canAccessSales', 'canManipulateStock');
+const canManageCatalog = requirePermission('canAccessProducts');
+const canChangeStock = requirePermission('canManipulateStock', 'canAccessProducts');
+
+router.get('/', canViewCatalog, getProducts);
+router.post('/', canManageCatalog, createProduct);
+router.post('/ai-extract-document', canManageCatalog, aiExtractFromDocument);
+router.post('/bulk-import', canManageCatalog, bulkImportProducts);
+router.get('/low-stock', canViewCatalog, getLowStockProducts);
+router.get('/expiring', canViewCatalog, getExpiringProducts);
+router.get('/:productId/location-stock', canViewCatalog, getProductLocationStock);
+router.put('/:productId/location-stock/:locationId', canChangeStock, upsertProductLocationStock);
+router.post('/batch-stock-update', canChangeStock, batchBarcodeStockUpdate);
+router.post('/bulk-delete', canManageCatalog, bulkSoftDeleteProducts);
+router.get('/barcode/:barcode', canViewCatalog, getProductByBarcode);
+router.put('/:id', canManageCatalog, updateProduct);
+router.delete('/:id', canManageCatalog, softDeleteProduct);
+router.post('/:id/stock', canChangeStock, adjustStock);
 
 export default router;

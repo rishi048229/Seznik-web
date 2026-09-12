@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getCategories = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const categories = await prisma.category.findMany({
       where: { userId },
       orderBy: { name: 'asc' },
@@ -16,7 +17,7 @@ export const getCategories = async (req: Request, res: Response) => {
 
 export const createCategory = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { name, parentId } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -46,7 +47,7 @@ export const createCategory = async (req: Request, res: Response) => {
 
 export const updateCategory = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { name, parentId } = req.body;
 
@@ -96,7 +97,7 @@ export const updateCategory = async (req: Request, res: Response) => {
 
 export const toggleCategoryActive = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { isActive } = req.body;
 
@@ -112,7 +113,7 @@ export const toggleCategoryActive = async (req: Request, res: Response) => {
 
 export const deleteCategory = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
 
     await prisma.category.deleteMany({
