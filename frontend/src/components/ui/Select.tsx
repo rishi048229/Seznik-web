@@ -67,7 +67,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
             onClick={() => !disabled && setIsOpen(!isOpen)}
             disabled={disabled}
             className={cn(
-              'w-full px-3.5 py-2.5 pr-9 border rounded-lg cursor-pointer text-sm',
+              'w-full px-3 py-2.5 pr-7 border rounded-lg cursor-pointer text-sm',
               'focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500',
               'bg-white dark:bg-dark-elevated dark:text-gray-100 text-gray-900',
               'transition-all duration-200',
@@ -79,14 +79,14 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
             )}
             {...props}
           >
-            <span className={cn('truncate mr-1', !selectedOption && 'text-gray-400 dark:text-gray-500')}>
+            <span className={cn('truncate', !selectedOption && 'text-gray-400 dark:text-gray-500')}>
               {displayValue}
             </span>
           </button>
           
           {/* Dropdown Arrow */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400 flex items-center">
-            <ChevronDown size={16} className={cn('transition-transform duration-200', isOpen && 'rotate-180')} />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400 flex items-center">
+            <ChevronDown size={15} className={cn('transition-transform duration-200', isOpen && 'rotate-180')} />
           </div>
 
           {/* Dropdown Menu */}

@@ -1728,7 +1728,7 @@ export const ProductsPage = () => {
                 options={BARCODE_TYPE_OPTIONS}
                 value={form.barcodeType}
                 onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
-                className="w-full sm:w-28 flex-shrink-0"
+                className="w-full sm:w-32 flex-shrink-0"
               />
               <Button
                 type="button"
