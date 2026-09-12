@@ -26,6 +26,7 @@ interface ReceiptLivePreviewProps {
   activeTemplate?: CustomReceiptTemplate | null
   isRestaurant?: boolean
   receiptFont?: ReceiptFontId | null
+  gstOpts?: CustomReceiptGstOpts
 }
 
 export const ReceiptLivePreview = ({
@@ -37,7 +38,9 @@ export const ReceiptLivePreview = ({
   activeTemplate,
   isRestaurant = false,
   receiptFont,
+  gstOpts,
 }: ReceiptLivePreviewProps) => {
+
   const effectiveFont = resolveReceiptFontId(receiptFont ?? settings?.printerConfig?.receiptFont)
   const cols = getCols(paperSize, undefined, effectiveFont)
   const fontScale = receiptFontSizeScale(effectiveFont)
@@ -186,10 +189,11 @@ export const ReceiptLivePreview = ({
                 <CustomReceiptPreview
                   template={activeTemplate}
                   context={previewContext}
-                  gstOpts={{ receiptFont: effectiveFont, receiptQrSize: receiptConfig.receiptQrSize }}
+                  gstOpts={{ ...gstOpts, receiptFont: effectiveFont, receiptQrSize: receiptConfig.receiptQrSize }}
                   paperWidth={paperSize}
                 />
               ) : (
+
                 <div className="bg-white text-gray-900 rounded-t-xl shadow-lg border-t-8 border-blue-600 overflow-hidden">
                   {showLogo && logoSrc && (
                     <div className="flex justify-center px-2 pt-2.5 pb-2">

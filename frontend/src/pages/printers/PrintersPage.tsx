@@ -562,15 +562,16 @@ export const PrintersPage = () => {
   }
 
   const previewGstOpts = useMemo(() => {
-    const resolved = resolveReceiptPrintGstFromForm(gstForm)
+    const resolved = resolveReceiptPrintGstFromForm(gstForm, receiptConfig)
     return {
+      showTaxBreakdown: resolved.showTaxBreakdown,
       gstStyle: resolved.gstStyle,
       itemWiseGst: resolved.itemWiseGst,
       isRestaurant,
       receiptQrSize: receiptConfig.receiptQrSize,
       receiptFont: config.receiptFont,
     }
-  }, [gstForm, receiptConfig.receiptQrSize, isRestaurant, config.receiptFont])
+  }, [gstForm, receiptConfig, isRestaurant, config.receiptFont])
 
   const handleTestPrint = async () => {
     if (activeTab === 'receiptBuilder') {
@@ -583,6 +584,7 @@ export const PrintersPage = () => {
     }
 
     const testPrintTemplate = effectivePreviewTemplate || activeCustomTemplate
+    const gstResolved = resolveReceiptPrintGstFromForm(gstForm, receiptConfig)
     const effectiveReceiptConfig = resolveEffectiveReceiptConfig(
       {
         ...settings,
@@ -592,6 +594,9 @@ export const PrintersPage = () => {
           ...receiptConfig,
           customTemplates,
           activeCustomTemplateId: testPrintTemplate?.id || activeCustomTemplateId,
+          showTaxBreakdown: gstResolved.showTaxBreakdown,
+          gstStyle: gstResolved.gstStyle,
+          itemWiseGst: gstResolved.itemWiseGst,
         },
         printerConfig: config,
       },
@@ -599,8 +604,12 @@ export const PrintersPage = () => {
         ...receiptConfig,
         customTemplates,
         activeCustomTemplateId: testPrintTemplate?.id || activeCustomTemplateId,
+        showTaxBreakdown: gstResolved.showTaxBreakdown,
+        gstStyle: gstResolved.gstStyle,
+        itemWiseGst: gstResolved.itemWiseGst,
       },
     )
+
 
     if (activeTab === 'receipt') {
       const testSale = {
@@ -1520,7 +1529,9 @@ export const PrintersPage = () => {
                   activeTemplate={effectivePreviewTemplate}
                   isRestaurant={isRestaurant}
                   receiptFont={config.receiptFont}
+                  gstOpts={previewGstOpts}
                 />
+
               </Section>
             </div>
           </div>

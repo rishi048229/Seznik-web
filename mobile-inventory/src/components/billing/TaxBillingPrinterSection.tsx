@@ -29,6 +29,7 @@ interface TaxBillingPrinterSectionProps {
   defaultExpanded?: boolean;
   hintText?: string;
   className?: string;
+  onFormChange?: (form: import('@/hooks/useGstBillingSettings').GstBillingFormState) => void;
 }
 
 export function TaxBillingPrinterSection({
@@ -37,6 +38,7 @@ export function TaxBillingPrinterSection({
   collapsible = false,
   defaultExpanded = true,
   hintText = 'GST breakdown and bill extra charges for checkout and printed receipts. Synced across web and mobile.',
+  onFormChange,
 }: TaxBillingPrinterSectionProps) {
   const {
     form: gstForm,
@@ -50,6 +52,11 @@ export function TaxBillingPrinterSection({
   } = useGstBillingSettings();
   const [chargePresets, setChargePresets] = useState<BillChargePreset[]>(DEFAULT_RESTAURANT_PRESETS);
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  useEffect(() => {
+    onFormChange?.(gstForm);
+  }, [gstForm, onFormChange]);
+
 
   useEffect(() => {
     if (!settings) return;

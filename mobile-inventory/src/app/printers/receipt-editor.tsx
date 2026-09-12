@@ -290,8 +290,16 @@ export default function ReceiptEditorScreen() {
     setLogoBgCallback(() => onSelected);
   };
 
+  const [liveGstForm, setLiveGstForm] = useState<import('@/hooks/useGstBillingSettings').GstBillingFormState>({
+    showBreakdown: false,
+    style: 'tax_invoice',
+    printOnReceipt: false,
+    itemWiseGst: false,
+  });
+
   useEffect(() => {
     if (id) {
+
       const existing = customTemplates.find((t) => t.id === id);
       if (existing) {
         setTemplate(JSON.parse(JSON.stringify(existing)));
@@ -555,20 +563,23 @@ export default function ReceiptEditorScreen() {
   const handleTestPrint = async () => {
     setIsPrinting(true);
     try {
-      const ok = await ThermalPrinterService.printReceipt(samplePrintData, template.paperWidth || globalPaperWidth, {
-        ...buildTestReceiptPrintOptions({
-          activeTemplateId,
-          customTemplates,
-          activeCustomTemplateId,
-          enableBillQrCode,
-          topMargin,
-          autoCut,
-          fontSize,
-          settings,
-          customTemplate: template,
-          copies: 1,
-        }),
+      const options = buildTestReceiptPrintOptions({
+        activeTemplateId,
+        customTemplates,
+        activeCustomTemplateId,
+        enableBillQrCode,
+        topMargin,
+        autoCut,
+        fontSize,
+        settings,
+        customTemplate: template,
+        copies: 1,
       });
+      options.showTaxBreakdown = liveGstForm.printOnReceipt && liveGstForm.showBreakdown;
+      options.gstStyle = liveGstForm.style;
+      options.itemWiseGst = liveGstForm.itemWiseGst;
+
+      const ok = await ThermalPrinterService.printReceipt(samplePrintData, template.paperWidth || globalPaperWidth, options);
       if (ok) {
         Alert.alert('Print Sent', 'Test custom receipt printed successfully!');
       }
@@ -581,20 +592,24 @@ export default function ReceiptEditorScreen() {
 
   const handleSharePdf = async () => {
     try {
-      const html = ThermalPrinterService.generateReceiptHtml(samplePrintData, template.paperWidth || globalPaperWidth, {
-        ...buildTestReceiptPrintOptions({
-          activeTemplateId,
-          customTemplates,
-          activeCustomTemplateId,
-          enableBillQrCode,
-          topMargin,
-          autoCut,
-          fontSize,
-          settings,
-          customTemplate: template,
-          copies: 1,
-        }),
+      const options = buildTestReceiptPrintOptions({
+        activeTemplateId,
+        customTemplates,
+        activeCustomTemplateId,
+        enableBillQrCode,
+        topMargin,
+        autoCut,
+        fontSize,
+        settings,
+        customTemplate: template,
+        copies: 1,
       });
+      options.showTaxBreakdown = liveGstForm.printOnReceipt && liveGstForm.showBreakdown;
+      options.gstStyle = liveGstForm.style;
+      options.itemWiseGst = liveGstForm.itemWiseGst;
+
+      const html = ThermalPrinterService.generateReceiptHtml(samplePrintData, template.paperWidth || globalPaperWidth, options);
+
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
@@ -1031,8 +1046,10 @@ export default function ReceiptEditorScreen() {
           collapsible
           defaultExpanded={false}
           compact
+          onFormChange={setLiveGstForm}
           hintText="Per-item GST column also respects the global 'Show GST % on each item' toggle."
         />
+
 
         {/* Paper Width Roll Setting */}
         <View style={[styles.paperWidthCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -2022,7 +2039,12 @@ export default function ReceiptEditorScreen() {
                 paperWidth={template.paperWidth || '58mm'}
                 logoSizeChip={settings?.receiptConfig?.receiptLogoSize || 'medium'}
                 qrSizeChip={settings?.receiptConfig?.receiptQrSize || 'medium'}
+                showTaxBreakdown={liveGstForm.printOnReceipt && liveGstForm.showBreakdown}
+                gstStyle={liveGstForm.style}
+                itemWiseGst={liveGstForm.itemWiseGst}
+                invoiceConfig={settings?.invoiceConfig}
               />
+
             </ScrollView>
           </View>
         </View>

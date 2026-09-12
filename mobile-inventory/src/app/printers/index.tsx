@@ -1102,7 +1102,11 @@ export default function PrintersScreen() {
                             storeName={t.previewStoreName || storeProfile.storeName}
                             storeAddress={t.previewAddress || settings?.businessAddress || '123 Market Road, City'}
                             storePhone={t.previewPhone || settings?.businessPhone || '9999999999'}
-                            storeGstin={t.previewGstin}
+                            storeGstin={t.previewGstin || storeProfile.storeGstin}
+                            storeLogoUrl={settings?.businessLogoURL || storeProfile.storeLogoUrl}
+                            upiId={settings?.upiId || storeProfile.upiId}
+                            logoSizeChip={receiptLogoSizeVal}
+                            qrSizeChip={receiptQrSizeVal}
                             invoiceNumber={t.previewInvoice || 'INV-1024'}
                             date={
                               t.previewDate ||
@@ -1115,6 +1119,7 @@ export default function PrintersScreen() {
                             invoiceConfig={settings?.invoiceConfig}
                           />
                         </View>
+
                       </TouchableOpacity>
                     );
                   })}

@@ -261,6 +261,8 @@ export interface ReceiptPrintOptions {
   customerPhone?: string;
   /** When set, overrides ReceiptTemplate.showTaxBreakdown. */
   showTaxBreakdown?: boolean;
+  /** GST breakdown style override ('compact' | 'tax_invoice' | 'slab_wise'). */
+  gstStyle?: 'compact' | 'tax_invoice' | 'slab_wise';
   /** Print each line's GST % under the item name. */
   itemWiseGst?: boolean;
   /** When unset on the table block, restaurant/cafe bills number items; retail does not. */

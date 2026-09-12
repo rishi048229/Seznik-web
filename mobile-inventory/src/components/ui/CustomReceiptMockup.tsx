@@ -10,6 +10,7 @@ import {
   isTaxReceiptEntry,
   shouldShowItemDiscount,
 } from '@/utils/receiptDiscount';
+import { parseGstBilling, GstBreakdownStyle } from '@/constants/gstBilling';
 import {
   RECEIPT_LOGO_DEFAULT_WIDTH_PERCENT,
   receiptQrPreviewPx,
@@ -46,7 +47,12 @@ interface CustomReceiptMockupProps {
   paperWidth?: '58mm' | '80mm';
   logoSizeChip?: ReceiptSizeChip;
   qrSizeChip?: ReceiptSizeChip;
+  showTaxBreakdown?: boolean;
+  gstStyle?: GstBreakdownStyle;
+  itemWiseGst?: boolean;
+  invoiceConfig?: unknown;
 }
+
 
 export function CustomReceiptMockup({
   template,
@@ -73,14 +79,30 @@ export function CustomReceiptMockup({
   paperWidth = '58mm',
   logoSizeChip = 'medium',
   qrSizeChip = 'medium',
+  showTaxBreakdown,
+  gstStyle,
+  itemWiseGst,
+  invoiceConfig,
 }: CustomReceiptMockupProps) {
   const activePaperWidth = paperWidth || template.paperWidth || '58mm';
   const is80mm = activePaperWidth === '80mm';
   const paperMaxWidth = is80mm ? 360 : 280;
   const cols = is80mm ? 48 : 32;
 
+  const parsedGst = parseGstBilling(invoiceConfig);
+  const effectiveShowTaxBreakdown =
+    showTaxBreakdown !== undefined
+      ? showTaxBreakdown
+      : parsedGst.configured
+      ? (parsedGst.printOnReceipt && parsedGst.showBreakdown)
+      : true;
+
+  const effectiveGstStyle = gstStyle || parsedGst.style || 'tax_invoice';
+  const effectiveItemWiseGst = itemWiseGst !== undefined ? itemWiseGst : parsedGst.itemWiseGst;
+
   const sampleBillPdfUrl = buildBillPdfUrl({ invoiceNumber: invoiceNumber || 'INV-2026-0042' });
   const sampleUpiStr = upiId ? buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber) : '';
+
 
   const replaceVars = (str?: string): string => {
     if (!str) return '';
@@ -332,8 +354,91 @@ export function CustomReceiptMockup({
         if (isDiscountReceiptEntry(entry) && (!totalDiscount || totalDiscount <= 0)) {
           return null;
         }
-        if (isTaxReceiptEntry(entry) && (!totalTax || totalTax <= 0)) {
-          return null;
+        if (isTaxReceiptEntry(entry)) {
+          if (!totalTax || totalTax <= 0) {
+            return null;
+          }
+          if (effectiveShowTaxBreakdown === false) {
+            return null;
+          }
+
+          if (effectiveGstStyle === 'compact') {
+            return (
+              <View key={entry.id || idx} style={[styles.entryBlock, styles.rowBetween]}>
+                <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: '#000000' }]}>
+                  GST
+                </Text>
+                <Text style={[styles.thermalText, { fontSize: 11, fontWeight: entry.bold ? '800' : '500', color: '#000000' }]}>
+                  ₹{totalTax.toFixed(2)}
+                </Text>
+              </View>
+            );
+          }
+
+          if (effectiveGstStyle === 'slab_wise') {
+            const half = totalTax / 2;
+            const taxable = subtotal - totalDiscount;
+            return (
+              <View key={entry.id || idx} style={styles.entryBlock}>
+                <View style={styles.rowBetween}>
+                  <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000' }]}>
+                    Taxable @ 5%
+                  </Text>
+                  <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000' }]}>
+                    ₹{taxable.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.rowBetween}>
+                  <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                    {'  '}CGST @ 2.5%
+                  </Text>
+                  <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                    ₹{half.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.rowBetween}>
+                  <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                    {'  '}SGST @ 2.5%
+                  </Text>
+                  <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                    ₹{half.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            );
+          }
+
+          // Default 'tax_invoice' style
+          const half = totalTax / 2;
+          const taxable = subtotal - totalDiscount;
+          return (
+            <View key={entry.id || idx} style={styles.entryBlock}>
+              <View style={styles.rowBetween}>
+                <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000' }]}>
+                  Taxable Value
+                </Text>
+                <Text style={[styles.thermalText, { fontSize: 11, fontWeight: '700', color: '#000000' }]}>
+                  ₹{taxable.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.rowBetween}>
+                <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                  {'  '}CGST
+                </Text>
+                <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                  ₹{half.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.rowBetween}>
+                <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                  {'  '}SGST
+                </Text>
+                <Text style={[styles.thermalText, { fontSize: 11, color: '#333333' }]}>
+                  ₹{half.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          );
         }
 
         return (
@@ -350,7 +455,7 @@ export function CustomReceiptMockup({
 
       case 'table': {
         const isAdv = entry.tableType === 'advanced';
-        const showTax = entry.showTaxColumn;
+        const showTax = entry.showTaxColumn || effectiveItemWiseGst;
         const itemHeader = entry.columnHeaders?.item || 'Item';
         const totalHeader = entry.columnHeaders?.total || 'Total';
 
@@ -397,6 +502,7 @@ export function CustomReceiptMockup({
           </View>
         );
       }
+
 
       case 'multi_format': {
         return (
