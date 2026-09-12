@@ -8,10 +8,13 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { ArrowLeft, Printer, FileText, Bluetooth, Download, RotateCcw, Receipt } from 'lucide-react'
+import { ArrowLeft, Printer, FileText, Bluetooth, Download, RotateCcw, Receipt, ArrowRightLeft } from 'lucide-react'
 import { ProcessReturnModal } from '@/components/sales/ProcessReturnModal'
 import { ReturnReceiptModal } from '@/components/sales/ReturnReceiptModal'
+import { ProcessExchangeModal } from '@/components/sales/ProcessExchangeModal'
+import { ExchangeReceiptModal } from '@/components/sales/ExchangeReceiptModal'
 import { useReturnsForSale } from '@/hooks/useSaleReturns'
+import { useExchangesForSale } from '@/hooks/useSaleExchanges'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 
@@ -33,6 +36,7 @@ export const SaleDetailPage = () => {
   const qc = useQueryClient()
   const { data: sale, isLoading } = useSaleById(id ?? '')
   const { data: returns = [] } = useReturnsForSale(id ?? '')
+  const { data: exchanges = [] } = useExchangesForSale(id ?? '')
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
@@ -40,6 +44,8 @@ export const SaleDetailPage = () => {
   const [isBlePrinting, setIsBlePrinting] = useState(false)
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
   const [selectedReturnSlip, setSelectedReturnSlip] = useState<any | null>(null)
+  const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false)
+  const [selectedExchangeSlip, setSelectedExchangeSlip] = useState<any | null>(null)
   const blePrinter = useBlePrinter()
 
   // Accept format directly to avoid React state update race condition
@@ -198,13 +204,22 @@ export const SaleDetailPage = () => {
         action={
           <div className="flex flex-wrap gap-2">
             {sale.returnStatus !== 'full' && (
-              <Button
-                variant="danger"
-                onClick={() => setIsReturnModalOpen(true)}
-                leftIcon={<RotateCcw size={16} />}
-              >
-                Return / Refund
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  onClick={() => setIsExchangeModalOpen(true)}
+                  leftIcon={<ArrowRightLeft size={16} />}
+                >
+                  Exchange Items
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => setIsReturnModalOpen(true)}
+                  leftIcon={<RotateCcw size={16} />}
+                >
+                  Return / Refund
+                </Button>
+              </>
             )}
             <Button variant="ghost" onClick={() => setIsPrintModalOpen(true)} leftIcon={<Printer size={16} />}>
               {t('pos.print')}
@@ -454,6 +469,66 @@ export const SaleDetailPage = () => {
             </div>
           </Card>
         )}
+
+        {/* Exchange History Card */}
+        {exchanges.length > 0 && (
+          <Card className="p-5">
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-3 flex items-center gap-2">
+              <ArrowRightLeft className="text-sky-600" size={16} />
+              Exchange Vouchers ({exchanges.length})
+            </h4>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {exchanges.map((exc: any) => {
+                const isEven = Math.abs(exc.differenceAmount) < 0.01
+                const isUpgrade = exc.differenceAmount > 0
+                return (
+                  <div key={exc.id} className="py-3 flex items-center justify-between gap-3 text-sm">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {exc.exchangeNumber}
+                        </span>
+                        <Badge variant={isEven ? 'secondary' : isUpgrade ? 'primary' : 'success'}>
+                          {isEven ? 'EVEN' : isUpgrade ? 'UPGRADE' : 'DOWNGRADE'}
+                        </Badge>
+                        <span className="text-xs text-slate-500 uppercase">
+                          ({exc.settlementMethod?.replace('_', ' ')})
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {new Date(exc.createdAt).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {' • '}
+                        Return: <strong>{exc.saleReturn?.returnNumber}</strong>
+                        {' • '}
+                        New Inv: <strong>#{exc.newSale?.invoiceNumber}</strong>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold text-base ${isUpgrade ? 'text-blue-600' : isEven ? 'text-slate-700 dark:text-slate-300' : 'text-emerald-600'}`}>
+                        {isEven ? 'Rs. 0.00' : `${isUpgrade ? '+' : '-'}${formatINR(Math.abs(exc.differenceAmount))}`}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<Receipt size={14} />}
+                        onClick={() => setSelectedExchangeSlip(exc)}
+                      >
+                        Voucher
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* Process Return Modal */}
@@ -470,6 +545,22 @@ export const SaleDetailPage = () => {
         />
       )}
 
+      {/* Process Exchange Modal */}
+      {sale && (
+        <ProcessExchangeModal
+          sale={sale}
+          isOpen={isExchangeModalOpen}
+          onClose={() => setIsExchangeModalOpen(false)}
+          onSuccess={(result) => {
+            qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
+            qc.invalidateQueries({ queryKey: ['sale-returns'] })
+            qc.invalidateQueries({ queryKey: ['sale-exchanges'] })
+            setIsExchangeModalOpen(false)
+            setSelectedExchangeSlip(result.exchange)
+          }}
+        />
+      )}
+
       {/* Return Slip Print/Download Modal */}
       {selectedReturnSlip && sale && (
         <ReturnReceiptModal
@@ -477,6 +568,18 @@ export const SaleDetailPage = () => {
           onClose={() => setSelectedReturnSlip(null)}
           saleReturn={selectedReturnSlip}
           sale={sale}
+        />
+      )}
+
+      {/* Exchange Voucher Print/Download Modal */}
+      {selectedExchangeSlip && sale && (
+        <ExchangeReceiptModal
+          isOpen={!!selectedExchangeSlip}
+          onClose={() => setSelectedExchangeSlip(null)}
+          exchange={selectedExchangeSlip}
+          originalSale={sale}
+          saleReturn={selectedExchangeSlip.saleReturn}
+          newSale={selectedExchangeSlip.newSale}
         />
       )}
 

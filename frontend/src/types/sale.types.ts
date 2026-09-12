@@ -98,3 +98,59 @@ export interface CreateSaleReturnPayload {
   extraChargesRefunded?: number
 }
 
+export interface SaleExchange {
+  id: string
+  exchangeNumber: string
+  originalSaleId: string
+  originalSale?: Sale
+  saleReturnId: string
+  saleReturn?: SaleReturn
+  newSaleId: string
+  newSale?: Sale
+  differenceAmount: number
+  settlementMethod: 'even_exchange' | 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_ledger' | string
+  reason?: string | null
+  notes?: string | null
+  platform?: string
+  userId: string
+  createdAt: Date | string
+}
+
+export interface CreateSaleExchangePayload {
+  originalSaleId?: string
+  returnedItems: {
+    productId?: string
+    id?: string
+    productName?: string
+    quantity: number
+    restock?: boolean
+  }[]
+  extraChargesRefunded?: number
+  newItems: {
+    productId?: string
+    id?: string
+    name: string
+    quantity: number
+    unitPrice: number
+    sellingPrice?: number
+    discount?: number
+    taxRate: number
+    priceIncludesGst?: boolean
+    taxAmount?: number
+    total?: number
+  }[]
+  newSubtotal: number
+  newTotalDiscount?: number
+  newTotalTax: number
+  newGrandTotal: number
+  newBillCharges?: AppliedBillCharge[] | null
+  newExtraChargesTotal?: number
+  differenceAmount?: number
+  settlementMethod?: 'even_exchange' | 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_ledger' | string
+  amountPaid?: number
+  changeReturned?: number
+  reason?: string
+  notes?: string
+}
+
+

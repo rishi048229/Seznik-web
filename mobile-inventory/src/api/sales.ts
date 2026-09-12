@@ -37,5 +37,17 @@ export const salesApi = {
   getReturnsForSale: async (saleId: string): Promise<any[]> => {
     return fetchApi<any[]>(`/sale-returns/sale/${saleId}`);
   },
+
+  createSaleExchange: async (saleId: string, payload: any): Promise<any> => {
+    return fetchApi<any>(`/sale-exchanges/${saleId}`, {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, platform: 'mobile' }),
+    });
+  },
+
+  getExchangesForSale: async (saleId: string): Promise<any[]> => {
+    return fetchApi<any[]>(`/sale-exchanges/sale/${saleId}`);
+  },
 };
+
 

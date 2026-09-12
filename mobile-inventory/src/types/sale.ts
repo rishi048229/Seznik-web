@@ -109,3 +109,48 @@ export interface CreateSalePayload {
   platform?: 'mobile' | 'web' | string;
 }
 
+export interface SaleExchange {
+  id: string;
+  exchangeNumber: string;
+  originalSaleId: string;
+  saleReturnId: string;
+  saleReturn?: SaleReturn;
+  newSaleId: string;
+  newSale?: Sale;
+  differenceAmount: number;
+  settlementMethod: string;
+  reason?: string | null;
+  notes?: string | null;
+  platform?: string;
+  createdAt: string;
+}
+
+export interface CreateSaleExchangePayload {
+  originalSaleId?: string;
+  returnedItems: {
+    productId?: string;
+    productName?: string;
+    quantity: number;
+    restock?: boolean;
+  }[];
+  newItems: {
+    productId?: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    sellingPrice?: number;
+    taxRate: number;
+    priceIncludesGst?: boolean;
+    total?: number;
+  }[];
+  newSubtotal: number;
+  newTotalDiscount?: number;
+  newTotalTax: number;
+  newGrandTotal: number;
+  differenceAmount?: number;
+  settlementMethod?: string;
+  reason?: string;
+  notes?: string;
+}
+
+

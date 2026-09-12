@@ -55,6 +55,7 @@ model User {
   utilityBills          UtilityBill[]
   printerLogs           PrinterLog[]
   saleReturns           SaleReturn[]
+  saleExchanges         SaleExchange[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -284,6 +285,8 @@ model Sale {
   returnStatus   String    @default("none") // 'none' | 'partial' | 'full'
   totalRefunded  Float     @default(0)
   returns        SaleReturn[]
+  exchangesAsOriginal SaleExchange[] @relation("OriginalSaleExchanges")
+  exchangeAsNew      SaleExchange?  @relation("NewSaleExchange")
   createdAt      DateTime  @default(now())
 
   @@index([userId, createdAt])
@@ -701,11 +704,37 @@ model SaleReturn {
   platform             String    @default("web") // 'web' | 'mobile'
   userId               String
   user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exchange             SaleExchange?
   createdAt            DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([saleId])
   @@index([customerId])
 }
+
+/// Product replacement / exchange transaction linking an inward return leg and an outward new sale leg.
+model SaleExchange {
+  id               String      @id @default(uuid())
+  exchangeNumber   String      // e.g. "EXC-00001"
+  originalSaleId   String
+  originalSale     Sale        @relation("OriginalSaleExchanges", fields: [originalSaleId], references: [id], onDelete: Cascade)
+  saleReturnId     String      @unique
+  saleReturn       SaleReturn  @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  newSaleId        String      @unique
+  newSale          Sale        @relation("NewSaleExchange", fields: [newSaleId], references: [id], onDelete: Cascade)
+  differenceAmount Float       // newSale.grandTotal - saleReturn.refundAmount (>0 customer pays, <0 store refunds, ==0 even)
+  settlementMethod String      // 'even_exchange' | 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_ledger'
+  reason           String?     // 'defective' | 'size_fit_change' | 'customer_preference' | 'wrong_item' | 'other'
+  notes            String?
+  platform         String      @default("web") // 'web' | 'mobile'
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@index([originalSaleId])
+  @@index([userId, originalSaleId])
+}
+
 
 

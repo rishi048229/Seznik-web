@@ -31,6 +31,7 @@ import {
   SlidersHorizontal,
   Bluetooth,
   RotateCcw,
+  ArrowRightLeft,
 } from 'lucide-react-native';
 import { useSales } from '@/hooks/useSales';
 import { Sale } from '@/types/sale';
@@ -40,6 +41,7 @@ import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
 import { ProcessReturnModal } from '@/components/sales/ProcessReturnModal';
+import { ProcessExchangeModal } from '@/components/sales/ProcessExchangeModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
@@ -106,6 +108,8 @@ export default function InvoicesTabScreen() {
   const [showA4Preview, setShowA4Preview] = useState(false);
   const [returnSale, setReturnSale] = useState<Sale | null>(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [exchangeSale, setExchangeSale] = useState<Sale | null>(null);
+  const [showExchangeModal, setShowExchangeModal] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [pendingPrintSale, setPendingPrintSale] = useState<Sale | null>(null);
   const [busySaleId, setBusySaleId] = useState<string | null>(null);
@@ -490,21 +494,39 @@ export default function InvoicesTabScreen() {
                       </TouchableOpacity>
 
                       {item.returnStatus !== 'full' && (
-                        <TouchableOpacity
-                          onPress={() => {
-                            setReturnSale(item);
-                            setShowReturnModal(true);
-                          }}
-                          style={[styles.cardActionBtn, { backgroundColor: 'rgba(239, 68, 68, 0.08)' }]}
-                          accessibilityRole="button"
-                          accessibilityLabel="Return"
-                          activeOpacity={0.7}
-                        >
-                          <RotateCcw size={14} color={BRAND_COLORS.rose500} />
-                          <Text style={[styles.cardActionBtnText, { color: BRAND_COLORS.rose500 }]}>
-                            Return
-                          </Text>
-                        </TouchableOpacity>
+                        <>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setExchangeSale(item);
+                              setShowExchangeModal(true);
+                            }}
+                            style={[styles.cardActionBtn, { backgroundColor: 'rgba(2, 132, 199, 0.08)' }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Exchange"
+                            activeOpacity={0.7}
+                          >
+                            <ArrowRightLeft size={14} color="#0284c7" />
+                            <Text style={[styles.cardActionBtnText, { color: '#0284c7' }]}>
+                              Exchange
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={() => {
+                              setReturnSale(item);
+                              setShowReturnModal(true);
+                            }}
+                            style={[styles.cardActionBtn, { backgroundColor: 'rgba(239, 68, 68, 0.08)' }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Return"
+                            activeOpacity={0.7}
+                          >
+                            <RotateCcw size={14} color={BRAND_COLORS.rose500} />
+                            <Text style={[styles.cardActionBtnText, { color: BRAND_COLORS.rose500 }]}>
+                              Return
+                            </Text>
+                          </TouchableOpacity>
+                        </>
                       )}
 
                       <TouchableOpacity
@@ -598,6 +620,18 @@ export default function InvoicesTabScreen() {
           onClose={() => {
             setShowReturnModal(false);
             setReturnSale(null);
+          }}
+          onSuccess={() => {
+            refetch();
+          }}
+        />
+
+        <ProcessExchangeModal
+          visible={showExchangeModal}
+          sale={exchangeSale}
+          onClose={() => {
+            setShowExchangeModal(false);
+            setExchangeSale(null);
           }}
           onSuccess={() => {
             refetch();
