@@ -47,6 +47,10 @@ import {
   clearSupportSessionCookieHeader,
   isSecureRequest as isSupportSecureRequest,
 } from './lib/supportAuth.js';
+import {
+  getPrinterSummary,
+  getPrinterUserLogs,
+} from './lib/printers.js';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -819,6 +823,37 @@ export default defineConfig(({ mode }) => {
                 send(200, result);
               } catch (err: any) {
                 send(err?.statusCode || 500, { error: err?.message || 'Failed to revoke' });
+              }
+              return;
+            }
+
+            // Printer Analytics
+            if (pathname === '/api/admin/printers/summary' && req.method === 'GET') {
+              try {
+                const timeRange = parsedUrl.searchParams.get('timeRange') || 'all';
+                const result = await withDbRetry(() => getPrinterSummary(pool, { timeRange }));
+                send(200, result);
+              } catch (err: any) {
+                console.error('Error fetching printer summary:', err);
+                send(500, { error: err?.message || 'Failed to fetch printer summary' });
+              }
+              return;
+            }
+
+            if (pathname === '/api/admin/printers/user-logs' && req.method === 'GET') {
+              try {
+                const result = await withDbRetry(() => getPrinterUserLogs(pool, {
+                  search: parsedUrl.searchParams.get('search') || undefined,
+                  platform: parsedUrl.searchParams.get('platform') || undefined,
+                  printerName: parsedUrl.searchParams.get('printerName') || undefined,
+                  timeRange: parsedUrl.searchParams.get('timeRange') || 'all',
+                  page: Number(parsedUrl.searchParams.get('page')) || 1,
+                  limit: Number(parsedUrl.searchParams.get('limit')) || 50,
+                }));
+                send(200, result);
+              } catch (err: any) {
+                console.error('Error fetching printer user logs:', err);
+                send(500, { error: err?.message || 'Failed to fetch printer logs' });
               }
               return;
             }

@@ -3,6 +3,7 @@ import { playPrinterConnectFeedback } from '@/utils/printerConnectFeedback';
 import { ConnectionState, PrinterDevice } from '../types';
 import PrinterService from '../services/PrinterService';
 import { settingsApi } from '../api/settings';
+import { logPrinterConnection } from '../api/printerLog';
 import { DEFAULT_TEMPLATE_ID } from '../constants/receiptTemplates';
 import { LabelTemplate } from '../types/labelTemplate';
 import { CustomReceiptTemplate, createDefaultReceiptTemplate } from '../types/customReceipt';
@@ -374,6 +375,15 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     });
 
     await setStoredPairedPrinters(pairedToPersist);
+
+    // Log the exact bluetooth printer name to the backend (non-blocking)
+    const exactPrinterName = deviceName || target.name || (deviceId ? `Bluetooth Printer (${deviceId.slice(-6)})` : 'Bluetooth Printer');
+    logPrinterConnection({
+      printerName: exactPrinterName,
+      deviceAddress: deviceId || null,
+      platform: 'mobile',
+      connectionType: 'bluetooth',
+    });
   },
 
   disconnectDevice: async () => {

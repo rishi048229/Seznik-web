@@ -1,16 +1,16 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { Spinner } from '@/components/ui/Spinner'
 import { TablePageSkeleton } from '@/components/ui/PageSkeleton'
 import { useSalesReport } from '@/hooks/useReports'
 import { Download, Share2 } from 'lucide-react'
 import { formatINR } from '@/utils/currency'
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
+import { EChartsComposedChart, type ChartConfig } from '@/components/evilcharts/charts/echarts-composed-chart'
 
 import { ReportTabs } from './ReportTabs'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -27,6 +27,32 @@ export const SalesReportPage = () => {
   const totalRevenue = report?.revenue.reduce((s, v) => s + v, 0) ?? 0
   const totalInvoices = report?.invoiceCount.reduce((s, v) => s + v, 0) ?? 0
   const avgOrderValue = totalInvoices > 0 ? totalRevenue / totalInvoices : 0
+
+  const chartData = useMemo(() => {
+    if (!report || report.labels.length === 0) return []
+    return report.labels.map((date, i) => ({
+      date,
+      revenue: report.revenue[i] ?? 0,
+      invoices: report.invoiceCount[i] ?? 0,
+    }))
+  }, [report])
+
+  const chartConfig = useMemo(() => ({
+    revenue: {
+      label: t('reports.revenueLabel') || 'Revenue',
+      colors: {
+        light: ['#3b82f6'],
+        dark: ['#6A5ACD'],
+      },
+    },
+    invoices: {
+      label: t('reports.invoicesLabel') || 'Invoices',
+      colors: {
+        light: ['#10b981'],
+        dark: ['#34d399'],
+      },
+    },
+  } satisfies ChartConfig), [t])
 
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [sharePhone, setSharePhone] = useState('')
@@ -138,32 +164,72 @@ export const SalesReportPage = () => {
 
           {/* Chart + Table */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Bar Chart */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('reports.dailyRevenue')}</h3>
-              {report && report.labels.length > 0 ? (
-                <div className="flex items-end gap-1 h-48">
-                  {report.revenue.map((rev, i) => {
-                    const maxRev = Math.max(...report.revenue)
-                    const height = maxRev > 0 ? (rev / maxRev) * 100 : 0
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                        <span className="text-[10px] text-gray-500 truncate w-full text-center">
-                          {formatINR(rev)}
-                        </span>
-                        <div
-                          className="w-full bg-blue-500 rounded-t hover:bg-blue-600 transition-colors min-h-[2px]"
-                          style={{ height: `${Math.max(height, 2)}%` }}
-                        />
-                        <span className="text-[10px] text-gray-400 truncate w-full text-center">
-                          {report.labels[i].slice(5)}
-                        </span>
-                      </div>
-                    )
-                  })}
+            {/* Composed Chart */}
+            <Card className="p-6 flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('reports.dailyRevenue')}</h3>
+                {report && report.labels.length > 0 && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    {report.labels.length} {report.labels.length === 1 ? 'day' : 'days'}
+                  </span>
+                )}
+              </div>
+              {chartData.length > 0 ? (
+                <div className="w-full h-72">
+                  <EChartsComposedChart
+                    className="h-full w-full"
+                    xDataKey="date"
+                    data={chartData}
+                    config={chartConfig}
+                  >
+                    <EChartsComposedChart.Grid />
+                    <EChartsComposedChart.XAxis
+                      dataKey="date"
+                      tickFormatter={(value) => {
+                        if (!value) return ''
+                        const parts = String(value).split('-')
+                        if (parts.length === 3) return `${parts[2]}/${parts[1]}`
+                        return String(value).slice(5)
+                      }}
+                    />
+                    <EChartsComposedChart.Brush
+                      formatLabel={(value) => {
+                        const parts = String(value).split('-')
+                        return parts.length === 3 ? `${parts[2]}/${parts[1]}` : String(value).slice(5)
+                      }}
+                    />
+                    <EChartsComposedChart.Legend isClickable />
+                    <EChartsComposedChart.Tooltip
+                      valueFormatter={(value, key) =>
+                        key === 'revenue'
+                          ? formatINR(value)
+                          : `${value} ${value === 1 ? (t('reports.invoicesLabel') || 'invoice') : (t('reports.invoicesLabel') || 'invoices')}`
+                      }
+                      labelFormatter={(label) => {
+                        const parts = String(label).split('-')
+                        if (parts.length === 3) {
+                          const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+                          if (!isNaN(dateObj.getTime())) {
+                            return dateObj.toLocaleDateString(undefined, {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          }
+                        }
+                        return String(label)
+                      }}
+                    />
+                    <EChartsComposedChart.Bar dataKey="revenue" isClickable />
+                    <EChartsComposedChart.Line dataKey="invoices" isClickable>
+                      <EChartsComposedChart.ActiveDot variant="colored-border" />
+                      <EChartsComposedChart.Dot variant="default" />
+                    </EChartsComposedChart.Line>
+                  </EChartsComposedChart>
                 </div>
               ) : (
-                <p className="text-sm text-gray-400 text-center py-12">{t('reports.noSalesDataPeriod')}</p>
+                <p className="text-sm text-gray-400 text-center py-16">{t('reports.noSalesDataPeriod')}</p>
               )}
             </Card>
 

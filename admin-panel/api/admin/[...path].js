@@ -39,6 +39,10 @@ import {
   revokeSupportAgent,
   resetSupportAgentPassword,
 } from '../../lib/supportAgents.js';
+import {
+  getPrinterSummary,
+  getPrinterUserLogs,
+} from '../../lib/printers.js';
 
 function pathSegments(req) {
   // Prefer Vercel catch-all query param — most reliable on serverless.
@@ -462,6 +466,23 @@ export default async function handler(req, res) {
     const supportRevokeMatch = route.match(/^support-agents\/([^/]+)$/);
     if (method === 'DELETE' && supportRevokeMatch) {
       const result = await revokeSupportAgent(pool, decodeURIComponent(supportRevokeMatch[1]));
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === 'printers/summary') {
+      const result = await getPrinterSummary(pool, { timeRange: query.timeRange || 'all' });
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === 'printers/user-logs') {
+      const result = await getPrinterUserLogs(pool, {
+        search: query.search,
+        platform: query.platform,
+        printerName: query.printerName,
+        timeRange: query.timeRange || 'all',
+        page: query.page,
+        limit: query.limit,
+      });
       return sendJson(res, 200, result);
     }
 

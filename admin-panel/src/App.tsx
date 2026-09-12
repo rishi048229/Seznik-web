@@ -12,11 +12,13 @@ import { FeedbackSection } from './components/FeedbackSection';
 import { AccessCodesView } from './components/AccessCodesView';
 import { SupportAccessView } from './components/SupportAccessView';
 import { SupportCodeIssuanceLedger } from './components/SupportCodeIssuanceLedger';
+import { PrintersView } from './components/PrintersView';
 
 const VALID_TABS = [
   'overview',
   'sections',
   'users',
+  'printers',
   'traffic',
   'redirects',
   'feedback',
@@ -184,6 +186,8 @@ export const App: React.FC<AppProps> = ({ userId, onLogout }) => {
           />
         ) : activeTab === 'users' ? (
           <UsersSection initialSearchTerm={selectedUserForProfile} />
+        ) : activeTab === 'printers' ? (
+          <PrintersView />
         ) : null}
       </main>
     </div>

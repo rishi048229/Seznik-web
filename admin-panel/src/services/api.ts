@@ -20,6 +20,8 @@ import type {
   SupportAgentListResponse,
   SupportAgentCreateResponse,
   SupportAgentRecord,
+  PrinterSummaryResponse,
+  PrinterUserLogsResponse,
 } from '../types/admin';
 
 function isLocalDev(): boolean {
@@ -483,4 +485,28 @@ export async function lookupSupportAccessCode(code: string): Promise<AccessCodeL
   }
   return (await res.json()) as AccessCodeLookupResult;
 }
+
+export async function fetchPrinterSummary(timeRange: string = 'all'): Promise<PrinterSummaryResponse> {
+  return fetchAdminEndpoint<PrinterSummaryResponse>(`/printers/summary?timeRange=${encodeURIComponent(timeRange)}`);
+}
+
+export async function fetchPrinterUserLogs(params: {
+  search?: string;
+  platform?: string;
+  printerName?: string;
+  timeRange?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<PrinterUserLogsResponse> {
+  const sp = new URLSearchParams();
+  if (params.search) sp.set('search', params.search);
+  if (params.platform) sp.set('platform', params.platform);
+  if (params.printerName) sp.set('printerName', params.printerName);
+  if (params.timeRange) sp.set('timeRange', params.timeRange);
+  if (params.page) sp.set('page', String(params.page));
+  if (params.limit) sp.set('limit', String(params.limit));
+  const qs = sp.toString();
+  return fetchAdminEndpoint<PrinterUserLogsResponse>(`/printers/user-logs${qs ? `?${qs}` : ''}`);
+}
+
 

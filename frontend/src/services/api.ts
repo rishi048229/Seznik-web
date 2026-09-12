@@ -53,3 +53,24 @@ export const fetchApi = async (endpoint: string, options: RequestInit = {}) => {
 
   return data;
 };
+
+export const logPrinterConnection = async (data: {
+  printerName: string;
+  deviceAddress?: string | null;
+  platform?: string;
+  connectionType?: string;
+}) => {
+  try {
+    return await fetchApi('/printer-logs', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...data,
+        platform: data.platform || 'web',
+      }),
+    });
+  } catch (err) {
+    console.debug('Failed to log printer connection:', err);
+    return null;
+  }
+};
+

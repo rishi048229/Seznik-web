@@ -15,6 +15,7 @@ import {
   LogOut,
   KeyRound,
   Headphones,
+  Printer,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from './AnimatedThemeToggler';
 
@@ -115,6 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'overview', label: 'Overview & Metrics', shortLabel: 'Overview', icon: Activity },
     { id: 'sections', label: 'Section Analytics', shortLabel: 'Sections', icon: LayoutGrid },
     { id: 'users', label: 'Registered Users', shortLabel: 'Users', icon: Users },
+    { id: 'printers', label: 'Printer Analytics', shortLabel: 'Printers', icon: Printer },
     { id: 'traffic', label: 'Traffic', shortLabel: 'Traffic', icon: Activity },
     { id: 'redirects', label: 'Redirects', shortLabel: 'Redirects', icon: ExternalLink },
     { id: 'feedback', label: 'Reviews & Suggestions', shortLabel: 'Reviews', icon: MessageSquare },

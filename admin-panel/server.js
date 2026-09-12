@@ -43,6 +43,10 @@ import {
   clearSupportSessionCookieHeader,
   isSecureRequest as isSupportSecureRequest,
 } from './lib/supportAuth.js';
+import {
+  getPrinterSummary,
+  getPrinterUserLogs,
+} from './lib/printers.js';
 
 if (typeof process.loadEnvFile === 'function') {
   try {
@@ -674,6 +678,36 @@ app.get('/api/support/access-codes', async (req, res) => {
   } catch (err) {
     console.error('Error listing support access codes:', err);
     res.status(500).json({ error: 'Failed to list codes' });
+  }
+});
+
+// GET /api/admin/printers/summary
+app.get('/api/admin/printers/summary', async (req, res) => {
+  try {
+    const timeRange = req.query.timeRange || 'all';
+    const data = await getPrinterSummary(pool, { timeRange });
+    res.json(data);
+  } catch (err) {
+    console.error('Error in /api/admin/printers/summary:', err);
+    res.status(500).json({ error: 'Failed to fetch printer summary' });
+  }
+});
+
+// GET /api/admin/printers/user-logs
+app.get('/api/admin/printers/user-logs', async (req, res) => {
+  try {
+    const data = await getPrinterUserLogs(pool, {
+      search: req.query.search,
+      platform: req.query.platform,
+      printerName: req.query.printerName,
+      timeRange: req.query.timeRange || 'all',
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+    res.json(data);
+  } catch (err) {
+    console.error('Error in /api/admin/printers/user-logs:', err);
+    res.status(500).json({ error: 'Failed to fetch printer logs' });
   }
 });
 

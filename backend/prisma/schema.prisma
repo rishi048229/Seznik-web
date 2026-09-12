@@ -53,6 +53,7 @@ model User {
   productLocationStocks ProductLocationStock[]
   stockTransfers        StockTransfer[]
   utilityBills          UtilityBill[]
+  printerLogs           PrinterLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -657,3 +658,21 @@ model UtilityBill {
   @@index([consumerNumber])
   @@index([receiptNumber])
 }
+
+/// Logs of printer connections (exact bluetooth device names) from Web and Mobile apps.
+model PrinterLog {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  printerName    String   // Exact Bluetooth name as reported by the device
+  deviceAddress  String?  // MAC address or Web BLE device UUID
+  platform       String   @default("web") // 'web' | 'mobile'
+  connectionType String?  @default("bluetooth") // 'bluetooth' | 'ble'
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([printerName])
+  @@index([createdAt])
+  @@index([platform])
+}
+

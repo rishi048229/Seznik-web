@@ -315,3 +315,56 @@ export interface SupportAgentCreateResponse {
   password: string;
 }
 
+export interface PrinterSummaryItem {
+  printerName: string;
+  totalConnections: number;
+  uniqueUsersCount: number;
+  webCount: number;
+  mobileCount: number;
+  firstSeenAt: string | null;
+  lastConnectedAt: string | null;
+}
+
+export interface PrinterSummaryMetrics {
+  totalConnections: number;
+  uniquePrinters: number;
+  uniqueUsers: number;
+  webConnections: number;
+  mobileConnections: number;
+  topPrinter: string | null;
+  topPrinterConnections: number;
+  timeRange: string;
+}
+
+export interface PrinterSummaryResponse {
+  metrics: PrinterSummaryMetrics;
+  printers: PrinterSummaryItem[];
+}
+
+export interface PrinterUserLogRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  businessName: string | null;
+  userEmail: string | null;
+  userPhone: string | null;
+  businessType: string;
+  userPlan: string;
+  printerName: string;
+  deviceAddress: string | null;
+  platform: 'web' | 'mobile' | string;
+  connectionType: string;
+  createdAt: string;
+}
+
+export interface PrinterUserLogsResponse {
+  logs: PrinterUserLogRecord[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+

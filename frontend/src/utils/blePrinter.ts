@@ -5,6 +5,8 @@
 // auto-detect which profile the device actually exposes, so any printer
 // matching one of the profiles below "just works" from the same UI.
 
+import { logPrinterConnection } from '@/services/api';
+
 interface PrinterProfile {
   /** Human-readable family name (shown for diagnostics only). */
   name: string
@@ -182,6 +184,13 @@ async function connectToDevice(dev: BluetoothDevice): Promise<void> {
       localStorage.setItem('seznik_last_ble_printer_name', dName)
     } catch {}
     setState({ status: 'connected', deviceName: dName, profileName: profile.name })
+    // Log the exact bluetooth printer name to the backend (non-blocking)
+    logPrinterConnection({
+      printerName: dev.name || dName,
+      deviceAddress: dev.id || null,
+      platform: 'web',
+      connectionType: 'ble',
+    });
   } catch (err) {
     handleGattDisconnected()
     throw err
