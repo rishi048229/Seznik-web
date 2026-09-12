@@ -223,8 +223,25 @@ export const deleteSale = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
     const { id } = req.params;
-    await prisma.sale.deleteMany({
+
+    const sale = await prisma.sale.findFirst({
       where: { id: String(id), userId },
+      select: { id: true, invoiceNumber: true, totalTax: true },
+    });
+
+    if (!sale) {
+      return res.status(404).json({ error: 'Sale not found' });
+    }
+
+    // Invoiced sales (with invoice number or tax) must be retained for legal/tax accounting audit trails
+    if (sale.invoiceNumber || sale.totalTax > 0) {
+      return res.status(409).json({
+        error: 'Invoiced sales cannot be deleted to preserve accounting and tax audit trail integrity.',
+      });
+    }
+
+    await prisma.sale.delete({
+      where: { id: sale.id },
     });
     res.json({ success: true });
   } catch (error) {
@@ -236,6 +253,23 @@ export const bulkDeleteSales = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
     const { saleIds } = req.body;
+
+    if (!Array.isArray(saleIds) || saleIds.length === 0) {
+      return res.status(400).json({ error: 'saleIds must be a non-empty array' });
+    }
+
+    const invoicedSales = await prisma.sale.findMany({
+      where: { id: { in: saleIds }, userId, OR: [{ invoiceNumber: { not: '' } }, { totalTax: { gt: 0 } }] },
+      select: { id: true },
+    });
+
+    if (invoicedSales.length > 0) {
+      return res.status(409).json({
+        error: 'Cannot bulk delete invoiced sales to preserve accounting and tax audit trail integrity.',
+        invoicedCount: invoicedSales.length,
+      });
+    }
+
     await prisma.sale.deleteMany({
       where: { id: { in: saleIds }, userId },
     });

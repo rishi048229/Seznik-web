@@ -27,8 +27,13 @@ export interface SalesReportData {
 }
 
 export interface PLReportData {
+  grossBilled: number
+  taxCollected: number
+  returnsDeducted: number
+  netRevenue: number
   totalRevenue: number
   totalCost: number
+  grossProfit: number
   totalExpenses: number
   netProfit: number
   period: string

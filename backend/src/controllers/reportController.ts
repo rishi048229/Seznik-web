@@ -179,7 +179,7 @@ export const getPLReport = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
     const { start, end } = req.query;
-    const startDate = parseDate(start, subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS));
+    const startDate = start ? startOfDay(parseDate(start, new Date())) : startOfDay(subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS));
     const endDate = parseRangeEnd(end, new Date());
 
     // Fetch all sales in the window (needed for per-item cost calculation)
@@ -213,14 +213,24 @@ export const getPLReport = async (req: Request, res: Response) => {
       0
     );
 
-    const totalRevenue = salesAgg._sum.grandTotal ?? 0;
+    const grossBilled = salesAgg._sum.grandTotal ?? 0;
+    const taxCollected = salesAgg._sum.totalTax ?? 0;
+    const returnsDeducted = 0; // Forward-compatible placeholder for future returns module
+    const netRevenue = Math.round((grossBilled - returnsDeducted - taxCollected) * 100) / 100;
+    const grossProfit = Math.round((netRevenue - totalCost) * 100) / 100;
     const totalExpenses = Number(expenseRows[0]?.total ?? 0);
+    const netProfit = Math.round((grossProfit - totalExpenses) * 100) / 100;
 
     res.json({
-      totalRevenue,
+      grossBilled,
+      taxCollected,
+      returnsDeducted,
+      netRevenue,
+      totalRevenue: grossBilled, // Retained for 100% backward compatibility
       totalCost,
+      grossProfit,
       totalExpenses,
-      netProfit: totalRevenue - totalCost - totalExpenses,
+      netProfit,
       period: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
     });
   } catch (error) {
