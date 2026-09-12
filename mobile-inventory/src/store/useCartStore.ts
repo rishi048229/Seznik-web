@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from '@/store/useAuthStore';
 import { getCachedTrackStockSetting } from '@/hooks/useSettings';
 import { isProductAvailable, usesStockTracking } from '@/utils/businessFeatures';
+import { calculateGstBill, GstBillCalculationResult } from '@shared/gstTaxEngine';
 
 export interface CartItem {
   product: Product;
@@ -58,6 +59,7 @@ interface CartState {
   getItemDiscount: (item: CartItem) => number;
   getTotalItemDiscount: () => number;
   getBillDiscount: () => number;
+  getGstCalculation: () => GstBillCalculationResult;
   getSubtotal: () => number;
   getTotalDiscount: () => number;
   getTotalTax: () => number;
@@ -358,47 +360,32 @@ export const useCartStore = create<CartState>((set, get) => ({
     return Math.min(discount.value, remaining);
   },
 
-  getSubtotal: () => {
-    const { items, gstMode } = get();
-    return items.reduce((sum, item) => {
-      const price = item.product.sellingPrice;
-      const taxRate = item.product.taxRate || 0;
+  getGstCalculation: () => {
+    const { items, getItemDiscount, getBillDiscount, gstMode } = get();
+    const lineItems = items.map((item) => ({
+      price: item.product.sellingPrice,
+      qty: item.quantity,
+      gstRate: item.product.taxRate || 0,
+      priceType: (gstMode === 'inclusive' && item.product.priceIncludesGst ? 'inclusive' : 'exclusive') as 'inclusive' | 'exclusive',
+      itemDiscountAmount: getItemDiscount(item),
+    }));
+    return calculateGstBill({
+      lineItems,
+      billDiscountAmount: getBillDiscount(),
+      isIntraState: true,
+    });
+  },
 
-      if (gstMode === 'inclusive' && item.product.priceIncludesGst && taxRate > 0) {
-        const basePrice = price / (1 + taxRate / 100);
-        return sum + basePrice * item.quantity;
-      }
-      return sum + price * item.quantity;
-    }, 0);
+  getSubtotal: () => {
+    return get().getGstCalculation().totalGrossTaxable;
   },
 
   getTotalDiscount: () => {
-    const { getTotalItemDiscount, getBillDiscount } = get();
-    return getTotalItemDiscount() + getBillDiscount();
+    return get().getGstCalculation().totalDiscounts;
   },
 
   getTotalTax: () => {
-    const { items, gstMode, getItemDiscount, getBillDiscount } = get();
-    const rawGross = items.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
-    const totalItemDisc = items.reduce((sum, item) => sum + getItemDiscount(item), 0);
-    const billDisc = getBillDiscount();
-    const totalDisc = totalItemDisc + billDisc;
-    const discountFactor = rawGross > 0 ? Math.max(0, rawGross - totalDisc) / rawGross : 1;
-
-    return items.reduce((sum, item) => {
-      const price = item.product.sellingPrice;
-      const taxRate = item.product.taxRate || 0;
-      const itemSubtotal = price * item.quantity * discountFactor;
-
-      if (taxRate <= 0) return sum;
-
-      if (gstMode === 'inclusive' && item.product.priceIncludesGst) {
-        const base = itemSubtotal / (1 + taxRate / 100);
-        return sum + (itemSubtotal - base);
-      } else {
-        return sum + (itemSubtotal * taxRate) / 100;
-      }
-    }, 0);
+    return get().getGstCalculation().totalTax;
   },
 
   getGrossSubtotalForCharges: () => {
@@ -426,11 +413,9 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   getGrandTotal: () => {
-    const subtotal = get().getSubtotal();
-    const discount = get().getTotalDiscount();
-    const tax = get().getTotalTax();
+    const calc = get().getGstCalculation();
     const extraCharges = get().getExtraChargesTotal();
-    return Math.max(0, subtotal - discount + tax + extraCharges);
+    return Math.max(0, calc.finalInvoiceTotal + extraCharges);
   },
 
   toSaleItems: () => {

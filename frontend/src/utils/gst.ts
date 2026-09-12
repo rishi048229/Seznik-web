@@ -1,6 +1,8 @@
+import { calculateGstBill, round2, BillInput, LineItemInput } from '@shared/gstTaxEngine'
+
 /** Round to 2 decimal places (paise) as per GST invoicing practice. */
 export function roundGstAmount(value: number): number {
-  return Math.round(value * 100) / 100
+  return round2(value)
 }
 
 export interface ProductGstBreakdown {
@@ -21,41 +23,46 @@ export function calculateProductGstBreakdown(
   gstRate: number,
   priceIncludesGst: boolean,
 ): ProductGstBreakdown {
-  const rate = Math.max(0, gstRate)
-  const price = Math.max(0, enteredPrice)
-
-  let taxableValue: number
-  let totalGst: number
-  let finalPrice: number
-
-  if (rate === 0 || price === 0) {
-    taxableValue = price
-    totalGst = 0
-    finalPrice = price
-  } else if (priceIncludesGst) {
-    taxableValue = roundGstAmount(price / (1 + rate / 100))
-    totalGst = roundGstAmount(price - taxableValue)
-    finalPrice = price
-  } else {
-    taxableValue = price
-    totalGst = roundGstAmount(price * (rate / 100))
-    finalPrice = roundGstAmount(price + totalGst)
+  const bill: BillInput = {
+    lineItems: [
+      {
+        price: enteredPrice,
+        qty: 1,
+        gstRate,
+        priceType: priceIncludesGst ? 'inclusive' : 'exclusive',
+      },
+    ],
+    isIntraState: true,
   }
 
-  const halfRate = rate / 2
-  const cgstAmount = roundGstAmount(totalGst / 2)
-  const sgstAmount = roundGstAmount(totalGst - cgstAmount)
+  const result = calculateGstBill(bill)
+  const line = result.lines[0]
+
+  if (!line) {
+    return {
+      taxableValue: 0,
+      cgstRate: 0,
+      sgstRate: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      totalGst: 0,
+      finalPrice: 0,
+      enteredPrice,
+      gstRate,
+      priceIncludesGst,
+    }
+  }
 
   return {
-    taxableValue,
-    cgstRate: halfRate,
-    sgstRate: halfRate,
-    cgstAmount,
-    sgstAmount,
-    totalGst,
-    finalPrice,
-    enteredPrice: price,
-    gstRate: rate,
+    taxableValue: round2(line.lineTaxableValue),
+    cgstRate: line.cgstRate,
+    sgstRate: line.sgstRate,
+    cgstAmount: round2(line.cgstAmount),
+    sgstAmount: round2(line.sgstAmount),
+    totalGst: round2(line.lineGstAmount),
+    finalPrice: round2(line.lineFinalAmount),
+    enteredPrice,
+    gstRate,
     priceIncludesGst,
   }
 }
@@ -93,8 +100,49 @@ export function calculateLineGstBreakdown(
   gstRate: number,
   priceIncludesGst: boolean,
 ): ProductGstBreakdown {
-  const lineEntered = Math.max(0, sellingPrice * quantity - Math.max(0, discount))
-  return calculateProductGstBreakdown(lineEntered, gstRate, priceIncludesGst)
+  const bill: BillInput = {
+    lineItems: [
+      {
+        price: sellingPrice,
+        qty: quantity,
+        gstRate,
+        priceType: priceIncludesGst ? 'inclusive' : 'exclusive',
+        itemDiscountAmount: discount,
+      },
+    ],
+    isIntraState: true,
+  }
+
+  const result = calculateGstBill(bill)
+  const line = result.lines[0]
+
+  if (!line) {
+    return {
+      taxableValue: 0,
+      cgstRate: 0,
+      sgstRate: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      totalGst: 0,
+      finalPrice: 0,
+      enteredPrice: sellingPrice,
+      gstRate,
+      priceIncludesGst,
+    }
+  }
+
+  return {
+    taxableValue: round2(line.lineTaxableValue),
+    cgstRate: line.cgstRate,
+    sgstRate: line.sgstRate,
+    cgstAmount: round2(line.cgstAmount),
+    sgstAmount: round2(line.sgstAmount),
+    totalGst: round2(line.lineGstAmount),
+    finalPrice: round2(line.lineFinalAmount),
+    enteredPrice: sellingPrice,
+    gstRate,
+    priceIncludesGst,
+  }
 }
 
 export function splitCgstSgst(totalGst: number): { cgst: number; sgst: number } {
@@ -103,43 +151,38 @@ export function splitCgstSgst(totalGst: number): { cgst: number; sgst: number } 
   return { cgst, sgst }
 }
 
-export function computeGstBillSummary(lines: GstLineInput[]): GstBillSummary {
-  const slabMap = new Map<number, { taxable: number; gst: number }>()
+export function computeGstBillSummary(lines: GstLineInput[], extraBillDiscount = 0): GstBillSummary {
+  const lineItems: LineItemInput[] = lines.map((l) => ({
+    price: l.sellingPrice,
+    qty: l.quantity,
+    gstRate: l.taxRate,
+    priceType: l.priceIncludesGst ? 'inclusive' : 'exclusive',
+    itemDiscountAmount: l.discount,
+  }))
 
-  for (const line of lines) {
-    const breakdown = calculateLineGstBreakdown(
-      line.sellingPrice,
-      line.quantity,
-      line.discount,
-      line.taxRate,
-      line.priceIncludesGst,
-    )
-    const existing = slabMap.get(breakdown.gstRate) || { taxable: 0, gst: 0 }
-    existing.taxable = roundGstAmount(existing.taxable + breakdown.taxableValue)
-    existing.gst = roundGstAmount(existing.gst + breakdown.totalGst)
-    slabMap.set(breakdown.gstRate, existing)
+  const result = calculateGstBill({
+    lineItems,
+    billDiscountAmount: extraBillDiscount,
+    isIntraState: true,
+  })
+
+  const slabs: GstSlabRow[] = result.rateWiseSummary.map((bucket) => ({
+    gstRate: bucket.rate,
+    cgstRate: bucket.rate / 2,
+    sgstRate: bucket.rate / 2,
+    taxableValue: bucket.totalTaxableValue,
+    cgstAmount: bucket.totalCgst,
+    sgstAmount: bucket.totalSgst,
+    totalGst: bucket.totalGst,
+  }))
+
+  return {
+    taxableValue: result.totalTaxableValue,
+    totalGst: result.totalTax,
+    cgstAmount: result.totalCgst,
+    sgstAmount: result.totalSgst,
+    slabs,
   }
-
-  const slabs: GstSlabRow[] = [...slabMap.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([rate, value]) => {
-      const { cgst, sgst } = splitCgstSgst(value.gst)
-      return {
-        gstRate: rate,
-        cgstRate: rate / 2,
-        sgstRate: rate / 2,
-        taxableValue: value.taxable,
-        cgstAmount: cgst,
-        sgstAmount: sgst,
-        totalGst: value.gst,
-      }
-    })
-
-  const taxableValue = roundGstAmount(slabs.reduce((sum, slab) => sum + slab.taxableValue, 0))
-  const totalGst = roundGstAmount(slabs.reduce((sum, slab) => sum + slab.totalGst, 0))
-  const { cgst: cgstAmount, sgst: sgstAmount } = splitCgstSgst(totalGst)
-
-  return { taxableValue, totalGst, cgstAmount, sgstAmount, slabs }
 }
 
 export function gstSummaryFromCart(
@@ -152,18 +195,15 @@ export function gstSummaryFromCart(
   }[],
   extraDiscount = 0,
 ): GstBillSummary {
-  const rawGross = items.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0)
-  const lineDisc = items.reduce((sum, item) => sum + (item.discount || 0), 0)
-  const totalDisc = lineDisc + extraDiscount
-  const factor = rawGross > 0 ? Math.max(0, rawGross - totalDisc) / rawGross : 1
   return computeGstBillSummary(
     items.map((item) => ({
-      sellingPrice: item.sellingPrice * factor,
+      sellingPrice: item.sellingPrice,
       quantity: item.quantity,
-      discount: 0,
+      discount: item.discount || 0,
       taxRate: item.taxRate || 0,
       priceIncludesGst: Boolean(item.priceIncludesGst),
     })),
+    extraDiscount,
   )
 }
 
@@ -186,3 +226,4 @@ export function gstLinesFromSaleItems(
     priceIncludesGst: Boolean(item.priceIncludesGst),
   }))
 }
+
