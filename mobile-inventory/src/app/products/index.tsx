@@ -180,7 +180,7 @@ export default function ProductsScreen() {
   const [gstLabel, setGstLabel] = useState('0% — Nil Rated / Exempt');
   const [gstIsCustom, setGstIsCustom] = useState(false);
   const [customTaxRate, setCustomTaxRate] = useState('');
-  const [priceIncludesGst, setPriceIncludesGst] = useState(false);
+  const [priceIncludesGst, setPriceIncludesGst] = useState(true);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<'flat' | 'percent'>('percent');
@@ -332,7 +332,7 @@ export default function ProductsScreen() {
     setGstLabel('0% — Nil Rated / Exempt');
     setGstIsCustom(false);
     setCustomTaxRate('');
-    setPriceIncludesGst(false);
+    setPriceIncludesGst(true);
     setUnit('Piece');
     setImageUrl(null);
     setDiscountType('percent');
@@ -457,7 +457,7 @@ export default function ProductsScreen() {
     setGstLabel('0% — Nil Rated / Exempt');
     setGstIsCustom(false);
     setCustomTaxRate('');
-    setPriceIncludesGst(false);
+    setPriceIncludesGst(true);
     setCategoryId(categories[0]?.id || null);
     setSupplierId(suppliers[0]?.id || null);
     setDiscountType('percent');

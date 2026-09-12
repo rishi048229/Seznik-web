@@ -127,7 +127,7 @@ const defaultForm: ProductFormState = {
   costPrice: '',
   sellingPrice: '',
   taxRate: '0',
-  priceIncludesGst: false,
+  priceIncludesGst: true,
   currentStock: '0',
   lowStockThreshold: '10',
   unit: 'piece',
@@ -1597,26 +1597,42 @@ export const ProductsPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowInlineCategory(v => !v)}
-                  className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
+                  className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
                 >
                   {showInlineCategory ? <X size={11} /> : <Plus size={11} />}
                   {showInlineCategory ? t('action.close') : t('products.newCategory')}
                 </button>
               </div>
-              <Select
-                options={categoryOptions}
-                placeholder={t('products.selectCategory')}
-                value={form.categoryId}
-                onChange={e => setForm(prev => ({ ...prev, categoryId: e.target.value }))}
-              />
-              {showInlineCategory && (
-                <div className="mt-2 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 flex gap-2">
+              {!showInlineCategory ? (
+                <Select
+                  options={[
+                    ...categoryOptions,
+                    { value: '__new__', label: '+ Add New Category...' },
+                  ]}
+                  placeholder={t('products.selectCategory')}
+                  value={form.categoryId}
+                  onChange={e => {
+                    if (e.target.value === '__new__') {
+                      setShowInlineCategory(true)
+                    } else {
+                      setForm(prev => ({ ...prev, categoryId: e.target.value }))
+                    }
+                  }}
+                />
+              ) : (
+                <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 flex gap-2 items-center">
                   <Input
+                    autoFocus
                     value={inlineCategoryName}
                     onChange={e => setInlineCategoryName(e.target.value)}
-                    placeholder="New category name"
-                    className="h-9 text-sm"
-                    onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateCategory() }}
+                    placeholder="Type new category name..."
+                    className="h-9 text-sm flex-1 bg-white dark:bg-dark-card"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleInlineCreateCategory()
+                      }
+                    }}
                   />
                   <Button
                     size="sm"
@@ -1625,7 +1641,18 @@ export const ProductsPage = () => {
                     disabled={!inlineCategoryName.trim()}
                     className="flex-shrink-0"
                   >
-                    Add
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setShowInlineCategory(false)
+                      setInlineCategoryName('')
+                    }}
+                    className="flex-shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  >
+                    <X size={14} />
                   </Button>
                 </div>
               )}
@@ -1639,7 +1666,7 @@ export const ProductsPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowInlineSupplier(v => !v)}
-                  className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
+                  className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
                 >
                   {showInlineSupplier ? <X size={11} /> : <Plus size={11} />}
                   {showInlineSupplier ? t('action.close') : t('products.newSupplier')}
@@ -1697,12 +1724,12 @@ export const ProductsPage = () => {
                 placeholder="Scan, type, or auto-generate"
                 className="flex-1"
               />
-              <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto min-w-0">
                 <Select
                   options={BARCODE_TYPE_OPTIONS}
                   value={form.barcodeType}
                   onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
-                  className="w-full sm:w-32"
+                  className="w-full sm:w-36"
                 />
                 <Button
                   type="button"
@@ -1740,18 +1767,26 @@ export const ProductsPage = () => {
                   {t('products.sellingPrice')} *
                   <FieldInfo textKey="tip.product.sellingPrice" />
                 </label>
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-0.5">
+                <div className="flex items-center gap-1 bg-gray-200 dark:bg-dark-border/80 border border-gray-300 dark:border-dark-border-strong rounded-lg p-0.5 shadow-inner">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: false }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      !form.priceIncludesGst
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                    }`}
                   >
                     {t('products.exclGst')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: true }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      form.priceIncludesGst
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                    }`}
                   >
                     {t('products.inclGst')}
                   </button>

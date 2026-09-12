@@ -190,18 +190,26 @@ export const QuickEditProductModal = ({ product, isOpen, onClose, onSaved }: Qui
                   {t('products.sellingPrice')} *
                   <FieldInfo textKey="tip.product.sellingPrice" />
                 </label>
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-0.5">
+                <div className="flex items-center gap-1 bg-gray-200 dark:bg-dark-border/80 border border-gray-300 dark:border-dark-border-strong rounded-lg p-0.5 shadow-inner">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: false }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      !form.priceIncludesGst
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                    }`}
                   >
                     {t('products.exclGst')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: true }))}
-                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-dark-hover text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      form.priceIncludesGst
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                    }`}
                   >
                     {t('products.inclGst')}
                   </button>

@@ -53,13 +53,13 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
     }
 
     return (
-      <div className="w-full" ref={ref}>
+      <div className={cn('w-full relative', className)} ref={ref}>
         {label && (
           <label htmlFor={selectId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             {label}
           </label>
         )}
-        <div className="relative">
+        <div className="relative w-full" ref={selectRef}>
           {/* Select Trigger */}
           <button
             id={selectId}
@@ -67,27 +67,26 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
             onClick={() => !disabled && setIsOpen(!isOpen)}
             disabled={disabled}
             className={cn(
-              'w-full px-4 py-2.5 pr-10 border rounded-lg cursor-pointer',
+              'w-full px-3.5 py-2.5 pr-9 border rounded-lg cursor-pointer text-sm',
               'focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500',
               'bg-white dark:bg-dark-elevated dark:text-gray-100 text-gray-900',
               'transition-all duration-200',
               'hover:border-gray-400 dark:hover:border-dark-border-strong',
               'border-gray-300 dark:border-dark-border-strong',
               error && 'border-red-500 focus:border-red-500 focus:ring-red-500/20',
-              'text-left',
-              disabled && 'opacity-50 cursor-not-allowed',
-              className
+              'text-left flex items-center justify-between',
+              disabled && 'opacity-50 cursor-not-allowed'
             )}
             {...props}
           >
-            <span className={cn(!selectedOption && 'text-gray-400 dark:text-gray-500')}>
+            <span className={cn('truncate mr-1', !selectedOption && 'text-gray-400 dark:text-gray-500')}>
               {displayValue}
             </span>
           </button>
           
           {/* Dropdown Arrow */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400">
-            <ChevronDown size={18} className={cn('transition-transform duration-200', isOpen && 'rotate-180')} />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400 flex items-center">
+            <ChevronDown size={16} className={cn('transition-transform duration-200', isOpen && 'rotate-180')} />
           </div>
 
           {/* Dropdown Menu */}
