@@ -1717,30 +1717,28 @@ export const ProductsPage = () => {
               {t('products.barcode')} *
               <FieldInfo textKey="tip.product.barcode" />
             </label>
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <Input
                 value={form.barcode}
                 onChange={e => setForm(prev => ({ ...prev, barcode: e.target.value }))}
-                placeholder="Scan, type, or auto-generate"
-                className="flex-1"
+                placeholder="Scan or type barcode"
+                className="flex-1 min-w-0"
               />
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto min-w-0">
-                <Select
-                  options={BARCODE_TYPE_OPTIONS}
-                  value={form.barcodeType}
-                  onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
-                  className="w-full sm:w-36"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setForm(prev => ({ ...prev, barcode: generateBarcodeValue(prev.barcodeType) }))}
-                  leftIcon={<Wand2 size={14} />}
-                  className="w-full sm:w-auto flex-shrink-0"
-                >
-                  {t('products.autoGenerate')}
-                </Button>
-              </div>
+              <Select
+                options={BARCODE_TYPE_OPTIONS}
+                value={form.barcodeType}
+                onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
+                className="w-full sm:w-28 flex-shrink-0"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setForm(prev => ({ ...prev, barcode: generateBarcodeValue(prev.barcodeType) }))}
+                leftIcon={<Wand2 size={14} />}
+                className="w-full sm:w-auto flex-shrink-0 whitespace-nowrap px-3 text-xs"
+              >
+                {t('products.autoGenerate')}
+              </Button>
             </div>
             <p className="text-[11px] text-gray-400 mt-1">
               {t('products.barcodeHelp')}
