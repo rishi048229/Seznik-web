@@ -12,7 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon, QrCode, Globe, Wand2 } from 'lucide-react-native';
+import { Store, Layers, ArrowRight, ArrowLeft, Check, ImageIcon, QrCode, Globe, Wand2, Scan, CheckCircle2, Sparkles, Upload } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -34,7 +34,8 @@ import { persistBusinessLogo } from '@/utils/businessLogoStorage';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { resolveStoreProfile } from '@/hooks/useStoreProfile';
-import { buildUpiPayString, isValidUpiVpa } from '@/utils/billQrService';
+import { buildUpiPayString, isValidUpiVpa, extractUpiFromQrImageAsync } from '@/utils/billQrService';
+
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -62,6 +63,8 @@ export default function OnboardingScreen() {
   const [logoBgModalUri, setLogoBgModalUri] = useState<string | null>(null);
   const [logoBgCallback, setLogoBgCallback] = useState<((uri: string) => void) | null>(null);
   const [upiId, setUpiId] = useState('');
+  const [isScanningQr, setIsScanningQr] = useState(false);
+  const [scannedQrPreview, setScannedQrPreview] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(currentLanguage);
 
   const theme = useAppTheme();
@@ -72,6 +75,47 @@ export default function OnboardingScreen() {
     () => (selectedBusinessType ? BUSINESS_TYPE_OPTIONS.find((option) => option.id === selectedBusinessType)?.label : 'Workspace'),
     [selectedBusinessType]
   );
+
+  const handlePickUpiQrImage = async () => {
+    try {
+      const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert('Permission needed', 'Please allow photo library access to upload your QR code standee or screenshot.');
+        return;
+      }
+      setIsScanningQr(true);
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.9,
+        allowsEditing: false,
+      });
+      if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
+        const assetUri = pickerResult.assets[0].uri;
+        setScannedQrPreview(assetUri);
+        const extracted = await extractUpiFromQrImageAsync(assetUri);
+        if (extracted && extracted.upiId) {
+          setUpiId(extracted.upiId);
+          if (extracted.payeeName && (!businessName.trim() || businessName === 'Your Store Name')) {
+            setBusinessName(extracted.payeeName);
+          }
+          Alert.alert(
+            'UPI ID Extracted Successfully! 🎉',
+            `Found UPI ID: ${extracted.upiId}${extracted.payeeName ? `\nMerchant: ${extracted.payeeName}` : ''}\n\nYour receipts will now automatically generate dynamic payment QR codes with the exact bill amount prefilled!`
+          );
+        } else {
+          Alert.alert(
+            'QR Code Not Recognized',
+            'Could not detect a valid UPI QR code from the selected image. Please make sure the QR is clear and well-lit, or type your UPI ID manually below.'
+          );
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Scan Failed', err?.message || 'Failed to scan QR image. You can enter your UPI ID manually.');
+    } finally {
+      setIsScanningQr(false);
+    }
+  };
+
 
   const showLanguageStep = (step === 1);
   const showShopStep = !pickTypeOnly && step === 2;
@@ -471,28 +515,74 @@ export default function OnboardingScreen() {
                       'Collect instant payments via dynamic QR codes on your receipts. You can also skip this and configure it later in Settings.'
                     )}
                   </Text>
+
+                  {/* Option 1: Standee / QR Upload Card */}
                   <View
                     style={[
-                      styles.hintCard,
+                      styles.qrUploadCard,
                       {
-                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
-                        borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : '#A7F3D0',
-                        borderWidth: 1,
+                        backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#EFF6FF',
+                        borderColor: isDark ? 'rgba(59, 130, 246, 0.35)' : '#BFDBFE',
                       },
                     ]}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <Text style={[styles.hintBadge, { color: isDark ? '#34D399' : '#047857' }]}>
-                        DIRECT QR PAYMENTS • OPTIONAL
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Sparkles size={18} color={BRAND_COLORS.blue600} />
+                      <Text style={[styles.qrUploadTitle, { color: isDark ? '#93C5FD' : BRAND_COLORS.blue600 }]}>
+                        AUTO-EXTRACT FROM STANDEE QR
                       </Text>
                     </View>
-                    <Text style={[styles.hintText, { color: isDark ? '#D1FAE5' : '#065F46' }]}>
-                      {t(
-                        'onboardingUpiHint',
-                        'Adding your UPI ID is completely optional. When enabled, every bill automatically generates a dynamic payment QR code with the exact bill amount, allowing customers to scan and pay directly to your account. You can configure or change this anytime in Settings.'
-                      )}
+                    <Text style={[styles.qrUploadDesc, { color: theme.textSecondary }]}>
+                      Upload a photo of your PhonePe, Google Pay, Paytm, or BharatPe standee/QR. We'll automatically extract your UPI ID so every future bill generates a dynamic QR with the exact customer bill amount prefilled!
                     </Text>
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={handlePickUpiQrImage}
+                      disabled={isScanningQr}
+                      style={[
+                        styles.qrScanActionBtn,
+                        {
+                          backgroundColor: isDark ? BRAND_COLORS.blue600 : BRAND_COLORS.navyInk,
+                        },
+                      ]}
+                    >
+                      {isScanningQr ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                      ) : (
+                        <>
+                          <Scan size={18} color="#FFFFFF" />
+                          <Text style={styles.qrScanActionBtnText}>
+                            {upiId.trim() ? 'Upload / Replace Standee QR' : 'Upload Standee QR Photo'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {upiId.trim() && isValidUpiVpa(upiId.trim()) ? (
+                      <View
+                        style={[
+                          styles.extractedSuccessBadge,
+                          {
+                            backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ECFDF5',
+                            borderColor: isDark ? 'rgba(16, 185, 129, 0.4)' : '#A7F3D0',
+                          },
+                        ]}
+                      >
+                        <CheckCircle2 size={16} color={isDark ? '#34D399' : '#059669'} />
+                        <Text style={[styles.extractedSuccessText, { color: isDark ? '#6EE7B7' : '#047857' }]}>
+                          Auto-configured: <Text style={{ fontWeight: '900' }}>{upiId.trim()}</Text> — Dynamic Amount Prefill Enabled
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
+
+                  <View style={styles.orDividerRow}>
+                    <View style={[styles.orDividerLine, { backgroundColor: theme.borderColor }]} />
+                    <Text style={[styles.orDividerText, { color: theme.textSecondary }]}>OR ENTER MANUALLY</Text>
+                    <View style={[styles.orDividerLine, { backgroundColor: theme.borderColor }]} />
+                  </View>
+
                   <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
                     {t('onboardingUpiId', 'Business UPI ID')} ({t('optional', 'Optional')})
                   </Text>
@@ -509,6 +599,7 @@ export default function OnboardingScreen() {
                   <Text style={[styles.helperText, { color: theme.textSecondary, marginTop: 4 }]}>
                     Enter your Virtual Payment Address (e.g. shopname@okhdfcbank). Tap Next to skip.
                   </Text>
+
                   {upiPreview ? (
                     <View
                       style={[
@@ -520,13 +611,14 @@ export default function OnboardingScreen() {
                       <Text style={[styles.qrPreviewNote, { color: theme.textSecondary }]}>
                         {t(
                           'onboardingUpiPreviewNote',
-                          'Sample QR only. Each real bill encodes that bill’s exact amount.'
+                          'Sample dynamic QR. When billing, this QR automatically encodes the customer’s exact grand total for 1-tap payment!'
                         )}
                       </Text>
                     </View>
                   ) : null}
                 </View>
               ) : null}
+
 
               {/* Step 4 (or Step 2 for pickTypeOnly): Workspace Type & Confirmation */}
               {showWorkspaceStep ? (
@@ -932,4 +1024,64 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
   },
+  qrUploadCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 16,
+  },
+  qrUploadTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  qrUploadDesc: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  qrScanActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  qrScanActionBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  extractedSuccessBadge: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  extractedSuccessText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  orDividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginVertical: 12,
+  },
+  orDividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  orDividerText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
 });
+

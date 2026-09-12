@@ -39,6 +39,7 @@ import {
   Camera,
   ChevronDown,
   ChevronUp,
+  Scan,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -56,6 +57,8 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { BusinessTypeIcon } from '@/components/ui/BusinessTypeIcon';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
 import { setStoredSettings } from '@/services/secureStore';
+import { extractUpiFromQrImageAsync, isValidUpiVpa } from '@/utils/billQrService';
+
 
 const SUPPORT_PHONE = '+918237869618';
 const SUPPORT_EMAIL = 'tech_support@seznik.in';
@@ -154,12 +157,56 @@ export default function SettingsScreen() {
     }
   };
 
+  const [isScanningQr, setIsScanningQr] = useState(false);
+
+  const handlePickUpiQrImage = async () => {
+    try {
+      const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert('Permission Needed', 'Please allow photo library access to upload your QR code standee or screenshot.');
+        return;
+      }
+      setIsScanningQr(true);
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.9,
+        allowsEditing: false,
+      });
+      if (!pickerResult.canceled && pickerResult.assets[0]?.uri) {
+        const assetUri = pickerResult.assets[0].uri;
+        const extracted = await extractUpiFromQrImageAsync(assetUri);
+        if (extracted && extracted.upiId) {
+          userEditedRef.current.upiId = true;
+          setUpiId(extracted.upiId);
+          if (extracted.payeeName && (!storeName.trim() || storeName === 'Your Store Name')) {
+            userEditedRef.current.storeName = true;
+            setStoreName(extracted.payeeName);
+          }
+          Alert.alert(
+            'UPI ID Extracted! 🎉',
+            `Found UPI ID: ${extracted.upiId}${extracted.payeeName ? `\nMerchant: ${extracted.payeeName}` : ''}\n\nReceipts and POS checkouts will now generate dynamic payment QR codes with the customer's exact invoice total prefilled!`
+          );
+        } else {
+          Alert.alert(
+            'QR Code Not Recognized',
+            'Could not find a valid UPI QR code in the selected photo. Please check that the QR is clear and well-lit, or type your UPI ID directly.'
+          );
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Scan Failed', err?.message || 'Failed to scan QR image. You can enter UPI ID manually.');
+    } finally {
+      setIsScanningQr(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     if (activeSection !== 'profile') {
       Alert.alert('Settings Saved!', 'Your store configuration has been updated.');
       setActiveSection('menu');
       return;
     }
+
 
     try {
       setIsSavingProfile(true);
@@ -748,9 +795,34 @@ export default function SettingsScreen() {
                     </View>
 
                     <View style={styles.inputFieldGroup}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>UPI ID (VPA)</Text>
-                        <Text style={[styles.inputHelp, { color: theme.textSecondary }]}>· Scannable QR on receipts</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={[styles.inputLabel, { color: theme.textPrimary, marginBottom: 0 }]}>UPI ID (VPA)</Text>
+                          <Text style={[styles.inputHelp, { color: theme.textSecondary }]}>· Dynamic Receipt QR</Text>
+                        </View>
+                        <TouchableOpacity
+                          activeOpacity={0.75}
+                          onPress={handlePickUpiQrImage}
+                          disabled={isScanningQr}
+                          style={[
+                            styles.miniQrScanBtn,
+                            {
+                              backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.2)' : 'rgba(37, 99, 235, 0.08)',
+                              borderColor: BRAND_COLORS.blue600,
+                            },
+                          ]}
+                        >
+                          {isScanningQr ? (
+                            <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                          ) : (
+                            <>
+                              <Scan size={13} color={BRAND_COLORS.blue600} />
+                              <Text style={[styles.miniQrScanBtnText, { color: BRAND_COLORS.blue600 }]}>
+                                Upload Standee QR
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
                       </View>
                       <View style={[styles.inputWrapper, { backgroundColor: theme.isDark ? '#18181B' : '#F8FAFC', borderColor: theme.borderColor }]}>
                         <QrCode size={18} color={theme.textSecondary} style={styles.fieldIcon} />
@@ -766,8 +838,14 @@ export default function SettingsScreen() {
                           autoCapitalize="none"
                         />
                       </View>
+                      <Text style={[styles.helperText, { color: theme.textSecondary, marginTop: 4, fontSize: 11 }]}>
+                        {upiId.trim() && isValidUpiVpa(upiId.trim())
+                          ? '✅ Enabled: Thermal receipts & POS checkouts will automatically encode each bill’s exact amount.'
+                          : 'Upload a photo of your QR standee to auto-extract your UPI ID, or type it manually.'}
+                      </Text>
                     </View>
                   </View>
+
 
                   <TouchableOpacity
                     activeOpacity={0.85}
@@ -1170,4 +1248,24 @@ const styles = StyleSheet.create({
   settingsErrorText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17, marginRight: 10 },
   settingsErrorRetryBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, backgroundColor: 'rgba(239, 68, 68, 0.12)', minWidth: 56, alignItems: 'center' },
   settingsErrorRetryText: { color: '#EF4444', fontWeight: '800', fontSize: 12 },
+
+  miniQrScanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  miniQrScanBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  helperText: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
 });
+
+

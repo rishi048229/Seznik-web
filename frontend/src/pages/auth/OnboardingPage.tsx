@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, QrCode, ArrowLeft, ArrowRight, Layers } from 'lucide-react'
+import { Check, QrCode, ArrowLeft, ArrowRight, Layers, Sparkles, Upload, CheckCircle2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -14,7 +14,8 @@ import {
   type BusinessType,
 } from '@/constants/businessTypes'
 import { LANGUAGES, type LanguageCode } from '@/i18n/translations'
-import { buildUpiPayLink, isValidUpiVpa } from '@/utils/upiQr'
+import { buildUpiPayLink, isValidUpiVpa, extractUpiFromQrImageFile, parseUpiIdFromQrString } from '@/utils/upiQr'
+
 
 const BANNER_GRADIENT = 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2e 100%)'
 
@@ -35,11 +36,40 @@ export const OnboardingPage = () => {
   )
   const [logoUrl, setLogoUrl] = useState('')
   const [upiId, setUpiId] = useState('')
+  const [isScanningQr, setIsScanningQr] = useState(false)
+  const [qrScanSuccess, setQrScanSuccess] = useState<string | null>(null)
+  const qrInputRef = useRef<HTMLInputElement>(null)
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(language)
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
+  const handleQrImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsScanningQr(true)
+    setError('')
+    try {
+      const extracted = await extractUpiFromQrImageFile(file)
+      if (extracted && extracted.upiId) {
+        setUpiId(extracted.upiId)
+        setQrScanSuccess(extracted.upiId)
+        if (extracted.payeeName && !businessName.trim()) {
+          setBusinessName(extracted.payeeName)
+        }
+      } else {
+        setError('Could not detect a valid UPI QR code from the image. Please enter your UPI ID manually below.')
+      }
+    } catch (err) {
+      console.warn('QR scan error:', err)
+      setError('Failed to scan QR image. Please enter your UPI ID manually.')
+    } finally {
+      setIsScanningQr(false)
+      if (qrInputRef.current) qrInputRef.current.value = ''
+    }
+  }
+
   const template = selectedBusinessType ? BUSINESS_TEMPLATES[selectedBusinessType] : null
+
   const selectedLabel = selectedBusinessType
     ? (BUSINESS_TYPE_OPTIONS.find(option => option.id === selectedBusinessType)?.label ?? 'Workspace')
     : 'Workspace'
@@ -384,25 +414,66 @@ export const OnboardingPage = () => {
               {/* Step 3: UPI Payment Details */}
               {showPaymentStep ? (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-50/90 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/20 p-4 sm:p-5 shadow-sm">
+                  {/* Standee Auto-Extract Card */}
+                  <div className="rounded-2xl border border-blue-200 dark:border-blue-900/50 bg-gradient-to-br from-blue-50/80 to-indigo-50/40 dark:from-blue-950/40 dark:to-indigo-950/20 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-start gap-3.5">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20 mt-0.5">
-                        <QrCode size={20} />
+                      <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-600/20 mt-0.5">
+                        <Sparkles size={20} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-emerald-900 dark:text-emerald-100">
-                            Direct QR Payments
-                          </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
-                            Optional
+                          <span className="text-xs font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
+                            Auto-Extract From Standee QR
                           </span>
                         </div>
-                        <p className="text-xs sm:text-sm text-emerald-950/90 dark:text-emerald-200 leading-relaxed">
-                          {t('onboarding.upiHint')}
+                        <p className="text-xs sm:text-sm text-blue-950/80 dark:text-blue-200 leading-relaxed mb-3">
+                          Upload a photo of your PhonePe, Google Pay, Paytm, or BharatPe QR standee. We'll automatically detect your UPI ID so every future bill generates a dynamic QR with the exact customer bill amount prefilled!
                         </p>
+
+                        <input
+                          type="file"
+                          ref={qrInputRef}
+                          onChange={handleQrImageUpload}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => qrInputRef.current?.click()}
+                          disabled={isScanningQr}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm disabled:opacity-60 cursor-pointer"
+                        >
+                          {isScanningQr ? (
+                            <>
+                              <Spinner size="sm" />
+                              <span>Scanning QR Standee...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} />
+                              <span>{upiId.trim() ? 'Upload / Replace Standee QR' : 'Upload Standee QR Photo'}</span>
+                            </>
+                          )}
+                        </button>
+
+                        {upiId.trim() && isValidUpiVpa(upiId.trim()) ? (
+                          <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                            <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>
+                              Configured: <strong className="font-bold">{upiId.trim()}</strong> — Dynamic Amount Prefill is active!
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="relative flex py-1 items-center">
+                    <div className="flex-grow border-t border-slate-200 dark:border-dark-border" />
+                    <span className="flex-shrink mx-4 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                      Or Enter Manually
+                    </span>
+                    <div className="flex-grow border-t border-slate-200 dark:border-dark-border" />
                   </div>
 
                   <Field label={t('onboarding.upiId') + ' (Optional)'}>
@@ -414,7 +485,6 @@ export const OnboardingPage = () => {
                       autoComplete="off"
                       inputMode="email"
                       spellCheck={false}
-                      autoFocus
                       className={fieldClass}
                     />
                     <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-1">
@@ -427,11 +497,14 @@ export const OnboardingPage = () => {
                       <div className="bg-white p-3.5 rounded-2xl shadow-sm ring-1 ring-slate-200/60">
                         <QRCodeSVG value={upiPreview} size={140} />
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-gray-400 text-center max-w-xs">{t('onboarding.upiPreviewNote')}</p>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 text-center max-w-xs">
+                        Sample dynamic QR. When billing, this QR automatically encodes each customer's exact invoice amount for 1-tap checkout!
+                      </p>
                     </div>
                   ) : null}
                 </div>
               ) : null}
+
 
               {/* Step 4 (or Step 2 for pickTypeOnly): Workspace Type & Confirmation */}
               {showWorkspaceStep ? (

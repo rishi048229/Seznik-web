@@ -47,7 +47,98 @@ export function getUpiQrImageUrl(params: UpiQrParams, size = 180): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=1&data=${encodeURIComponent(uri)}`
 }
 
+export interface ExtractedUpiDetails {
+  upiId: string
+  payeeName?: string
+  rawPayload: string
+}
+
+/**
+ * Parses a raw QR string payload (e.g. from a standee QR or UPI payment link)
+ * and extracts the merchant's Virtual Payment Address (VPA / UPI ID) and store name.
+ */
+export function parseUpiIdFromQrString(raw: string): ExtractedUpiDetails | null {
+  if (!raw || !raw.trim()) return null
+  const str = raw.trim()
+
+  // 1. Direct VPA string (e.g. shop@okhdfcbank or 9876543210@paytm)
+  if (isValidUpiVpa(str)) {
+    return { upiId: str, rawPayload: str }
+  }
+
+  // 2. UPI Deep Link (upi://pay?pa=...&pn=...)
+  if (str.toLowerCase().startsWith('upi://') || str.includes('pa=')) {
+    try {
+      const url = str.startsWith('upi://') ? str : `upi://${str}`
+      const queryIdx = url.indexOf('?')
+      if (queryIdx !== -1) {
+        const queryString = url.slice(queryIdx + 1)
+        const params = new URLSearchParams(queryString)
+        const pa = params.get('pa') || params.get('PA')
+        const pn = params.get('pn') || params.get('PN')
+        if (pa && isValidUpiVpa(pa.trim())) {
+          return {
+            upiId: pa.trim(),
+            payeeName: pn ? decodeURIComponent(pn).trim() : undefined,
+            rawPayload: str,
+          }
+        }
+      }
+    } catch {
+      // ignore & fallback to regex
+    }
+
+    const paMatch = str.match(/[?&]pa=([^&]+)/i)
+    const pnMatch = str.match(/[?&]pn=([^&]+)/i)
+    if (paMatch && paMatch[1]) {
+      const decodedPa = decodeURIComponent(paMatch[1]).trim()
+      if (isValidUpiVpa(decodedPa)) {
+        return {
+          upiId: decodedPa,
+          payeeName: pnMatch ? decodeURIComponent(pnMatch[1]).trim() : undefined,
+          rawPayload: str,
+        }
+      }
+    }
+  }
+
+  // 3. Fallback: match any VPA pattern inside the string
+  const vpaMatch = str.match(/[a-zA-Z0-9._-]{2,}@[a-zA-Z][a-zA-Z0-9.-]{1,}/)
+  if (vpaMatch && isValidUpiVpa(vpaMatch[0])) {
+    return { upiId: vpaMatch[0], rawPayload: str }
+  }
+
+  return null
+}
+
+/**
+ * Scans an uploaded QR code image file in the browser and extracts the merchant's UPI ID.
+ */
+export async function extractUpiFromQrImageFile(file: File): Promise<ExtractedUpiDetails | null> {
+  if (!file) return null
+  try {
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
+      const imageBitmap = await createImageBitmap(file)
+      const barcodes = await detector.detect(imageBitmap)
+      if (barcodes && barcodes.length > 0) {
+        for (const barcode of barcodes) {
+          if (barcode.rawValue) {
+            const parsed = parseUpiIdFromQrString(barcode.rawValue)
+            if (parsed) return parsed
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[upiQr] Web BarcodeDetector scan failed:', err)
+  }
+  return null
+}
+
 /** Renders the UPI QR for the given amount onto a canvas. */
 export async function drawUpiQrToCanvas(canvas: HTMLCanvasElement, params: UpiQrParams, size = 180): Promise<void> {
   await drawQrCodeToCanvas(canvas, buildUpiPayLink(params), size)
 }
+
+
