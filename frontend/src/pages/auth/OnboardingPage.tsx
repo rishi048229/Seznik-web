@@ -228,14 +228,6 @@ export const OnboardingPage = () => {
                 ),
                 label: 'PERSONALIZED SETUP',
               },
-              {
-                icon: (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                ),
-                label: 'MULTI-STORE READY',
-              },
             ].map(badge => (
               <div
                 key={badge.label}
@@ -248,6 +240,7 @@ export const OnboardingPage = () => {
             ))}
           </div>
         </section>
+
 
         {/* Right Form Content */}
         <section className="sm:w-[62%] px-8 py-9 sm:px-12 sm:py-12 bg-white dark:bg-dark-card flex flex-col justify-between">
