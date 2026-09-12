@@ -53,6 +53,7 @@ export const ProcessExchangeModal = ({
 
   // Settlement & Metadata
   const [settlementMethod, setSettlementMethod] = useState<string>('cash')
+  const [exchangeDiscount, setExchangeDiscount] = useState<string>('')
   const [reason, setReason] = useState<string>('size_fit_change')
   const [notes, setNotes] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -178,10 +179,14 @@ export const ProcessExchangeModal = ({
     }
   }, [newItems])
 
-  // Difference Amount & Settlement Calculation
+  // Difference Amount & Settlement Calculation (Incorporating explicit goodwill discount)
+  const cleanExchangeDiscount = useMemo(() => {
+    return Math.max(0, Number(exchangeDiscount) || 0)
+  }, [exchangeDiscount])
+
   const differenceAmount = useMemo(() => {
-    return round2(newSaleSummary.grandTotal - returnSummary.refundAmount)
-  }, [newSaleSummary.grandTotal, returnSummary.refundAmount])
+    return round2(newSaleSummary.grandTotal - returnSummary.refundAmount - cleanExchangeDiscount)
+  }, [newSaleSummary.grandTotal, returnSummary.refundAmount, cleanExchangeDiscount])
 
   const isEven = Math.abs(differenceAmount) < 0.01
   const isUpgrade = differenceAmount > 0
@@ -229,12 +234,6 @@ export const ProcessExchangeModal = ({
     } else {
       setNewItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: qty } : i)))
     }
-  }
-
-  const handleToggleNewItemPriceType = (id: string) => {
-    setNewItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, priceIncludesGst: !i.priceIncludesGst } : i))
-    )
   }
 
   const handleToggleReturnSelect = (key: string) => {
@@ -295,6 +294,7 @@ export const ProcessExchangeModal = ({
         newTotalTax: newSaleSummary.totalTax,
         newGrandTotal: newSaleSummary.grandTotal,
         differenceAmount,
+        exchangeDiscount: cleanExchangeDiscount,
         settlementMethod: isEven ? 'even_exchange' : settlementMethod,
         reason,
         notes,
@@ -482,18 +482,15 @@ export const ProcessExchangeModal = ({
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{item.name}</p>
                             {hasTax && (
-                              <button
-                                type="button"
-                                onClick={() => handleToggleNewItemPriceType(item.id)}
-                                title="Click to toggle Tax Inclusive / Exclusive"
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                                   item.priceIncludesGst
                                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                                 }`}
                               >
                                 {item.priceIncludesGst ? `Incl. ${item.taxRate}% GST` : `+${item.taxRate}% GST`}
-                              </button>
+                              </span>
                             )}
                           </div>
                           <p className="text-[11px] text-slate-400 mt-0.5">
@@ -558,6 +555,28 @@ export const ProcessExchangeModal = ({
                 <p className={`text-base font-extrabold mt-0.5 ${isUpgrade ? 'text-blue-600 dark:text-blue-400' : isDowngrade ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900'}`}>
                   {formatINR(Math.abs(differenceAmount))}
                 </p>
+              </div>
+            </div>
+
+            {/* Exchange Adjustment / Goodwill Discount Input */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  Exchange Adjustment / Goodwill Discount (₹)
+                </span>
+                <p className="text-[11px] text-slate-400">Absorb small price gaps or offer customer courtesy discount</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-bold">₹</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  placeholder="0.00"
+                  value={exchangeDiscount}
+                  onChange={(e) => setExchangeDiscount(e.target.value)}
+                  className="w-24 px-2 py-1 text-xs border rounded-lg bg-white dark:bg-slate-900 font-bold text-right text-emerald-600 dark:text-emerald-400"
+                />
               </div>
             </div>
 

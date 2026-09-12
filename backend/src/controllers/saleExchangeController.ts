@@ -110,8 +110,9 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'New replacement sale grand total must be greater than zero' });
     }
 
-    // 3. Compute Net Difference Amount & Settlement
-    const differenceAmount = round2(newGrandTotal - computedReturn.refundAmount);
+    // 3. Compute Net Difference Amount & Settlement (incorporating optional goodwill discount)
+    const exchangeDiscount = round2(Math.max(0, Number(body.exchangeDiscount) || 0));
+    const differenceAmount = round2(newGrandTotal - computedReturn.refundAmount - exchangeDiscount);
 
     let settlementMethod = String(body.settlementMethod || body.paymentMethod || '').trim();
     if (Math.abs(differenceAmount) < 0.01) {
@@ -163,7 +164,7 @@ export const createSaleExchange = async (req: Request, res: Response) => {
         customerId: originalSale.customerId,
         items: newItems as any,
         subtotal: newSubtotal,
-        totalDiscount: newTotalDiscount,
+        totalDiscount: round2(newTotalDiscount + exchangeDiscount),
         totalTax: newTotalTax,
         grandTotal: newGrandTotal,
         billCharges: newBillCharges as any,
@@ -187,6 +188,7 @@ export const createSaleExchange = async (req: Request, res: Response) => {
         saleReturnId: saleReturn.id,
         newSaleId: newSale.id,
         differenceAmount,
+        exchangeDiscount,
         settlementMethod,
         reason: body.reason ? String(body.reason).trim() : null,
         notes: body.notes ? String(body.notes).trim() : null,

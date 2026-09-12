@@ -723,6 +723,7 @@ model SaleExchange {
   newSaleId        String      @unique
   newSale          Sale        @relation("NewSaleExchange", fields: [newSaleId], references: [id], onDelete: Cascade)
   differenceAmount Float       // newSale.grandTotal - saleReturn.refundAmount (>0 customer pays, <0 store refunds, ==0 even)
+  exchangeDiscount Float       @default(0) // Explicit merchant goodwill / exchange adjustment discount
   settlementMethod String      // 'even_exchange' | 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_ledger'
   reason           String?     // 'defective' | 'size_fit_change' | 'customer_preference' | 'wrong_item' | 'other'
   notes            String?

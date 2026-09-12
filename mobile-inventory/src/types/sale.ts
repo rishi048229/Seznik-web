@@ -118,6 +118,7 @@ export interface SaleExchange {
   newSaleId: string;
   newSale?: Sale;
   differenceAmount: number;
+  exchangeDiscount?: number;
   settlementMethod: string;
   reason?: string | null;
   notes?: string | null;
@@ -148,6 +149,7 @@ export interface CreateSaleExchangePayload {
   newTotalTax: number;
   newGrandTotal: number;
   differenceAmount?: number;
+  exchangeDiscount?: number;
   settlementMethod?: string;
   reason?: string;
   notes?: string;

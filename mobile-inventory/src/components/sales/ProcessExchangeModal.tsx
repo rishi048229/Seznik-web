@@ -60,6 +60,7 @@ export function ProcessExchangeModal({
 
   // Settlement & Metadata
   const [settlementMethod, setSettlementMethod] = useState<'cash' | 'upi' | 'card' | 'store_credit' | 'credit_ledger'>('cash');
+  const [exchangeDiscount, setExchangeDiscount] = useState('');
   const [reason, setReason] = useState('size_fit_change');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -176,10 +177,14 @@ export function ProcessExchangeModal({
     };
   }, [newItems]);
 
-  // Difference Amount
+  // Difference Amount & Settlement Calculation (Incorporating goodwill discount)
+  const cleanExchangeDiscount = useMemo(() => {
+    return Math.max(0, Number(exchangeDiscount) || 0);
+  }, [exchangeDiscount]);
+
   const differenceAmount = useMemo(() => {
-    return round2(newSaleSummary.grandTotal - returnSummary.refundAmount);
-  }, [newSaleSummary.grandTotal, returnSummary.refundAmount]);
+    return round2(newSaleSummary.grandTotal - returnSummary.refundAmount - cleanExchangeDiscount);
+  }, [newSaleSummary.grandTotal, returnSummary.refundAmount, cleanExchangeDiscount]);
 
   const isEven = Math.abs(differenceAmount) < 0.01;
   const isUpgrade = differenceAmount > 0;
@@ -296,6 +301,7 @@ export function ProcessExchangeModal({
         newTotalTax: newSaleSummary.totalTax,
         newGrandTotal: newSaleSummary.grandTotal,
         differenceAmount,
+        exchangeDiscount: cleanExchangeDiscount,
         settlementMethod: isEven ? 'even_exchange' : settlementMethod,
         reason,
         notes,
@@ -493,10 +499,9 @@ export function ProcessExchangeModal({
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <Text style={styles.addedItemName}>{item.name}</Text>
                             {hasTax && (
-                              <TouchableOpacity
-                                onPress={() => handleToggleNewItemPriceType(item.id)}
+                              <View
                                 style={{
-                                  backgroundColor: item.priceIncludesGst ? '#c6f6d5' : '#feebc8',
+                                  backgroundColor: item.priceIncludesGst ? '#c6f6d5' : '#edf2f7',
                                   paddingHorizontal: 5,
                                   paddingVertical: 1,
                                   borderRadius: 4,
@@ -506,12 +511,12 @@ export function ProcessExchangeModal({
                                   style={{
                                     fontSize: 9,
                                     fontWeight: '700',
-                                    color: item.priceIncludesGst ? '#22543d' : '#7b341e',
+                                    color: item.priceIncludesGst ? '#22543d' : '#4a5568',
                                   }}
                                 >
                                   {item.priceIncludesGst ? `Incl. ${item.taxRate}% GST` : `+${item.taxRate}% GST`}
                                 </Text>
-                              </TouchableOpacity>
+                              </View>
                             )}
                           </View>
                           <Text style={styles.addedItemSub}>
@@ -569,6 +574,19 @@ export function ProcessExchangeModal({
                   >
                     ₹{Math.abs(differenceAmount).toFixed(2)}
                   </Text>
+                </View>
+
+                {/* Goodwill / Exchange Discount Row */}
+                <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0' }}>
+                  <Text style={styles.ctrlLabel}>Goodwill / Exchange Discount (₹):</Text>
+                  <TextInput
+                    placeholder="0.00 (optional discount)"
+                    placeholderTextColor="#a0aec0"
+                    keyboardType="numeric"
+                    value={exchangeDiscount}
+                    onChangeText={setExchangeDiscount}
+                    style={[styles.notesInput, { color: '#38a169', fontWeight: '700' }]}
+                  />
                 </View>
 
                 {/* Settlement Method Selector */}

@@ -11,6 +11,7 @@ export interface OriginalSaleItem {
   priceIncludesGst?: boolean;
   discount?: number;
   discountAmount?: number;
+  taxAmount?: number;
   total?: number;
 }
 
@@ -84,11 +85,19 @@ export function calculateReturnSummary(
     const taxRate = Number(orig.taxRate ?? 0);
     const priceIncludesGst = Boolean(orig.priceIncludesGst);
     const discount = Number(orig.discountAmount ?? orig.discount ?? 0);
+    const taxAmount = Number(orig.taxAmount ?? 0);
 
     let originalLineTotal = Number(orig.total);
     if (!Number.isFinite(originalLineTotal) || originalLineTotal <= 0) {
       const gross = unitPrice * origQty - discount;
       originalLineTotal = priceIncludesGst || taxRate === 0 ? gross : gross * (1 + taxRate / 100);
+    } else if (!priceIncludesGst && taxRate > 0) {
+      // If line item total was saved as pre-tax subtotal (unitPrice * origQty - discount), include the GST customer paid
+      if (taxAmount > 0 && Math.abs(originalLineTotal - (unitPrice * origQty - discount)) < 0.01) {
+        originalLineTotal = round2(originalLineTotal + taxAmount);
+      } else if (Math.abs(originalLineTotal - (unitPrice * origQty - discount)) < 0.01) {
+        originalLineTotal = round2(originalLineTotal * (1 + taxRate / 100));
+      }
     }
 
     // Proportional refund for this line

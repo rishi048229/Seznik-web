@@ -108,6 +108,7 @@ export interface SaleExchange {
   newSaleId: string
   newSale?: Sale
   differenceAmount: number
+  exchangeDiscount?: number
   settlementMethod: 'even_exchange' | 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_ledger' | string
   reason?: string | null
   notes?: string | null
@@ -146,6 +147,7 @@ export interface CreateSaleExchangePayload {
   newBillCharges?: AppliedBillCharge[] | null
   newExtraChargesTotal?: number
   differenceAmount?: number
+  exchangeDiscount?: number
   settlementMethod?: 'even_exchange' | 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_ledger' | string
   amountPaid?: number
   changeReturned?: number
