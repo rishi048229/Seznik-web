@@ -231,6 +231,12 @@ export const ProcessExchangeModal = ({
     }
   }
 
+  const handleToggleNewItemPriceType = (id: string) => {
+    setNewItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, priceIncludesGst: !i.priceIncludesGst } : i))
+    )
+  }
+
   const handleToggleReturnSelect = (key: string) => {
     setReturnSelection((prev) => {
       const curr = prev[key] || { selected: false, quantity: 1, restock: true }
@@ -460,36 +466,60 @@ export const ProcessExchangeModal = ({
                     Search and pick replacement products above
                   </div>
                 ) : (
-                  newItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{item.name}</p>
-                        <p className="text-[11px] text-slate-400">
-                          {formatINR(item.price)} × {item.quantity} = <strong>{formatINR(item.price * item.quantity)}</strong>
-                        </p>
-                      </div>
+                  newItems.map((item) => {
+                    const calcLine = newSaleSummary.billResult?.lines?.find(
+                      (l) => l.id === (item.productId || item.id)
+                    )
+                    const lineFinal = calcLine ? calcLine.lineFinalAmount : (item.price * item.quantity)
+                    const hasTax = item.taxRate > 0
 
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={1}
-                          value={item.quantity}
-                          onChange={(e) => handleUpdateNewItemQty(item.id, parseInt(e.target.value) || 1)}
-                          className="w-12 px-1 py-1 text-xs border rounded bg-white dark:bg-slate-900 text-center font-bold"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveNewItem(item.id)}
-                          className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{item.name}</p>
+                            {hasTax && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleNewItemPriceType(item.id)}
+                                title="Click to toggle Tax Inclusive / Exclusive"
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                                  item.priceIncludesGst
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                }`}
+                              >
+                                {item.priceIncludesGst ? `Incl. ${item.taxRate}% GST` : `+${item.taxRate}% GST`}
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {formatINR(item.price)} × {item.quantity} = <strong className="text-slate-700 dark:text-slate-200">{formatINR(lineFinal)}</strong>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateNewItemQty(item.id, parseInt(e.target.value) || 1)}
+                            className="w-12 px-1 py-1 text-xs border rounded bg-white dark:bg-slate-900 text-center font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNewItem(item.id)}
+                            className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>

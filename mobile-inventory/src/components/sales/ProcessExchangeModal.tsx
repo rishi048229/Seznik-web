@@ -172,6 +172,7 @@ export function ProcessExchangeModal({
       subtotal: billResult.totalTaxableValue,
       totalTax: billResult.totalTax,
       grandTotal: billResult.finalInvoiceTotal,
+      billResult,
     };
   }, [newItems]);
 
@@ -226,6 +227,12 @@ export function ProcessExchangeModal({
     } else {
       setNewItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: qty } : i)));
     }
+  };
+
+  const handleToggleNewItemPriceType = (id: string) => {
+    setNewItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, priceIncludesGst: !i.priceIncludesGst } : i))
+    );
   };
 
   const handleToggleReturnSelect = (key: string) => {
@@ -473,37 +480,68 @@ export function ProcessExchangeModal({
                 {newItems.length === 0 ? (
                   <Text style={styles.emptyItemsText}>Search and add replacement items above</Text>
                 ) : (
-                  newItems.map((item) => (
-                    <View key={item.id} style={styles.addedItemCard}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.addedItemName}>{item.name}</Text>
-                        <Text style={styles.addedItemSub}>
-                          ₹{item.price} × {item.quantity} = ₹{(item.price * item.quantity).toFixed(2)}
-                        </Text>
+                  newItems.map((item) => {
+                    const calcLine = newSaleSummary.billResult?.lines?.find(
+                      (l) => l.id === (item.productId || item.id)
+                    );
+                    const lineFinal = calcLine ? calcLine.lineFinalAmount : (item.price * item.quantity);
+                    const hasTax = item.taxRate > 0;
+
+                    return (
+                      <View key={item.id} style={styles.addedItemCard}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Text style={styles.addedItemName}>{item.name}</Text>
+                            {hasTax && (
+                              <TouchableOpacity
+                                onPress={() => handleToggleNewItemPriceType(item.id)}
+                                style={{
+                                  backgroundColor: item.priceIncludesGst ? '#c6f6d5' : '#feebc8',
+                                  paddingHorizontal: 5,
+                                  paddingVertical: 1,
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 9,
+                                    fontWeight: '700',
+                                    color: item.priceIncludesGst ? '#22543d' : '#7b341e',
+                                  }}
+                                >
+                                  {item.priceIncludesGst ? `Incl. ${item.taxRate}% GST` : `+${item.taxRate}% GST`}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <Text style={styles.addedItemSub}>
+                            ₹{item.price} × {item.quantity} = <Text style={{ fontWeight: '700', color: theme.textPrimary }}>₹{lineFinal.toFixed(2)}</Text>
+                          </Text>
+                        </View>
+                        <View style={styles.qtyControl}>
+                          <TouchableOpacity
+                            onPress={() => handleUpdateNewItemQty(item.id, item.quantity - 1)}
+                            style={styles.qtyBtn}
+                          >
+                            <Text style={styles.qtyBtnText}>-</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.qtyVal}>{item.quantity}</Text>
+                          <TouchableOpacity
+                            onPress={() => handleUpdateNewItemQty(item.id, item.quantity + 1)}
+                            style={styles.qtyBtn}
+                          >
+                            <Text style={styles.qtyBtnText}>+</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleRemoveNewItem(item.id)}
+                            style={{ marginLeft: 8, padding: 4 }}
+                          >
+                            <Trash2 size={16} color="#e53e3e" />
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                      <View style={styles.qtyControl}>
-                        <TouchableOpacity
-                          onPress={() => handleUpdateNewItemQty(item.id, item.quantity - 1)}
-                          style={styles.qtyBtn}
-                        >
-                          <Text style={styles.qtyBtnText}>-</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.qtyVal}>{item.quantity}</Text>
-                        <TouchableOpacity
-                          onPress={() => handleUpdateNewItemQty(item.id, item.quantity + 1)}
-                          style={styles.qtyBtn}
-                        >
-                          <Text style={styles.qtyBtnText}>+</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleRemoveNewItem(item.id)}
-                          style={{ marginLeft: 8, padding: 4 }}
-                        >
-                          <Trash2 size={16} color="#e53e3e" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
+                    );
+                  })
                 )}
               </View>
 
