@@ -157,4 +157,135 @@ describe('Sale Exchange & Replacement Calculations', () => {
     expect(returnLeg.items[0].restock).toBe(false);
     expect(returnLeg.refundAmount).toBe(1416);
   });
+
+  // -------------------------------------------------------------------------
+  // 5. Mandatory Invariant: Same Product, Same Quantity Must Net to Zero (Tax-Exclusive)
+  // -------------------------------------------------------------------------
+  it('enforces mandatory invariant: same product (tax-exclusive), same quantity nets to exactly Rs. 0.00', () => {
+    // Current live DB product state: sellingPrice = 55, taxRate = 5%, priceIncludesGst = false
+    const liveProduct = {
+      productId: 'diet-coke-1',
+      name: 'Diet Coke',
+      sellingPrice: 55,
+      taxRate: 5,
+      priceIncludesGst: false,
+    };
+
+    // Original sale line item (POS storage format: total = 55, taxAmount = 2.75)
+    const originalItems: OriginalSaleItem[] = [
+      {
+        productId: liveProduct.productId,
+        productName: liveProduct.name,
+        quantity: 1,
+        sellingPrice: liveProduct.sellingPrice,
+        taxRate: liveProduct.taxRate,
+        priceIncludesGst: liveProduct.priceIncludesGst,
+        total: 55,
+        taxAmount: 2.75,
+      },
+    ];
+
+    // Inward Leg: Return 1 unit
+    const returnLeg = calculateReturnSummary(
+      originalItems,
+      [{ productId: liveProduct.productId, quantity: 1, restock: true }],
+      0
+    );
+
+    // Return credit: 55.00 + 2.75 = 57.75
+    expect(returnLeg.refundAmount).toBe(57.75);
+    expect(returnLeg.subtotal).toBe(55);
+    expect(returnLeg.totalTax).toBe(2.75);
+
+    // Outward Leg: Replace with 1 unit of the EXACT SAME product using live DB state
+    const newSaleBill = calculateGstBill({
+      lineItems: [
+        {
+          id: liveProduct.productId,
+          name: liveProduct.name,
+          price: liveProduct.sellingPrice,
+          qty: 1,
+          gstRate: liveProduct.taxRate,
+          priceType: liveProduct.priceIncludesGst ? 'inclusive' : 'exclusive',
+        },
+      ],
+      roundingMode: 'none',
+    });
+
+    // Replacement line item must be exactly 57.75
+    expect(newSaleBill.lines[0].lineFinalAmount).toBe(57.75);
+    expect(newSaleBill.lines[0].lineGstAmount).toBe(2.75);
+
+    // Replacement header total must equal the exact sum of line items (57.75)
+    expect(newSaleBill.finalInvoiceTotal).toBe(57.75);
+    expect(newSaleBill.totalTaxableValue).toBe(55);
+    expect(newSaleBill.totalTax).toBe(2.75);
+
+    // Difference must be EXACTLY 0.00
+    const differenceAmount = round2(newSaleBill.finalInvoiceTotal - returnLeg.refundAmount);
+    expect(differenceAmount).toBe(0.00);
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. Mandatory Invariant: Same Product, Same Quantity Must Net to Zero (Tax-Inclusive)
+  // -------------------------------------------------------------------------
+  it('enforces mandatory invariant: same product (tax-inclusive), same quantity nets to exactly Rs. 0.00', () => {
+    // Current live DB product state: sellingPrice = 55, taxRate = 5%, priceIncludesGst = true
+    const liveProduct = {
+      productId: 'diet-coke-incl',
+      name: 'Diet Coke (MRP Inclusive)',
+      sellingPrice: 55,
+      taxRate: 5,
+      priceIncludesGst: true,
+    };
+
+    // Original sale line item (total = 55)
+    const originalItems: OriginalSaleItem[] = [
+      {
+        productId: liveProduct.productId,
+        productName: liveProduct.name,
+        quantity: 1,
+        sellingPrice: liveProduct.sellingPrice,
+        taxRate: liveProduct.taxRate,
+        priceIncludesGst: liveProduct.priceIncludesGst,
+        total: 55,
+      },
+    ];
+
+    // Inward Leg: Return 1 unit
+    const returnLeg = calculateReturnSummary(
+      originalItems,
+      [{ productId: liveProduct.productId, quantity: 1, restock: true }],
+      0
+    );
+
+    // Return credit: 55.00 (taxable 52.38 + tax 2.62)
+    expect(returnLeg.refundAmount).toBe(55);
+    expect(returnLeg.subtotal).toBe(52.38);
+    expect(returnLeg.totalTax).toBe(2.62);
+
+    // Outward Leg: Replace with 1 unit of the EXACT SAME product
+    const newSaleBill = calculateGstBill({
+      lineItems: [
+        {
+          id: liveProduct.productId,
+          name: liveProduct.name,
+          price: liveProduct.sellingPrice,
+          qty: 1,
+          gstRate: liveProduct.taxRate,
+          priceType: liveProduct.priceIncludesGst ? 'inclusive' : 'exclusive',
+        },
+      ],
+      roundingMode: 'none',
+    });
+
+    // Replacement total: 55.00
+    expect(newSaleBill.finalInvoiceTotal).toBe(55);
+    expect(newSaleBill.totalTaxableValue).toBe(52.38);
+    expect(newSaleBill.totalTax).toBe(2.62);
+
+    // Difference must be EXACTLY 0.00
+    const differenceAmount = round2(newSaleBill.finalInvoiceTotal - returnLeg.refundAmount);
+    expect(differenceAmount).toBe(0.00);
+  });
 });

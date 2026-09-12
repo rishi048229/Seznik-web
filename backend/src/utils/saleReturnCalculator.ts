@@ -107,8 +107,13 @@ export function calculateReturnSummary(
     let lineGst = 0;
 
     if (taxRate > 0) {
-      lineTaxable = round2(lineRefund / (1 + taxRate / 100));
-      lineGst = round2(lineRefund - lineTaxable);
+      if (priceIncludesGst) {
+        lineTaxable = round2(lineRefund / (1 + taxRate / 100));
+        lineGst = round2(lineRefund - lineTaxable);
+      } else {
+        lineTaxable = round2((unitPrice * origQty - discount) * ratio);
+        lineGst = round2(lineRefund - lineTaxable);
+      }
     }
 
     computedLines.push({

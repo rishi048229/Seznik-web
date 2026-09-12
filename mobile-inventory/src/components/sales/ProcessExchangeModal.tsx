@@ -167,6 +167,7 @@ export function ProcessExchangeModal({
         gstRate: item.taxRate,
         priceType: item.priceIncludesGst ? 'inclusive' : 'exclusive',
       })),
+      roundingMode: 'none',
     });
 
     return {
@@ -232,12 +233,6 @@ export function ProcessExchangeModal({
     } else {
       setNewItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: qty } : i)));
     }
-  };
-
-  const handleToggleNewItemPriceType = (id: string) => {
-    setNewItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, priceIncludesGst: !i.priceIncludesGst } : i))
-    );
   };
 
   const handleToggleReturnSelect = (key: string) => {
@@ -569,10 +564,10 @@ export function ProcessExchangeModal({
                   <Text
                     style={[
                       styles.settleTotalVal,
-                      { color: isUpgrade ? '#3182ce' : isDowngrade ? '#38a169' : '#2d3748' },
+                      { color: isUpgrade ? '#3182ce' : isDowngrade ? '#38a169' : theme.textPrimary },
                     ]}
                   >
-                    ₹{Math.abs(differenceAmount).toFixed(2)}
+                    {isEven ? '₹0.00' : `₹${Math.abs(differenceAmount).toFixed(2)}`}
                   </Text>
                 </View>
 

@@ -133,4 +133,40 @@ describe('Sales Return & Refund Calculations', () => {
     expect(pl.netProfit).toBe(26800); // 41,800 - 15,000
     expect(pl.returnsDeducted).toBe(10000);
   });
+
+  // -------------------------------------------------------------------------
+  // 5. Tax-Exclusive Item with POS Storage Format (total = pre-tax, taxAmount = GST)
+  // -------------------------------------------------------------------------
+  it('correctly calculates refund and tax components for tax-exclusive items saved in POS DB format', () => {
+    // POS sale line: 2 units @ Rs. 55 each, 5% GST excluded
+    // Stored in DB: sellingPrice = 55, total = 110 (pre-tax subtotal), taxAmount = 5.50
+    // Total customer paid for this line = 115.50
+    const originalItems: OriginalSaleItem[] = [
+      {
+        productId: 'diet-coke',
+        productName: 'Diet Coke (Tax Exclusive)',
+        quantity: 2,
+        sellingPrice: 55,
+        taxRate: 5,
+        priceIncludesGst: false,
+        total: 110, // Pre-tax subtotal stored in DB
+        taxAmount: 5.5, // GST stored in DB
+      },
+    ];
+
+    // Customer returns 1 unit
+    const returnRequests: ReturnItemRequest[] = [
+      { productId: 'diet-coke', quantity: 1, restock: true },
+    ];
+
+    const summary = calculateReturnSummary(originalItems, returnRequests, 0);
+
+    // Expected refund for 1 unit: 55 + 2.75 = 57.75
+    expect(summary.refundAmount).toBe(57.75);
+    expect(summary.subtotal).toBe(55);
+    expect(summary.totalTax).toBe(2.75);
+    expect(round2(summary.subtotal + summary.totalTax + summary.extraChargesRefunded)).toBe(summary.refundAmount);
+  });
 });
+
+

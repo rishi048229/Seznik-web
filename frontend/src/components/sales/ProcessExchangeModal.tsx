@@ -38,7 +38,7 @@ export const ProcessExchangeModal = ({
   onClose,
   onSuccess,
 }: ProcessExchangeModalProps) => {
-  const { data: products = [] } = useProducts()
+  const { data: products = [], refetch: refetchProducts } = useProducts()
   const [loadingPastReturns, setLoadingPastReturns] = useState(false)
   const [pastReturns, setPastReturns] = useState<any[]>([])
   
@@ -58,11 +58,12 @@ export const ProcessExchangeModal = ({
   const [notes, setNotes] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Fetch past returns on mount
+  // Fetch past returns and ensure latest product catalog on mount
   useEffect(() => {
     if (!isOpen || !sale?.id) return
 
     let isMounted = true
+    refetchProducts().catch(() => {})
     setLoadingPastReturns(true)
     getReturnsForSale(sale.id)
       .then((returns) => {
@@ -169,6 +170,7 @@ export const ProcessExchangeModal = ({
         gstRate: item.taxRate,
         priceType: item.priceIncludesGst ? 'inclusive' : 'exclusive',
       })),
+      roundingMode: 'none',
     })
 
     return {
@@ -548,12 +550,12 @@ export const ProcessExchangeModal = ({
                   -{formatINR(returnSummary.refundAmount)}
                 </p>
               </div>
-              <div className={`p-3 rounded-lg border ${isUpgrade ? 'bg-blue-50/50 dark:bg-blue-950/40 border-blue-200' : isDowngrade ? 'bg-emerald-50/50 dark:bg-emerald-950/40 border-emerald-200' : 'bg-white dark:bg-slate-900'}`}>
-                <span className="text-slate-500 font-medium">
+              <div className={`p-3 rounded-lg border ${isUpgrade ? 'bg-blue-50/50 dark:bg-blue-950/40 border-blue-200' : isDowngrade ? 'bg-emerald-50/50 dark:bg-emerald-950/40 border-emerald-200' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">
                   {isEven ? 'Net Difference' : isUpgrade ? 'Customer Pays' : 'Store Refunds'}
                 </span>
-                <p className={`text-base font-extrabold mt-0.5 ${isUpgrade ? 'text-blue-600 dark:text-blue-400' : isDowngrade ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900'}`}>
-                  {formatINR(Math.abs(differenceAmount))}
+                <p className={`text-base font-extrabold mt-0.5 ${isUpgrade ? 'text-blue-600 dark:text-blue-400' : isDowngrade ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-slate-100'}`}>
+                  {isEven ? '₹0.00' : formatINR(Math.abs(differenceAmount))}
                 </p>
               </div>
             </div>

@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
 import { calculateReturnSummary, ReturnItemRequest, round2 } from '../utils/saleReturnCalculator';
+import { calculateGstBill } from '../utils/gstTaxEngine';
 
 export const createSaleExchange = async (req: Request, res: Response) => {
   try {
@@ -33,6 +34,34 @@ export const createSaleExchange = async (req: Request, res: Response) => {
     }
 
     const originalItems = Array.isArray(originalSale.items) ? (originalSale.items as any[]) : [];
+
+    // 2. Validate replacement items (Outward Leg)
+    const rawNewItems: any[] = Array.isArray(body.newItems || body.replacementItems)
+      ? (body.newItems || body.replacementItems)
+      : [];
+
+    if (rawNewItems.length === 0) {
+      return res.status(400).json({ error: 'At least one replacement item must be selected' });
+    }
+
+    // Fetch LIVE product records from DB for all products involved in exchange (both legs)
+    const replacementProductIds = rawNewItems
+      .map((i: any) => i.productId || i.id)
+      .filter((id: any): id is string => Boolean(id) && typeof id === 'string' && !id.startsWith('manual-') && !id.startsWith('new-'));
+    
+    const returnProductIds = returnRequests
+      .map((r: any) => r.productId || r.id)
+      .filter((id: any): id is string => Boolean(id) && typeof id === 'string');
+
+    const allProductIds = Array.from(new Set([...replacementProductIds, ...returnProductIds]));
+
+    const liveProducts = allProductIds.length > 0
+      ? await prisma.product.findMany({
+          where: { id: { in: allProductIds }, userId },
+        })
+      : [];
+
+    const liveProductMap = new Map(liveProducts.map((p) => [p.id, p]));
 
     // Tally previously returned quantities per line item
     const previouslyReturnedMap = new Map<string, number>();
@@ -77,8 +106,20 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       }
     }
 
+    // Inward Leg computation using live product tax mode if not explicitly saved on original line
+    const enrichedOriginalItems = originalItems.map((orig: any) => {
+      const prodId = orig.productId || orig.id;
+      const liveProd = prodId ? liveProductMap.get(prodId) : null;
+      return {
+        ...orig,
+        priceIncludesGst: orig.priceIncludesGst !== undefined 
+          ? orig.priceIncludesGst 
+          : (liveProd ? liveProd.priceIncludesGst : false),
+      };
+    });
+
     const extraChargesRefunded = Number(body.extraChargesRefunded) || 0;
-    const computedReturn = calculateReturnSummary(originalItems, returnRequests, extraChargesRefunded);
+    const computedReturn = calculateReturnSummary(enrichedOriginalItems, returnRequests, extraChargesRefunded);
 
     if (computedReturn.refundAmount <= 0) {
       return res.status(400).json({ error: 'Computed return credit value must be greater than zero' });
@@ -90,25 +131,74 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Return leg reconciliation mismatch' });
     }
 
-    // 2. Validate replacement items (Outward Leg)
-    const newItems: any[] = Array.isArray(body.newItems || body.replacementItems)
-      ? (body.newItems || body.replacementItems)
-      : [];
+    // Outward Leg computation using LIVE product tax configs and pricing from DB
+    const preparedNewItems = rawNewItems.map((item: any) => {
+      const prodId = item.productId || item.id;
+      const liveProd = prodId ? liveProductMap.get(prodId) : null;
+      const qty = Math.max(1, Number(item.quantity || item.qty) || 1);
+      const unitPrice = liveProd ? Number(liveProd.sellingPrice) : Number(item.price ?? item.sellingPrice ?? 0);
+      const taxRate = liveProd ? Number(liveProd.taxRate) || 0 : Number(item.taxRate ?? item.gstRate ?? 0);
+      const priceIncludesGst = liveProd ? Boolean(liveProd.priceIncludesGst) : Boolean(item.priceIncludesGst);
+      const discount = Number(item.discount || item.discountAmount || 0);
 
-    if (newItems.length === 0) {
-      return res.status(400).json({ error: 'At least one replacement item must be selected' });
-    }
+      return {
+        id: prodId,
+        productId: liveProd ? liveProd.id : (item.productId || undefined),
+        productName: liveProd ? liveProd.name : (item.productName || item.name || 'Product'),
+        name: liveProd ? liveProd.name : (item.productName || item.name || 'Product'),
+        quantity: qty,
+        qty,
+        price: unitPrice,
+        sellingPrice: unitPrice,
+        unitPrice,
+        taxRate,
+        gstRate: taxRate,
+        priceIncludesGst,
+        priceType: priceIncludesGst ? ('inclusive' as const) : ('exclusive' as const),
+        discount,
+      };
+    });
 
-    const newSubtotal = round2(Number(body.newSubtotal ?? body.newSale?.subtotal ?? 0));
-    const newTotalDiscount = round2(Number(body.newTotalDiscount ?? body.newSale?.totalDiscount ?? 0));
-    const newTotalTax = round2(Number(body.newTotalTax ?? body.newSale?.totalTax ?? 0));
-    const newGrandTotal = round2(Number(body.newGrandTotal ?? body.newSale?.grandTotal ?? 0));
+    const calculatedBill = calculateGstBill({
+      lineItems: preparedNewItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        qty: item.quantity,
+        gstRate: item.taxRate,
+        priceType: item.priceType,
+        discount: item.discount,
+      })),
+      roundingMode: (body.roundingMode as any) || 'none',
+    });
+
+    const newSubtotal = calculatedBill.totalTaxableValue;
+    const newTotalDiscount = calculatedBill.totalDiscounts;
+    const newTotalTax = calculatedBill.totalTax;
+    const newGrandTotal = calculatedBill.finalInvoiceTotal;
     const newBillCharges = body.newBillCharges ?? body.newSale?.billCharges ?? null;
     const newExtraChargesTotal = round2(Number(body.newExtraChargesTotal ?? body.newSale?.extraChargesTotal ?? 0));
 
     if (newGrandTotal <= 0) {
       return res.status(400).json({ error: 'New replacement sale grand total must be greater than zero' });
     }
+
+    // Stored line items for new sale
+    const storedNewSaleItems = calculatedBill.lines.map((line, idx) => {
+      const origInput = preparedNewItems[idx];
+      return {
+        productId: origInput?.productId,
+        productName: line.name,
+        quantity: line.qty,
+        sellingPrice: origInput?.price ?? line.rawPrice,
+        taxRate: line.gstRate,
+        priceIncludesGst: origInput?.priceIncludesGst ?? false,
+        discount: line.itemDiscountAmount,
+        taxableAmount: line.lineTaxableValue,
+        taxAmount: line.lineGstAmount,
+        total: origInput?.priceIncludesGst ? line.lineFinalAmount : line.lineTaxableValue,
+      };
+    });
 
     // 3. Compute Net Difference Amount & Settlement (incorporating optional goodwill discount)
     const exchangeDiscount = round2(Math.max(0, Number(body.exchangeDiscount) || 0));
@@ -162,7 +252,7 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       data: {
         invoiceNumber: newInvoiceNumber,
         customerId: originalSale.customerId,
-        items: newItems as any,
+        items: storedNewSaleItems as any,
         subtotal: newSubtotal,
         totalDiscount: round2(newTotalDiscount + exchangeDiscount),
         totalTax: newTotalTax,
@@ -272,8 +362,8 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       }
 
       // B. Decrement stock for outward replacement items
-      for (const item of newItems) {
-        const prodId = item?.productId ? String(item.productId) : item?.id ? String(item.id) : '';
+      for (const item of storedNewSaleItems) {
+        const prodId = item?.productId ? String(item.productId) : '';
         const qty = Number(item?.quantity) || 0;
         if (!prodId || qty <= 0 || prodId.startsWith('manual-')) continue;
 
