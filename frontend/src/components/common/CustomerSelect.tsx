@@ -190,14 +190,20 @@ export const CustomerSelect = ({ value, onChange, size = 'compact', className }:
 
               {filtered.length === 0 && (
                 <div className="px-3 py-6 text-center">
-                  <p className="text-xs text-gray-400">No customer matches "{query}"</p>
-                  <button
-                    type="button"
-                    onClick={() => { setIsAddOpen(true); setOpen(false) }}
-                    className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
-                  >
-                    Add "{query.trim()}" as a new customer
-                  </button>
+                  {query.trim() ? (
+                    <>
+                      <p className="text-xs text-gray-400">No customer matches "{query.trim()}"</p>
+                      <button
+                        type="button"
+                        onClick={() => { setIsAddOpen(true); setOpen(false) }}
+                        className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        Add "{query.trim()}" as a new customer
+                      </button>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-400">No customers registered yet</p>
+                  )}
                 </div>
               )}
             </div>
