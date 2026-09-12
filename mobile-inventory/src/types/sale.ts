@@ -45,7 +45,51 @@ export interface Sale {
   isQuickBill: boolean;
   notes?: string | null;
   platform?: 'mobile' | 'web' | string;
+  returnStatus?: 'none' | 'partial' | 'full';
+  totalRefunded?: number;
   createdAt: string;
+}
+
+export interface ReturnedItemLine {
+  productId?: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  taxableAmount: number;
+  gstAmount: number;
+  refundAmount: number;
+  restock: boolean;
+}
+
+export interface SaleReturn {
+  id: string;
+  returnNumber: string;
+  saleId: string;
+  customerId?: string | null;
+  items: ReturnedItemLine[];
+  subtotal: number;
+  totalTax: number;
+  extraChargesRefunded: number;
+  refundAmount: number;
+  refundMethod: 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_reversal';
+  reason?: string | null;
+  notes?: string | null;
+  platform?: string;
+  createdAt: string;
+}
+
+export interface CreateSaleReturnPayload {
+  items: {
+    productId?: string;
+    productName?: string;
+    quantity: number;
+    restock?: boolean;
+  }[];
+  refundMethod: 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_reversal';
+  reason?: string;
+  notes?: string;
+  extraChargesRefunded?: number;
 }
 
 export interface CreateSalePayload {
@@ -64,3 +108,4 @@ export interface CreateSalePayload {
   notes?: string;
   platform?: 'mobile' | 'web' | string;
 }
+

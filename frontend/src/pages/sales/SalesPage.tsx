@@ -294,7 +294,19 @@ export const SalesPage = () => {
       header: t('sales.invoiceHeader'),
       render: (row) => (
         <div>
-          <span className="font-medium">{row.invoiceNumber}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{row.invoiceNumber}</span>
+            {row.returnStatus === 'full' && (
+              <Badge variant="danger" className="text-[10px] px-1.5 py-0">
+                RETURNED
+              </Badge>
+            )}
+            {row.returnStatus === 'partial' && (
+              <Badge variant="warning" className="text-[10px] px-1.5 py-0">
+                PARTIAL RETURN
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-gray-400">{row.items?.length ?? 0} {t('sales.itemsSuffix')}</p>
         </div>
       ),

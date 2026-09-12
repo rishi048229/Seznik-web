@@ -37,6 +37,7 @@ import publicReceiptRoutes from './routes/publicReceiptRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import utilityBillRoutes from './routes/utilityBillRoutes';
 import printerLogRoutes from './routes/printerLogRoutes';
+import saleReturnRoutes from './routes/saleReturnRoutes';
 import { trackApiUsage } from './middlewares/apiUsageMiddleware';
 const app = express();
 
@@ -122,6 +123,7 @@ app.use('/api/locations', locationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/utility-bills', utilityBillRoutes);
 app.use('/api/printer-logs', printerLogRoutes);
+app.use('/api/sale-returns', saleReturnRoutes);
 app.use(publicReceiptRoutes);
 
 // 5. Comprehensive Server & Database Health Check Endpoint

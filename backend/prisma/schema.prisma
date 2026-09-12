@@ -54,6 +54,7 @@ model User {
   stockTransfers        StockTransfer[]
   utilityBills          UtilityBill[]
   printerLogs           PrinterLog[]
+  saleReturns           SaleReturn[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -167,6 +168,7 @@ model Customer {
   creditTransactions CreditTransaction[]
   creditReminders    CreditReminder[]
   kotOrders          KOTOrder[]
+  saleReturns        SaleReturn[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -279,6 +281,9 @@ model Sale {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   token          Token?
   kotOrder       KOTOrder?
+  returnStatus   String    @default("none") // 'none' | 'partial' | 'full'
+  totalRefunded  Float     @default(0)
+  returns        SaleReturn[]
   createdAt      DateTime  @default(now())
 
   @@index([userId, createdAt])
@@ -675,4 +680,32 @@ model PrinterLog {
   @@index([createdAt])
   @@index([platform])
 }
+
+/// Customer return / credit note records linked to a prior Sale invoice.
+model SaleReturn {
+  id                   String    @id @default(uuid())
+  returnNumber         String    // e.g. "CN-00001" or "RET-00001"
+  saleId               String
+  sale                 Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  customerId           String?
+  customer             Customer? @relation(fields: [customerId], references: [id])
+  items                Json      // [{ productId, productName, quantity, unitPrice, taxRate, taxableAmount, gstAmount, refundAmount, restock }]
+  subtotal             Float     // Taxable value uncollected (returnsDeducted)
+  totalTax             Float     // GST tax uncollected (returnsTaxDeducted)
+  extraChargesRefunded Float     @default(0)
+  refundAmount         Float     // Total cash/credit returned to customer
+  refundMethod         String    // 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_reversal'
+  reason               String?   // 'defective' | 'customer_changed_mind' | 'wrong_item' | 'other'
+  notes                String?
+  locationId           String?
+  platform             String    @default("web") // 'web' | 'mobile'
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([saleId])
+  @@index([customerId])
+}
+
 

@@ -8,7 +8,12 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { ArrowLeft, Printer, FileText, Bluetooth, Download } from 'lucide-react'
+import { ArrowLeft, Printer, FileText, Bluetooth, Download, RotateCcw, Receipt } from 'lucide-react'
+import { ProcessReturnModal } from '@/components/sales/ProcessReturnModal'
+import { ReturnReceiptModal } from '@/components/sales/ReturnReceiptModal'
+import { useReturnsForSale } from '@/hooks/useSaleReturns'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@/constants/queryKeys'
 
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
@@ -25,12 +30,16 @@ export const SaleDetailPage = () => {
   const { t } = useLanguage()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { data: sale, isLoading } = useSaleById(id ?? '')
+  const { data: returns = [] } = useReturnsForSale(id ?? '')
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
+  const [selectedReturnSlip, setSelectedReturnSlip] = useState<any | null>(null)
   const blePrinter = useBlePrinter()
 
   // Accept format directly to avoid React state update race condition
@@ -187,7 +196,16 @@ export const SaleDetailPage = () => {
         title={t('sales.saleDetailsTitle')}
         breadcrumb={[t('page.salesHistory'), sale.invoiceNumber]}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {sale.returnStatus !== 'full' && (
+              <Button
+                variant="danger"
+                onClick={() => setIsReturnModalOpen(true)}
+                leftIcon={<RotateCcw size={16} />}
+              >
+                Return / Refund
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => setIsPrintModalOpen(true)} leftIcon={<Printer size={16} />}>
               {t('pos.print')}
             </Button>
@@ -202,7 +220,39 @@ export const SaleDetailPage = () => {
       />
 
       {/* Sale details card (for screen viewing) */}
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Return Status Banner (if returned) */}
+        {sale.returnStatus && sale.returnStatus !== 'none' && (
+          <div className="flex items-center justify-between p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <RotateCcw className="text-amber-600 dark:text-amber-400 shrink-0" size={20} />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-amber-950 dark:text-amber-200 text-sm">
+                    {sale.returnStatus === 'full' ? 'Invoice Fully Returned' : 'Invoice Partially Returned'}
+                  </span>
+                  <Badge variant={sale.returnStatus === 'full' ? 'danger' : 'warning'}>
+                    {sale.returnStatus === 'full' ? 'FULL RETURN' : 'PARTIAL RETURN'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                  Total Refunded: <strong>{formatINR(sale.totalRefunded || 0)}</strong>
+                </p>
+              </div>
+            </div>
+            {sale.returnStatus !== 'full' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsReturnModalOpen(true)}
+                leftIcon={<RotateCcw size={14} />}
+              >
+                Return More
+              </Button>
+            )}
+          </div>
+        )}
+
         <Card className="overflow-hidden">
           {/* Receipt Header */}
           <div className="bg-[#0a0a2e] text-white p-6 text-center">
@@ -316,7 +366,7 @@ export const SaleDetailPage = () => {
               </div>
               <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
                 <span className="text-gray-900 dark:text-gray-100">{t('sales.grandTotal')}</span>
-                <span className="text-[#0a0a2e]">{formatINR(sale.grandTotal)}</span>
+                <span className="text-[#0a0a2e] dark:text-blue-400">{formatINR(sale.grandTotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 dark:text-gray-400">{t('sales.amountPaid')}</span>
@@ -343,7 +393,92 @@ export const SaleDetailPage = () => {
             </div>
           </div>
         </Card>
+
+        {/* Returns / Credit Notes Section */}
+        {returns.length > 0 && (
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="text-rose-600" size={18} />
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">
+                  Credit Notes &amp; Returns History ({returns.length})
+                </h3>
+              </div>
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {returns.map((ret: any) => (
+                <div key={ret.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {ret.returnNumber}
+                      </span>
+                      <Badge variant="default">
+                        {(ret.refundMethod || 'cash').toUpperCase()}
+                      </Badge>
+                      {ret.reason && (
+                        <span className="text-xs text-slate-500 capitalize">
+                          ({ret.reason.replace('_', ' ')})
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {new Date(ret.createdAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                      {' • '}
+                      {Array.isArray(ret.items) ? `${ret.items.reduce((s: number, i: any) => s + (i.quantity || 0), 0)} items returned` : ''}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-rose-600 text-base">
+                      -{formatINR(ret.refundAmount)}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      leftIcon={<Receipt size={14} />}
+                      onClick={() => setSelectedReturnSlip(ret)}
+                    >
+                      Return Slip
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
+
+      {/* Process Return Modal */}
+      {sale && (
+        <ProcessReturnModal
+          sale={sale}
+          isOpen={isReturnModalOpen}
+          onClose={() => setIsReturnModalOpen(false)}
+          onSuccess={(newReturn) => {
+            qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
+            qc.invalidateQueries({ queryKey: ['sale-returns'] })
+            setSelectedReturnSlip(newReturn)
+          }}
+        />
+      )}
+
+      {/* Return Slip Print/Download Modal */}
+      {selectedReturnSlip && sale && (
+        <ReturnReceiptModal
+          isOpen={!!selectedReturnSlip}
+          onClose={() => setSelectedReturnSlip(null)}
+          saleReturn={selectedReturnSlip}
+          sale={sale}
+        />
+      )}
 
       {/* Print Format Modal */}
       <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('pos.printReceiptTitle')} size="sm">

@@ -100,12 +100,23 @@ export class EscPosBuilder {
     return this.line(left + ' '.repeat(space) + right)
   }
 
+  threeCol(col1: string, col2: string, col3: string, w1: number, w2: number, w3: number): this {
+    const s1 = col1.slice(0, w1).padEnd(w1, ' ')
+    const s2 = col2.slice(0, w2).padStart(w2, ' ')
+    const s3 = col3.slice(0, w3).padStart(w3, ' ')
+    return this.line(s1 + s2 + s3)
+  }
+
   feed(lines = 3): this {
     return this.push(ESC, 0x64, lines)
   }
 
   cut(): this {
     return this.push(GS, 0x56, 0x01)
+  }
+
+  feedAndCut(lines = 3): this {
+    return this.feed(lines).cut()
   }
 
   // 1D barcode via the standard GS k command. CODE128 uses the newer

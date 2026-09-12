@@ -50,10 +50,14 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     const userId = await getOwnerUserId((req as any).user.id);
     const todayStart = startOfDay(new Date());
 
-    const [todaySales, recentSales, totalsRows, lowStockProducts] = await Promise.all([
+    const [todaySales, todayReturns, recentSales, totalsRows, lowStockProducts] = await Promise.all([
       prisma.sale.findMany({
         where: { userId, createdAt: { gte: todayStart } },
         select: { grandTotal: true, totalTax: true, items: true, createdAt: true },
+      }),
+      prisma.saleReturn.findMany({
+        where: { userId, createdAt: { gte: todayStart } },
+        select: { refundAmount: true, subtotal: true, totalTax: true, items: true },
       }),
       prisma.sale.findMany({
         where: { userId },
@@ -88,19 +92,34 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     const totalCustomers = Number(totalsRows[0]?.customerCount ?? 0);
     const totalProductCount = Number(totalsRows[0]?.productCount ?? 0);
 
-    // Gross profit only needs cost prices for products actually sold TODAY (a handful of rows),
-    // not the entire catalog — todaySales is already a small, date-bounded set.
-    const todayProductIds = collectProductIds(todaySales);
+    // Gross profit only needs cost prices for products actually sold or returned TODAY
+    const todayProductIds = collectProductIds([...todaySales, ...todayReturns]);
     const todayProducts = todayProductIds.length
       ? await prisma.product.findMany({ where: { id: { in: todayProductIds }, userId }, select: { id: true, costPrice: true } })
       : [];
     const productCosts = buildProductCostMap(todayProducts);
 
-    const todayRevenue = todaySales.reduce((s, sale) => s + sale.grandTotal, 0);
-    const todayGrossProfit = todaySales.reduce(
+    const grossTodayRevenue = todaySales.reduce((s, sale) => s + sale.grandTotal, 0);
+    const todayReturnsRefund = todayReturns.reduce((s, ret) => s + (ret.refundAmount || 0), 0);
+    const todayRevenue = Math.max(0, Math.round((grossTodayRevenue - todayReturnsRefund) * 100) / 100);
+
+    const grossProfit = todaySales.reduce(
       (s, sale) => s + computeSaleGrossProfit(sale, productCosts),
       0
     );
+    const returnedProfitDeduction = todayReturns.reduce((sum, ret) => {
+      let returnedCost = 0;
+      if (Array.isArray(ret.items)) {
+        for (const item of ret.items as any[]) {
+          const cost = productCosts.get(item?.productId) ?? 0;
+          returnedCost += cost * (Number(item?.quantity) || 0);
+        }
+      }
+      const returnedNet = (ret.subtotal || 0);
+      return sum + Math.max(0, returnedNet - returnedCost);
+    }, 0);
+
+    const todayGrossProfit = Math.max(0, Math.round((grossProfit - returnedProfitDeduction) * 100) / 100);
     const totalStockValue = Number(totalsRows[0]?.stockValue ?? 0);
 
     res.json({
@@ -182,11 +201,15 @@ export const getPLReport = async (req: Request, res: Response) => {
     const startDate = start ? startOfDay(parseDate(start, new Date())) : startOfDay(subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS));
     const endDate = parseRangeEnd(end, new Date());
 
-    // Fetch all sales in the window (needed for per-item cost calculation)
-    const [salesAgg, expenseRows, salesInWindow] = await Promise.all([
+    // Fetch all sales, returns, and expenses in the window
+    const [salesAgg, returnsAgg, expenseRows, salesInWindow, returnsInWindow] = await Promise.all([
       prisma.sale.aggregate({
         where: { userId, createdAt: { gte: startDate, lte: endDate } },
         _sum: { grandTotal: true, totalTax: true },
+      }),
+      prisma.saleReturn.aggregate({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        _sum: { subtotal: true, totalTax: true, refundAmount: true },
       }),
       prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
         SELECT COALESCE(SUM(amount), 0) AS total FROM "Expense"
@@ -196,26 +219,48 @@ export const getPLReport = async (req: Request, res: Response) => {
         where: { userId, createdAt: { gte: startDate, lte: endDate } },
         select: { items: true },
       }),
+      prisma.saleReturn.findMany({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        select: { items: true },
+      }),
     ]);
 
     // Build real COGS from snapshot costPrice on each line item, falling back to
     // the live product catalog for older sales that predate snapshot storage.
-    const productIdsInWindow = collectProductIds(salesInWindow);
-    const productsInWindow = productIdsInWindow.length
+    const productIdsInSales = collectProductIds(salesInWindow);
+    const productIdsInReturns = collectProductIds(returnsInWindow);
+    const allProductIds = Array.from(new Set([...productIdsInSales, ...productIdsInReturns]));
+
+    const productsInWindow = allProductIds.length
       ? await prisma.product.findMany({
-          where: { id: { in: productIdsInWindow }, userId },
+          where: { id: { in: allProductIds }, userId },
           select: { id: true, costPrice: true },
         })
       : [];
     const productCosts = buildProductCostMap(productsInWindow);
-    const totalCost = salesInWindow.reduce(
+    const grossCost = salesInWindow.reduce(
       (sum, sale) => sum + computeSaleCost(sale, productCosts),
       0
     );
 
+    let returnedCost = 0;
+    for (const ret of returnsInWindow) {
+      if (Array.isArray(ret.items)) {
+        for (const item of ret.items as any[]) {
+          if (item?.restock !== false) {
+            const cost = productCosts.get(item?.productId) ?? (item?.costPrice || 0);
+            returnedCost += cost * (Number(item?.quantity) || 0);
+          }
+        }
+      }
+    }
+    const totalCost = Math.max(0, Math.round((grossCost - returnedCost) * 100) / 100);
+
     const grossBilled = salesAgg._sum.grandTotal ?? 0;
-    const taxCollected = salesAgg._sum.totalTax ?? 0;
-    const returnsDeducted = 0; // Forward-compatible placeholder for future returns module
+    const grossTax = salesAgg._sum.totalTax ?? 0;
+    const returnsDeducted = returnsAgg._sum.subtotal ?? 0;
+    const returnsTaxDeducted = returnsAgg._sum.totalTax ?? 0;
+    const taxCollected = Math.max(0, Math.round((grossTax - returnsTaxDeducted) * 100) / 100);
     const netRevenue = Math.round((grossBilled - returnsDeducted - taxCollected) * 100) / 100;
     const grossProfit = Math.round((netRevenue - totalCost) * 100) / 100;
     const totalExpenses = Number(expenseRows[0]?.total ?? 0);
@@ -225,6 +270,7 @@ export const getPLReport = async (req: Request, res: Response) => {
       grossBilled,
       taxCollected,
       returnsDeducted,
+      returnsTaxDeducted,
       netRevenue,
       totalRevenue: grossBilled, // Retained for 100% backward compatibility
       totalCost,
@@ -246,15 +292,29 @@ export const getTaxReport = async (req: Request, res: Response) => {
     const startDate = parseDate(start, subDays(new Date(), DEFAULT_REPORT_WINDOW_DAYS));
     const endDate = parseRangeEnd(end, new Date());
 
-    const agg = await prisma.sale.aggregate({
-      where: { userId, createdAt: { gte: startDate, lte: endDate } },
-      _sum: { totalTax: true },
-      _count: { _all: true },
-    });
+    const [agg, retAgg] = await Promise.all([
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        _sum: { totalTax: true },
+        _count: { _all: true },
+      }),
+      prisma.saleReturn.aggregate({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        _sum: { totalTax: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const grossTax = agg._sum.totalTax ?? 0;
+    const returnedTax = retAgg._sum.totalTax ?? 0;
+    const totalOutputTax = Math.max(0, Math.round((grossTax - returnedTax) * 100) / 100);
 
     res.json({
-      totalOutputTax: agg._sum.totalTax ?? 0,
+      totalOutputTax,
+      grossOutputTax: grossTax,
+      returnedOutputTax: returnedTax,
       taxableSales: agg._count._all,
+      returnCount: retAgg._count._all,
       period: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
     });
   } catch (error) {
@@ -572,9 +632,14 @@ export const getDaybook = async (req: Request, res: Response) => {
     const dayStart = startOfDay(targetDate);
     const dayEnd = endOfDay(targetDate);
 
-    const [sales, expenses, purchases, creditTxns, lowStockCount] = await Promise.all([
+    const [sales, returns, expenses, purchases, creditTxns, lowStockCount] = await Promise.all([
       prisma.sale.findMany({
         where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.saleReturn.findMany({
+        where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
+        include: { customer: { select: { name: true } }, sale: { select: { invoiceNumber: true } } },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.expense.findMany({
@@ -671,6 +736,10 @@ export const getDaybook = async (req: Request, res: Response) => {
       });
     });
 
+    // Deduct returns tax from total collected tax
+    const totalReturnsTax = returns.reduce((sum: number, r: any) => sum + (r.totalTax || 0), 0);
+    const netGstCollected = Math.max(0, totalTax - totalReturnsTax);
+
     // 2. Credit Transactions breakdown
     let creditCollectedToday = 0;
     let manualCreditGiven = 0;
@@ -684,8 +753,13 @@ export const getDaybook = async (req: Request, res: Response) => {
     });
 
     const totalExpenseAmount = expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+    const cashRefunds = returns
+      .filter((r: any) => (r.refundMethod || 'cash').toLowerCase() === 'cash')
+      .reduce((sum: number, r: any) => sum + (r.refundAmount || 0), 0);
+    const totalReturnsRefunded = returns.reduce((sum: number, r: any) => sum + (r.refundAmount || 0), 0);
+
     const moneyIn = nonCreditSales + creditCollectedToday;
-    const moneyOut = totalExpenseAmount;
+    const moneyOut = totalExpenseAmount + cashRefunds;
     const netBalance = moneyIn - moneyOut;
     const creditGiven = creditSales + manualCreditGiven;
 
@@ -712,7 +786,7 @@ export const getDaybook = async (req: Request, res: Response) => {
 
     // 3. Transactions feed
     const transactions: Array<{
-      type: 'sale' | 'expense' | 'credit_payment' | 'credit_given';
+      type: 'sale' | 'expense' | 'credit_payment' | 'credit_given' | 'return';
       amount: number;
       isCredit: boolean;
       description: string;
@@ -726,6 +800,16 @@ export const getDaybook = async (req: Request, res: Response) => {
         isCredit: s.paymentMethod === 'credit',
         description: `Sale ${s.invoiceNumber || ''} (${s.paymentMethod.toUpperCase()})`,
         createdAt: s.createdAt.toISOString(),
+      });
+    });
+
+    returns.forEach((r: any) => {
+      transactions.push({
+        type: 'return',
+        amount: r.refundAmount,
+        isCredit: r.refundMethod === 'credit_reversal' || r.refundMethod === 'store_credit',
+        description: `Return ${r.returnNumber} (for ${r.sale?.invoiceNumber || 'Sale'}) [${(r.refundMethod || 'cash').toUpperCase()}]`,
+        createdAt: r.createdAt.toISOString(),
       });
     });
 
@@ -758,19 +842,23 @@ export const getDaybook = async (req: Request, res: Response) => {
       netBalance,
       creditGiven,
       creditCollectedToday,
+      totalReturnsRefunded,
+      cashRefunds,
       paymentModeBreakdown,
       gstSummary: {
-        collected: Math.round(totalTax * 100) / 100,
+        collected: Math.round(netGstCollected * 100) / 100,
+        grossCollected: Math.round(totalTax * 100) / 100,
+        returnedGst: Math.round(totalReturnsTax * 100) / 100,
         paid: Math.round(gstPaid * 100) / 100,
-        net: Math.round((totalTax - gstPaid) * 100) / 100,
-        cgstCollected: Math.round((totalTax / 2) * 100) / 100,
-        sgstCollected: Math.round((totalTax / 2) * 100) / 100,
+        net: Math.round((netGstCollected - gstPaid) * 100) / 100,
+        cgstCollected: Math.round((netGstCollected / 2) * 100) / 100,
+        sgstCollected: Math.round((netGstCollected / 2) * 100) / 100,
         products: productGstBreakdown,
       },
       gstCollectedToday: {
-        total: totalTax,
-        cgst: totalTax / 2,
-        sgst: totalTax / 2,
+        total: netGstCollected,
+        cgst: netGstCollected / 2,
+        sgst: netGstCollected / 2,
       },
       topSellingItemToday,
       remindersSentToday: 0,
@@ -812,11 +900,15 @@ export const closeDayRegister = async (req: Request, res: Response) => {
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
-    // Calculate expected cash = Cash Sales + Cash Credit Payments - Cash Expenses
-    const [cashSales, cashCreditPayments, cashExpenses] = await Promise.all([
+    // Calculate expected cash = Cash Sales + Cash Credit Payments - Cash Expenses - Cash Returns
+    const [cashSales, cashReturns, cashCreditPayments, cashExpenses] = await Promise.all([
       prisma.sale.aggregate({
         where: { userId, createdAt: { gte: todayStart, lte: todayEnd }, paymentMethod: 'cash' },
         _sum: { grandTotal: true },
+      }),
+      prisma.saleReturn.aggregate({
+        where: { userId, createdAt: { gte: todayStart, lte: todayEnd }, refundMethod: 'cash' },
+        _sum: { refundAmount: true },
       }),
       prisma.creditTransaction.aggregate({
         where: { userId, createdAt: { gte: todayStart, lte: todayEnd }, type: 'payment' },
@@ -831,7 +923,8 @@ export const closeDayRegister = async (req: Request, res: Response) => {
     const expectedCash =
       (cashSales._sum.grandTotal || 0) +
       (cashCreditPayments._sum.amount || 0) -
-      (cashExpenses._sum.amount || 0);
+      (cashExpenses._sum.amount || 0) -
+      (cashReturns._sum.refundAmount || 0);
 
     const counted = Number(countedCash) || 0;
     const variance = counted - expectedCash;

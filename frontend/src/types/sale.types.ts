@@ -30,12 +30,17 @@ export interface Sale {
   changeReturned: number
   isQuickBill: boolean
   platform?: 'web' | 'mobile' | string
+  returnStatus?: 'none' | 'partial' | 'full'
+  totalRefunded?: number
+  returns?: SaleReturn[]
   createdAt: Date | string
 }
 
 export interface SaleItem {
   productId?: string
+  id?: string
   productName: string
+  name?: string
   quantity: number
   unitPrice?: number
   sellingPrice: number
@@ -45,3 +50,51 @@ export interface SaleItem {
   taxAmount: number
   total: number
 }
+
+export interface ReturnedItemLine {
+  productId?: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  taxRate: number
+  taxableAmount: number
+  gstAmount: number
+  refundAmount: number
+  restock: boolean
+}
+
+export interface SaleReturn {
+  id: string
+  returnNumber: string
+  saleId: string
+  sale?: Sale
+  customerId?: string | null
+  customer?: { id: string; name: string; phone?: string } | null
+  items: ReturnedItemLine[]
+  subtotal: number
+  totalTax: number
+  extraChargesRefunded: number
+  refundAmount: number
+  refundMethod: 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_reversal'
+  reason?: string | null
+  notes?: string | null
+  locationId?: string | null
+  platform?: string
+  userId: string
+  createdAt: Date | string
+}
+
+export interface CreateSaleReturnPayload {
+  items: {
+    productId?: string
+    id?: string
+    productName?: string
+    quantity: number
+    restock?: boolean
+  }[]
+  refundMethod: 'cash' | 'upi' | 'card' | 'store_credit' | 'credit_reversal'
+  reason?: string
+  notes?: string
+  extraChargesRefunded?: number
+}
+

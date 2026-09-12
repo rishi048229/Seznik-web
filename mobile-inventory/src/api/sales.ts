@@ -26,4 +26,16 @@ export const salesApi = {
       method: 'DELETE',
     });
   },
+
+  createSaleReturn: async (saleId: string, payload: any): Promise<any> => {
+    return fetchApi<any>(`/sale-returns/${saleId}`, {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, platform: 'mobile' }),
+    });
+  },
+
+  getReturnsForSale: async (saleId: string): Promise<any[]> => {
+    return fetchApi<any[]>(`/sale-returns/sale/${saleId}`);
+  },
 };
+

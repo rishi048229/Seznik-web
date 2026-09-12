@@ -30,6 +30,7 @@ import {
   Calendar,
   SlidersHorizontal,
   Bluetooth,
+  RotateCcw,
 } from 'lucide-react-native';
 import { useSales } from '@/hooks/useSales';
 import { Sale } from '@/types/sale';
@@ -38,6 +39,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
+import { ProcessReturnModal } from '@/components/sales/ProcessReturnModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
@@ -102,6 +104,8 @@ export default function InvoicesTabScreen() {
 
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [showA4Preview, setShowA4Preview] = useState(false);
+  const [returnSale, setReturnSale] = useState<Sale | null>(null);
+  const [showReturnModal, setShowReturnModal] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [pendingPrintSale, setPendingPrintSale] = useState<Sale | null>(null);
   const [busySaleId, setBusySaleId] = useState<string | null>(null);
@@ -447,6 +451,16 @@ export default function InvoicesTabScreen() {
                             {getPaymentIcon(item.paymentMethod)}
                             <Text style={styles.paymentBadgeText}>{item.paymentMethod.toUpperCase()}</Text>
                           </View>
+                          {item.returnStatus === 'full' && (
+                            <View style={[styles.returnBadge, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
+                              <Text style={[styles.returnBadgeText, { color: '#EF4444' }]}>RETURNED</Text>
+                            </View>
+                          )}
+                          {item.returnStatus === 'partial' && (
+                            <View style={[styles.returnBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+                              <Text style={[styles.returnBadgeText, { color: '#F59E0B' }]}>PARTIAL</Text>
+                            </View>
+                          )}
                         </View>
                         <Text style={[styles.invoiceAmount, { color: BRAND_COLORS.blue600 }]}>
                           {formatCurrency(item.grandTotal)}
@@ -474,6 +488,24 @@ export default function InvoicesTabScreen() {
                           {t('preview', 'Preview')}
                         </Text>
                       </TouchableOpacity>
+
+                      {item.returnStatus !== 'full' && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            setReturnSale(item);
+                            setShowReturnModal(true);
+                          }}
+                          style={[styles.cardActionBtn, { backgroundColor: 'rgba(239, 68, 68, 0.08)' }]}
+                          accessibilityRole="button"
+                          accessibilityLabel="Return"
+                          activeOpacity={0.7}
+                        >
+                          <RotateCcw size={14} color={BRAND_COLORS.rose500} />
+                          <Text style={[styles.cardActionBtnText, { color: BRAND_COLORS.rose500 }]}>
+                            Return
+                          </Text>
+                        </TouchableOpacity>
+                      )}
 
                       <TouchableOpacity
                         onPress={() => handleDownload(item)}
@@ -557,6 +589,18 @@ export default function InvoicesTabScreen() {
           onClose={() => {
             setShowA4Preview(false);
             setPreviewSale(null);
+          }}
+        />
+
+        <ProcessReturnModal
+          visible={showReturnModal}
+          sale={returnSale}
+          onClose={() => {
+            setShowReturnModal(false);
+            setReturnSale(null);
+          }}
+          onSuccess={() => {
+            refetch();
           }}
         />
 
@@ -779,6 +823,16 @@ const styles = StyleSheet.create({
   },
   cardActionBtnText: {
     fontSize: 11.5,
+    fontWeight: '800',
+  },
+  returnBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  returnBadgeText: {
+    fontSize: 9.5,
     fontWeight: '800',
   },
   downloadIconBtn: { backgroundColor: BRAND_COLORS.blue600 },
