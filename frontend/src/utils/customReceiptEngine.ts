@@ -16,6 +16,7 @@ import {
   receiptLogoMaxDots,
   receiptLogoMaxDotsFromChip,
   receiptLogoHtmlMaxPxFromChip,
+  receiptQrEscPosModuleSize,
   receiptQrEscPosModuleSizeForEntry,
   receiptQrHtmlPx,
   receiptStandardQrHtmlPxFromChip,
