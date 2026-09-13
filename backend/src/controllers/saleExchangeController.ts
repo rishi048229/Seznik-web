@@ -113,7 +113,7 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       totalTax: originalSale.totalTax,
       grandTotal: originalSale.grandTotal,
       extraChargesTotal: originalSale.extraChargesTotal,
-      pastReturns: originalSale.returns,
+      pastReturns: originalSale.returns as any,
     });
 
     if (computedReturn.refundAmount <= 0) {

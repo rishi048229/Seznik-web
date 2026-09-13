@@ -44,3 +44,28 @@ export const bulkDeleteSales = async (_uid: string, saleIds: string[]): Promise<
   })
 }
 
+export const updateSaleDeliveryStatus = async (
+  _uid: string,
+  saleId: string,
+  data: {
+    deliveryStatus?: string
+    paymentStatus?: string
+    paymentDueDate?: string | Date | null
+    deliveryAddress?: string
+    deliveryPhone?: string
+    deliveryNotes?: string
+  }
+): Promise<Sale> => {
+  return await fetchApi(`/sales/${saleId}/delivery-status`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export const getDeliveryReminders = async (
+  _uid: string
+): Promise<{ pendingDeliveries: Sale[]; pendingPayments: Sale[] }> => {
+  return await fetchApi('/sales/delivery-reminders')
+}
+
+

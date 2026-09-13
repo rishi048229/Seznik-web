@@ -68,3 +68,26 @@ export const useBulkDeleteSales = () => {
     },
   })
 }
+
+export const useUpdateSaleDeliveryStatus = () => {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ saleId, data }: { saleId: string; data: Parameters<typeof saleService.updateSaleDeliveryStatus>[2] }) =>
+      saleService.updateSaleDeliveryStatus(user!.uid, saleId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
+    },
+  })
+}
+
+export const useDeliveryReminders = () => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['delivery-reminders', user?.uid],
+    queryFn: () => saleService.getDeliveryReminders(user!.uid),
+    enabled: !!user,
+    refetchInterval: 60 * 1000, // refresh every minute
+  })
+}
+

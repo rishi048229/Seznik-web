@@ -438,6 +438,31 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       if (customerName?.trim()) lines.push(row('Customer:', customerName.trim(), COLS))
       if (customerPhone?.trim()) lines.push(row('Phone   :', customerPhone.trim(), COLS))
     }
+
+    // Delivery & Order Fulfillment Block
+    const isDelivery = (sale as any).orderType === 'delivery'
+    if (isDelivery) {
+      lines.push(divider('-', COLS))
+      lines.push(centerText('*** DELIVERY ORDER ***', COLS))
+      const delivAddress = (sale as any).deliveryAddress?.trim()
+      const delivPhone = (sale as any).deliveryPhone?.trim()
+      const schedDate = (sale as any).scheduledDeliveryDate
+      if (delivAddress) {
+        lines.push(...wrapProse(`Address: ${delivAddress}`, COLS, false))
+      }
+      if (delivPhone) {
+        lines.push(row('Deliv Ph:', delivPhone, COLS))
+      }
+      if (schedDate) {
+        const schedStr = new Date(schedDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })
+        lines.push(row('Delivery:', schedStr, COLS))
+      }
+      const payStatus = (sale as any).paymentStatus
+      if (payStatus === 'pending') {
+        lines.push(centerText(`*** PAYMENT PENDING (COD): Rs.${totals.finalGrandTotal.toFixed(2)} ***`, COLS))
+      }
+    }
+
     lines.push(divider('-', COLS))
   }
 

@@ -408,6 +408,23 @@ export const generateA4InvoiceHTML = ({
     ${billToAddress ? `<div style="font-size:11px;color:#475569;">${esc(billToAddress)}</div>` : ''}
   `
 
+  const isDelivery = sale.orderType === 'delivery'
+  const deliveryAddr = sale.deliveryAddress || billToAddress
+  const deliveryPhone = sale.deliveryPhone || billToPhone
+  const schedDate = sale.scheduledDeliveryDate ? new Date(sale.scheduledDeliveryDate).toLocaleString('en-GB') : ''
+  const isPendingPay = sale.paymentStatus === 'pending'
+
+  const shipTo = isDelivery ? `
+    <div style="flex:1;padding:12px 16px;border-left:1px solid #e5e7eb;">
+      <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${colors.accent};font-weight:700;margin-bottom:4px;">Ship / Deliver to</div>
+      <div style="font-size:13px;font-weight:800;color:${colors.primary};">DELIVERY ORDER</div>
+      ${deliveryAddr ? `<div style="font-size:11px;color:#475569;margin-top:2px;"><b>Address:</b> ${esc(deliveryAddr)}</div>` : ''}
+      ${deliveryPhone ? `<div style="font-size:11px;color:#475569;"><b>Phone:</b> ${esc(deliveryPhone)}</div>` : ''}
+      ${schedDate ? `<div style="font-size:11px;color:#475569;"><b>Schedule:</b> ${esc(schedDate)}</div>` : ''}
+      ${isPendingPay ? `<div style="margin-top:6px;font-size:11px;font-weight:800;color:#b91c1c;background:#fee2e2;padding:3px 8px;border-radius:4px;display:inline-block;">*** PAYMENT PENDING (COD): ₹${billTotal.toFixed(2)} ***</div>` : ''}
+    </div>
+  ` : ''
+
   const header = (() => {
     if (!cfg.showHeader) {
       return `<div style="padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid ${colors.primary};">${invoiceMetaBox}</div>`
@@ -552,6 +569,7 @@ export const generateA4InvoiceHTML = ({
     ${gstStrip(cfg, companyGSTIN, colors)}
     <div style="display:flex;border-bottom:1px solid #e5e7eb;">
       <div style="flex:1;padding:12px 16px;">${billTo}</div>
+      ${shipTo}
     </div>
     ${metaGrid(cfg, [], colors)}
     <table style="width:100%;border-collapse:collapse;">

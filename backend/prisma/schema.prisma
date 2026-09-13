@@ -287,10 +287,24 @@ model Sale {
   returns        SaleReturn[]
   exchangesAsOriginal SaleExchange[] @relation("OriginalSaleExchanges")
   exchangeAsNew      SaleExchange?  @relation("NewSaleExchange")
+  
+  // Delivery & Fulfillment fields
+  orderType             String    @default("walk_in") // 'walk_in' | 'delivery'
+  deliveryAddress       String?
+  deliveryPhone         String?
+  deliveryNotes         String?
+  scheduledDeliveryDate DateTime?
+  deliveryStatus        String    @default("delivered") // 'pending' | 'out_for_delivery' | 'delivered' | 'cancelled'
+  deliveredAt           DateTime?
+  paymentStatus         String    @default("paid") // 'paid' | 'pending' | 'partial'
+  paymentDueDate        DateTime?
+
   createdAt      DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, customerId])
+  @@index([userId, orderType, deliveryStatus])
+  @@index([userId, paymentStatus])
 }
 
 // A physical place stock can sit — a warehouse, a shop branch, etc. Purely

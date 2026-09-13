@@ -142,6 +142,14 @@ export interface PrintSaleData {
   providerName?: string;
   unitsConsumed?: string;
   amountAfterDueDate?: number;
+  orderType?: 'walk_in' | 'delivery';
+  deliveryAddress?: string;
+  deliveryPhone?: string;
+  deliveryNotes?: string;
+  scheduledDeliveryDate?: string;
+  deliveryStatus?: 'pending' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  paymentStatus?: 'paid' | 'pending';
+  paymentDueDate?: string;
 }
 
 export function numberToIndianWords(amount: number): string {
@@ -1180,6 +1188,14 @@ class ThermalPrinterServiceManager {
     const storeNameVal = (data.storeName || '').trim();
     const storeAddrVal = (data.storeAddress || '').trim();
     const footerVal = (data.footerMessage || '').trim();
+    const orderTypeVal = data.orderType === 'delivery' ? 'DELIVERY' : 'WALK-IN';
+    const deliveryAddrVal = (data.deliveryAddress || '').trim();
+    const deliveryPhoneVal = (data.deliveryPhone || '').trim();
+    const deliveryNotesVal = (data.deliveryNotes || '').trim();
+    const deliveryDateVal = data.scheduledDeliveryDate
+      ? new Date(data.scheduledDeliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+      : '';
+    const paymentStatusVal = data.paymentStatus === 'pending' ? 'PENDING' : 'PAID';
 
     const replaced = text
       .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, phoneVal ? `Phone: ${phoneVal}` : '')
@@ -1199,6 +1215,12 @@ class ThermalPrinterServiceManager {
       .replace(/\{\{time\}\}/gi, timeStr)
       .replace(/\{\{customer_name\}\}/gi, custNameVal)
       .replace(/\{\{customer_phone\}\}/gi, custPhoneVal)
+      .replace(/\{\{order_type\}\}/gi, orderTypeVal)
+      .replace(/\{\{delivery_address\}\}/gi, deliveryAddrVal)
+      .replace(/\{\{delivery_phone\}\}/gi, deliveryPhoneVal)
+      .replace(/\{\{delivery_notes\}\}/gi, deliveryNotesVal)
+      .replace(/\{\{scheduled_delivery_date\}\}/gi, deliveryDateVal)
+      .replace(/\{\{payment_status\}\}/gi, paymentStatusVal)
       .replace(/\{\{subtotal\}\}/gi, `₹${data.subtotal.toFixed(2)}`)
       .replace(/\{\{discount\}\}/gi, `₹${data.totalDiscount.toFixed(2)}`)
       .replace(/\{\{total_tax\}\}/gi, `₹${data.totalTax.toFixed(2)}`)

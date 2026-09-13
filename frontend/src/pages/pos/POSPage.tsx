@@ -15,9 +15,9 @@ import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
-import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
+import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight, CheckCircle2, Truck, User } from 'lucide-react'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -219,6 +219,16 @@ export const POSPage = () => {
   const [billDate, setBillDate] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [completedSaleId, setCompletedSaleId] = useState<string>('')
   const [completedInvoiceNumber, setCompletedInvoiceNumber] = useState<string>('')
+
+  // Delivery & Fulfillment state
+  const [orderType, setOrderType] = useState<'walk_in' | 'delivery'>('walk_in')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryPhone, setDeliveryPhone] = useState('')
+  const [deliveryNotes, setDeliveryNotes] = useState('')
+  const [scheduledDeliveryDate, setScheduledDeliveryDate] = useState('')
+  const [deliveryPaymentStatus, setDeliveryPaymentStatus] = useState<'paid' | 'pending'>('paid')
+  const [paymentDueDate, setPaymentDueDate] = useState('')
+
   const [lastSaleData, setLastSaleData] = useState<{
     items: typeof items
     totals: typeof totals
@@ -227,6 +237,14 @@ export const POSPage = () => {
     method: typeof method
     amountPaidNum: number
     selectedCustomer: string
+    orderType?: 'walk_in' | 'delivery'
+    deliveryAddress?: string
+    deliveryPhone?: string
+    deliveryNotes?: string
+    scheduledDeliveryDate?: string
+    deliveryStatus?: import('@/types/sale.types').DeliveryStatus
+    paymentStatus?: import('@/types/sale.types').PaymentStatus
+    paymentDueDate?: string
   } | null>(null)
 
   // Build a map of product stock reserved in cart
@@ -451,9 +469,14 @@ export const POSPage = () => {
   const amountPaidNum = parseFloat(amountPaid) || 0
   const unpaidAmount = Math.max(0, finalTotal - amountPaidNum)
   const change = Math.max(0, amountPaidNum - finalTotal)
-  const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer)
+  const isDeliveryPending = orderType === 'delivery' && deliveryPaymentStatus === 'pending'
+  const isComplete = isDeliveryPending || unpaidAmount <= 0.01 || Boolean(selectedCustomer)
 
   const handleCheckout = () => {
+    const isDelivery = orderType === 'delivery'
+    const finalPaymentStatus = isDelivery ? deliveryPaymentStatus : (method === 'credit' ? 'pending' : 'paid')
+    const finalAmountPaid = isDelivery && deliveryPaymentStatus === 'pending' ? 0 : amountPaidNum
+
     const saleData: Parameters<typeof createSale>[0] = {
       items: items.map(item => {
         const itemTaxRate = item.taxRate || 0
@@ -481,10 +504,18 @@ export const POSPage = () => {
       totalTax: taxAmount,
       grandTotal: finalTotal,
       paymentMethod: method,
-      amountPaid: amountPaidNum,
+      amountPaid: finalAmountPaid,
       changeReturned: change,
       isQuickBill: false,
       createdAt: billDate ? new Date(`${billDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString() : undefined,
+      orderType,
+      deliveryAddress: isDelivery ? deliveryAddress : undefined,
+      deliveryPhone: isDelivery ? deliveryPhone : undefined,
+      deliveryNotes: isDelivery ? deliveryNotes : undefined,
+      scheduledDeliveryDate: isDelivery && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
+      deliveryStatus: isDelivery ? 'pending' : 'delivered',
+      paymentStatus: finalPaymentStatus,
+      paymentDueDate: isDelivery && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
     }
 
     // Only set customerId if a customer is selected (Firestore rejects undefined)
@@ -513,8 +544,16 @@ export const POSPage = () => {
       orderDiscountAmount,
       finalTotal,
       method,
-      amountPaidNum,
+      amountPaidNum: finalAmountPaid,
       selectedCustomer,
+      orderType,
+      deliveryAddress: isDelivery ? deliveryAddress : undefined,
+      deliveryPhone: isDelivery ? deliveryPhone : undefined,
+      deliveryNotes: isDelivery ? deliveryNotes : undefined,
+      scheduledDeliveryDate: isDelivery && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
+      deliveryStatus: (isDelivery ? 'pending' : 'delivered') as import('@/types/sale.types').DeliveryStatus,
+      paymentStatus: finalPaymentStatus as import('@/types/sale.types').PaymentStatus,
+      paymentDueDate: isDelivery && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
     }
     setLastSaleData(snapshot)
     setCompletedSaleId('')
@@ -527,6 +566,13 @@ export const POSPage = () => {
     setIsPaymentOpen(false)
     setMethod('cash')
     setAmountPaid('')
+    setDeliveryAddress('')
+    setDeliveryPhone('')
+    setDeliveryNotes('')
+    setScheduledDeliveryDate('')
+    setDeliveryPaymentStatus('paid')
+    setPaymentDueDate('')
+    setOrderType('walk_in')
     setIsPrintModalOpen(true)
 
     // Step 2: Asynchronously persist sale to backend without blocking the UI
@@ -554,10 +600,10 @@ export const POSPage = () => {
     }
     const tempSale: Partial<Sale> = {
       id: `draft-${Date.now()}`,
-      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+      invoiceNumber: 'DRAFT',
       createdAt: new Date().toISOString(),
       subtotal: gstSummary.taxableValue,
-      totalDiscount: orderDiscountAmount,
+      totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
       totalTax: taxAmount,
       grandTotal: finalTotal,
       paymentMethod: method,
@@ -576,6 +622,14 @@ export const POSPage = () => {
       })),
       customerId: selectedCustomer,
       customerName: (selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : undefined) || 'Walk-in Customer',
+      orderType,
+      deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
+      deliveryPhone: orderType === 'delivery' ? deliveryPhone : undefined,
+      deliveryNotes: orderType === 'delivery' ? deliveryNotes : undefined,
+      scheduledDeliveryDate: orderType === 'delivery' && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
+      deliveryStatus: orderType === 'delivery' ? 'pending' : 'delivered',
+      paymentStatus: orderType === 'delivery' ? deliveryPaymentStatus : 'paid',
+      paymentDueDate: orderType === 'delivery' && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
     }
     setCurrentSaleForReceipt(tempSale)
     setIsRealisticReceiptOpen(true)
@@ -588,8 +642,16 @@ export const POSPage = () => {
       id: completedSaleId,
       invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
       customerId: lastSaleData.selectedCustomer,
-      customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || 'Walk-in Customer',
-      customerPhone: lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.phone : undefined,
+      customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || (lastSaleData.orderType === 'delivery' ? 'Delivery Customer' : 'Walk-in Customer'),
+      customerPhone: lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.phone : lastSaleData.deliveryPhone || undefined,
+      orderType: lastSaleData.orderType || 'walk_in',
+      deliveryAddress: lastSaleData.deliveryAddress,
+      deliveryPhone: lastSaleData.deliveryPhone,
+      deliveryNotes: lastSaleData.deliveryNotes,
+      scheduledDeliveryDate: lastSaleData.scheduledDeliveryDate,
+      deliveryStatus: lastSaleData.deliveryStatus || (lastSaleData.orderType === 'delivery' ? 'pending' : 'delivered'),
+      paymentStatus: lastSaleData.paymentStatus || (lastSaleData.method === 'credit' ? 'pending' : 'paid'),
+      paymentDueDate: lastSaleData.paymentDueDate,
       items: lastSaleData.items.map(item => {
         const itemTaxRate = item.taxRate || 0
         const lineTotal = item.sellingPrice * item.quantity - item.discount
@@ -1084,8 +1146,45 @@ export const POSPage = () => {
           </div>
 
           {/* Customer Selector (optional - walk-in by default) — searchable by name/phone */}
-          <div data-tour="pos-customer-select">
+          <div data-tour="pos-customer-select" className="space-y-2">
             <CustomerSelect value={selectedCustomer} onChange={setSelectedCustomer} size="compact" />
+
+            {/* Order Type Toggle: Walk-in vs Delivery */}
+            <div className="flex items-center p-1 bg-gray-100 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700/60">
+              <button
+                type="button"
+                onClick={() => setOrderType('walk_in')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  orderType === 'walk_in'
+                    ? 'bg-white dark:bg-dark-card text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200 dark:border-gray-700'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <User size={13} />
+                <span>Walk-in</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderType('delivery')
+                  if (selectedCustomer) {
+                    const cust = customers?.find(c => c.id === selectedCustomer)
+                    if (cust) {
+                      if (!deliveryPhone && cust.phone) setDeliveryPhone(cust.phone)
+                      if (!deliveryAddress && cust.address) setDeliveryAddress(cust.address)
+                    }
+                  }
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  orderType === 'delivery'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <Truck size={13} />
+                <span>Delivery</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1275,6 +1374,143 @@ export const POSPage = () => {
             />
           </div>
 
+          {/* Delivery & Fulfillment Details (if Order Type is Delivery) */}
+          {orderType === 'delivery' && (
+            <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-950 dark:text-blue-200">
+                  <Truck size={16} className="text-blue-600 dark:text-blue-400" />
+                  <span>Delivery & Fulfillment Details</span>
+                </div>
+                <Badge variant="blue" size="sm">Delivery Order</Badge>
+              </div>
+
+              {/* Searchable Customer / Recipient Picker */}
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Customer / Recipient (Search by Name or Phone)
+                </label>
+                <CustomerSelect
+                  value={selectedCustomer}
+                  onChange={(custId) => {
+                    setSelectedCustomer(custId)
+                    if (custId) {
+                      const cust = customers?.find(c => c.id === custId)
+                      if (cust) {
+                        if (cust.phone) setDeliveryPhone(cust.phone)
+                        if (cust.address) setDeliveryAddress(cust.address)
+                      }
+                    }
+                  }}
+                  size="compact"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Delivery Phone
+                  </label>
+                  <Input
+                    type="tel"
+                    placeholder="Recipient phone number"
+                    value={deliveryPhone}
+                    onChange={e => setDeliveryPhone(e.target.value)}
+                    className="text-xs py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Scheduled Delivery Date
+                  </label>
+                  <Input
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    value={scheduledDeliveryDate}
+                    onChange={e => setScheduledDeliveryDate(e.target.value)}
+                    className="text-xs py-2"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Delivery Address
+                </label>
+                <Input
+                  type="text"
+                  placeholder="Complete shipping / delivery address"
+                  value={deliveryAddress}
+                  onChange={e => setDeliveryAddress(e.target.value)}
+                  className="text-xs py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Delivery Notes / Instructions (Optional)
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g., Gate code, deliver between 4-6 PM"
+                  value={deliveryNotes}
+                  onChange={e => setDeliveryNotes(e.target.value)}
+                  className="text-xs py-2"
+                />
+              </div>
+
+              <div className="pt-1">
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Payment Collection Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryPaymentStatus('paid')
+                      setAmountPaid(finalTotal.toFixed(2))
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all text-center cursor-pointer ${
+                      deliveryPaymentStatus === 'paid'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-sm'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                    }`}
+                  >
+                    ✓ Paid in Advance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryPaymentStatus('pending')
+                      setAmountPaid('0')
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all text-center cursor-pointer ${
+                      deliveryPaymentStatus === 'pending'
+                        ? 'border-amber-600 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-950/60 dark:text-amber-300 shadow-sm'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                    }`}
+                  >
+                    ⏳ Pay on Delivery (Pending / COD)
+                  </button>
+                </div>
+              </div>
+
+              {deliveryPaymentStatus === 'pending' && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1">
+                    Expected Payment Collection Due Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={paymentDueDate}
+                    onChange={e => setPaymentDueDate(e.target.value)}
+                    className="text-xs py-2"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Payment Methods */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('pos.paymentMethod')}</label>
@@ -1311,6 +1547,22 @@ export const POSPage = () => {
                 </button>
               ))}
             </div>
+
+            {/* In-Modal Searchable Customer Selection for Credit */}
+            {method === 'credit' && (
+              <div className="mt-3 p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-950 dark:text-blue-200">
+                  <UserPlus size={15} className="text-blue-600 dark:text-blue-400" />
+                  <span>Select Customer for Credit Account</span>
+                </div>
+                <CustomerSelect
+                  value={selectedCustomer}
+                  onChange={setSelectedCustomer}
+                  size="compact"
+                />
+              </div>
+            )}
+
             {method === 'upi' && (
               settings?.receiptConfig?.upiId || settings?.upiId ? (
                 <div className="mt-3">
@@ -1383,8 +1635,13 @@ export const POSPage = () => {
             )}
           </div>
 
-          {/* Partial Credit Allocation & Change Badges */}
-          {unpaidAmount > 0.01 ? (
+          {/* Partial Credit Allocation, COD Pending Notice & Change Badges */}
+          {isDeliveryPending ? (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
+              <span className="font-semibold">Pay on Delivery (COD) — Total to collect:</span>
+              <span className="font-extrabold text-sm">{formatINR(finalTotal)}</span>
+            </div>
+          ) : unpaidAmount > 0.01 ? (
             selectedCustomer ? (
               <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
                 <div className="font-bold flex items-center gap-1.5">
@@ -1396,14 +1653,21 @@ export const POSPage = () => {
                 </p>
               </div>
             ) : (
-              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-1">
+              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-2">
                 <div className="font-bold flex items-center gap-1.5">
                   <AlertTriangle size={15} className="text-red-600 dark:text-red-400" />
                   Customer Selection Required for Credit
                 </div>
                 <p>
-                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please select a registered customer to record credit, or collect full payment.
+                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please search and select a customer below:
                 </p>
+                <div className="pt-1">
+                  <CustomerSelect
+                    value={selectedCustomer}
+                    onChange={setSelectedCustomer}
+                    size="compact"
+                  />
+                </div>
               </div>
             )
           ) : change > 0 ? (

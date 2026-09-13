@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useSaleById } from '@/hooks/useSales'
+import { useSaleById, useUpdateSaleDeliveryStatus } from '@/hooks/useSales'
 import { useSettings } from '@/hooks/useSettings'
 import { useCustomers } from '@/hooks/useCustomers'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { ArrowLeft, Printer, FileText, Bluetooth, Download, RotateCcw, Receipt, ArrowRightLeft } from 'lucide-react'
+import { ArrowLeft, Printer, FileText, Bluetooth, Download, RotateCcw, Receipt, ArrowRightLeft, Truck, MapPin, Phone, Calendar, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { ProcessReturnModal } from '@/components/sales/ProcessReturnModal'
 import { ReturnReceiptModal } from '@/components/sales/ReturnReceiptModal'
 import { ProcessExchangeModal } from '@/components/sales/ProcessExchangeModal'
@@ -17,6 +17,7 @@ import { useReturnsForSale } from '@/hooks/useSaleReturns'
 import { useExchangesForSale } from '@/hooks/useSaleExchanges'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/queryKeys'
+import type { DeliveryStatus, PaymentStatus } from '@/types/sale.types'
 
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
@@ -35,6 +36,7 @@ export const SaleDetailPage = () => {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: sale, isLoading } = useSaleById(id ?? '')
+  const { mutate: updateDeliveryStatus, isPending: isUpdatingDelivery } = useUpdateSaleDeliveryStatus()
   const { data: returns = [] } = useReturnsForSale(id ?? '')
   const { data: exchanges = [] } = useExchangesForSale(id ?? '')
   const { data: settings } = useSettings()
@@ -47,6 +49,20 @@ export const SaleDetailPage = () => {
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false)
   const [selectedExchangeSlip, setSelectedExchangeSlip] = useState<any | null>(null)
   const blePrinter = useBlePrinter()
+
+  const handleUpdateStatus = (deliveryStatus: DeliveryStatus, paymentStatus?: PaymentStatus) => {
+    if (!sale) return
+    updateDeliveryStatus(
+      { saleId: sale.id, data: { deliveryStatus, paymentStatus } },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES, sale.id] })
+          toast.success('Delivery status updated successfully')
+        },
+        onError: (err) => toastError(err, 'Failed to update delivery status'),
+      }
+    )
+  }
 
   // Accept format directly to avoid React state update race condition
   const handlePrint = async (format: 'a4' | 'thermal') => {
@@ -268,6 +284,143 @@ export const SaleDetailPage = () => {
           </div>
         )}
 
+        {/* Delivery & Fulfillment Card */}
+        {sale.orderType === 'delivery' && (
+          <div className="p-5 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/50 dark:from-blue-950/30 dark:via-dark-card dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800/80 rounded-2xl shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-blue-100 dark:border-blue-900/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Truck size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base">Delivery & Fulfillment</h3>
+                    <Badge variant={
+                      sale.deliveryStatus === 'delivered' ? 'success' :
+                      sale.deliveryStatus === 'out_for_delivery' ? 'info' :
+                      sale.deliveryStatus === 'cancelled' ? 'default' : 'warning'
+                    }>
+                      {sale.deliveryStatus === 'delivered' ? 'DELIVERED' :
+                       sale.deliveryStatus === 'out_for_delivery' ? 'OUT FOR DELIVERY' :
+                       sale.deliveryStatus === 'cancelled' ? 'CANCELLED' : 'PENDING'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Order Type: <strong>Delivery</strong> • Payment: <strong className={sale.paymentStatus === 'pending' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>{sale.paymentStatus === 'pending' ? 'COD / PENDING' : 'PAID'}</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                {sale.deliveryStatus === 'pending' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={isUpdatingDelivery}
+                    onClick={() => handleUpdateStatus('out_for_delivery')}
+                    leftIcon={<Truck size={14} />}
+                  >
+                    Mark Out for Delivery
+                  </Button>
+                )}
+                {sale.deliveryStatus !== 'delivered' && (
+                  <Button
+                    size="sm"
+                    loading={isUpdatingDelivery}
+                    onClick={() => handleUpdateStatus('delivered')}
+                    leftIcon={<CheckCircle2 size={14} />}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    Mark Delivered
+                  </Button>
+                )}
+                {sale.paymentStatus === 'pending' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={isUpdatingDelivery}
+                    onClick={() => handleUpdateStatus(sale.deliveryStatus || 'pending', 'paid')}
+                    className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300"
+                  >
+                    Mark COD Paid
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Delivery Details Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              {sale.deliveryPhone && (
+                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
+                    <Phone size={13} className="text-blue-500" />
+                    <span>Contact Phone</span>
+                  </div>
+                  <p className="font-bold text-gray-900 dark:text-gray-100 text-sm">{sale.deliveryPhone}</p>
+                </div>
+              )}
+
+              {sale.scheduledDeliveryDate && (
+                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
+                    <Calendar size={13} className="text-amber-500" />
+                    <span>Scheduled Date</span>
+                  </div>
+                  <p className="font-bold text-gray-900 dark:text-gray-100">
+                    {new Date(sale.scheduledDeliveryDate).toLocaleDateString('en-IN', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                    })}
+                  </p>
+                </div>
+              )}
+
+              {sale.paymentDueDate && sale.paymentStatus === 'pending' && (
+                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
+                    <Clock size={13} className="text-orange-500" />
+                    <span>Payment Due</span>
+                  </div>
+                  <p className="font-bold text-orange-600 dark:text-orange-400">
+                    {new Date(sale.paymentDueDate).toLocaleDateString('en-IN', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                    })}
+                  </p>
+                </div>
+              )}
+
+              {sale.deliveredAt && (
+                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
+                    <CheckCircle2 size={13} className="text-emerald-500" />
+                    <span>Delivered At</span>
+                  </div>
+                  <p className="font-bold text-gray-900 dark:text-gray-100">
+                    {new Date(sale.deliveredAt).toLocaleDateString('en-IN', {
+                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {sale.deliveryAddress && (
+              <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700 text-xs">
+                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
+                  <MapPin size={13} className="text-red-500" />
+                  <span>Delivery Destination Address</span>
+                </div>
+                <p className="font-medium text-gray-900 dark:text-gray-100 leading-relaxed">{sale.deliveryAddress}</p>
+                {sale.deliveryNotes && (
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 italic">
+                    Notes: {sale.deliveryNotes}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <Card className="overflow-hidden">
           {/* Receipt Header */}
           <div className="bg-[#0a0a2e] text-white p-6 text-center">
@@ -291,7 +444,14 @@ export const SaleDetailPage = () => {
             <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('sales.invoiceHeader')}</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{sale.invoiceNumber}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{sale.invoiceNumber}</p>
+                  {sale.orderType === 'delivery' && (
+                    <Badge variant="blue" className="text-[10px]">
+                      DELIVERY
+                    </Badge>
+                  )}
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.date')}</p>
@@ -308,24 +468,43 @@ export const SaleDetailPage = () => {
               </div>
             </div>
 
-            {/* Customer */}
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.customerLabel')}</p>
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                {sale.customerId ? t('sales.registeredCustomer') : t('dashboard.walkInCustomer')}
-              </p>
+            {/* Customer & Delivery Destination */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.customerLabel')}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {sale.customerId ? (customers?.find(c => c.id === sale.customerId)?.name || t('sales.registeredCustomer')) : (sale.customerName || (sale.orderType === 'delivery' ? 'Delivery Customer' : t('dashboard.walkInCustomer')))}
+                </p>
+                {sale.deliveryPhone && <p className="text-xs text-gray-400 mt-0.5">{sale.deliveryPhone}</p>}
+              </div>
+
+              {sale.orderType === 'delivery' && sale.deliveryAddress && (
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Shipping / Delivery To</p>
+                  <p className="text-xs font-medium text-gray-800 dark:text-gray-200 mt-0.5 leading-relaxed">
+                    {sale.deliveryAddress}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Payment Method */}
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.paymentMethod')}</p>
-              <Badge variant={
-                sale.paymentMethod === 'cash' ? 'success' :
-                sale.paymentMethod === 'card' ? 'info' :
-                sale.paymentMethod === 'upi' ? 'default' : 'warning'
-              }>
-                {sale.paymentMethod?.toUpperCase()}
-              </Badge>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant={
+                  sale.paymentMethod === 'cash' ? 'success' :
+                  sale.paymentMethod === 'card' ? 'info' :
+                  sale.paymentMethod === 'upi' ? 'default' : 'warning'
+                }>
+                  {sale.paymentMethod?.toUpperCase()}
+                </Badge>
+                {sale.paymentStatus === 'pending' && (
+                  <Badge variant="warning">
+                    UNPAID / COD PENDING
+                  </Badge>
+                )}
+              </div>
             </div>
 
             {/* Items Table */}

@@ -80,7 +80,7 @@ export const createSaleReturn = async (req: Request, res: Response) => {
       totalTax: sale.totalTax,
       grandTotal: sale.grandTotal,
       extraChargesTotal: sale.extraChargesTotal,
-      pastReturns: sale.returns,
+      pastReturns: sale.returns as any,
     });
 
     if (computed.refundAmount <= 0) {

@@ -62,6 +62,14 @@ export interface ReceiptPrintContext {
   tableNo?: string
   waiterName?: string
   tokenNo?: string
+  orderType?: 'walk_in' | 'delivery'
+  deliveryAddress?: string | null
+  deliveryPhone?: string | null
+  deliveryNotes?: string | null
+  scheduledDeliveryDate?: Date | string | null
+  deliveryStatus?: string | null
+  paymentStatus?: string | null
+  paymentDueDate?: Date | string | null
 }
 
 export const SAMPLE_RECEIPT_CONTEXT: ReceiptPrintContext = {
@@ -175,6 +183,14 @@ export function saleToReceiptContext(
     tableNo: opts?.tableNo || saleExtra.tableNo,
     waiterName: opts?.waiterName || saleExtra.waiterName,
     tokenNo,
+    orderType: (sale as any).orderType || 'walk_in',
+    deliveryAddress: (sale as any).deliveryAddress,
+    deliveryPhone: (sale as any).deliveryPhone,
+    deliveryNotes: (sale as any).deliveryNotes,
+    scheduledDeliveryDate: (sale as any).scheduledDeliveryDate,
+    deliveryStatus: (sale as any).deliveryStatus,
+    paymentStatus: (sale as any).paymentStatus,
+    paymentDueDate: (sale as any).paymentDueDate,
   }
 }
 
@@ -218,10 +234,16 @@ export function interpolateReceiptVariables(
 
   const money = (n: number) => (opts?.thermal ? formatThermalMoney(n) : `₹${n.toFixed(2)}`)
 
+  const isDelivery = data.orderType === 'delivery'
+  const deliveryAddr = data.deliveryAddress || ''
+  const deliveryPhone = data.deliveryPhone || ''
+  const schedDate = data.scheduledDeliveryDate ? new Date(data.scheduledDeliveryDate).toLocaleDateString('en-GB') : ''
+  const payStatus = data.paymentStatus === 'pending' ? 'PAYMENT PENDING' : 'PAID'
+
   const replaced = text
     .replace(/(?:Phone|Ph|Tel)?:\s*\{\{store_phone\}\}/gi, data.storePhone ? `Ph: ${data.storePhone}` : '')
     .replace(/GST(?:IN)?:\s*\{\{store_gstin\}\}/gi, data.storeGstin ? `GSTIN: ${data.storeGstin}` : '')
-    .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, `Customer: ${custLabelVal}`)
+    .replace(/(?:Customer|Cust)?:\s*\{\{customer_name\}\}/gi, isDelivery ? `Customer: ${custName} [DELIVERY]` : `Customer: ${custLabelVal}`)
     .replace(/(?:Phone|Ph|Tel)?:\s*\{\{customer_phone\}\}/gi, custPhone ? `Phone: ${custPhone}` : '')
     .replace(/(?:Invoice|Bill|Inv)?:\s*\{\{invoice_no\}\}/gi, data.invoiceNumber ? `Inv: ${data.invoiceNumber}` : '')
     .replace(/(?:Table|Tbl)?:\s*\{\{table_no\}\}/gi, data.tableNo ? `Table: ${data.tableNo}` : '')
@@ -236,6 +258,11 @@ export function interpolateReceiptVariables(
     .replace(/\{\{time\}\}/gi, timeStr)
     .replace(/\{\{customer_name\}\}/gi, custName)
     .replace(/\{\{customer_phone\}\}/gi, custPhone)
+    .replace(/\{\{order_type\}\}/gi, isDelivery ? 'DELIVERY' : 'WALK-IN')
+    .replace(/\{\{delivery_address\}\}/gi, deliveryAddr)
+    .replace(/\{\{delivery_phone\}\}/gi, deliveryPhone)
+    .replace(/\{\{scheduled_delivery\}\}/gi, schedDate)
+    .replace(/\{\{payment_status\}\}/gi, payStatus)
     .replace(/\{\{subtotal\}\}/gi, money(data.subtotal))
     .replace(/\{\{discount\}\}/gi, money(data.totalDiscount))
     .replace(/\{\{tax\}\}/gi, money(data.totalTax))

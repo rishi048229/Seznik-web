@@ -62,9 +62,7 @@ export const createSale = async (req: Request, res: Response) => {
       body.customerId && String(body.customerId).trim()
         ? String(body.customerId).trim()
         : null;
-    // Multi-location inventory: which store this whole sale was billed from. Absent
-    // entirely when the feature is off or no store was picked, so stock decrements
-    // hit the flat Product.currentStock exactly as before (legacy path unchanged).
+    // Multi-location inventory: which store this whole sale was billed from.
     const locationId =
       body.locationId && String(body.locationId).trim()
         ? String(body.locationId).trim()
@@ -74,6 +72,23 @@ export const createSale = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid sale date' });
     }
 
+    // Delivery & Fulfillment fields
+    const orderType = body.orderType === 'delivery' ? 'delivery' : 'walk_in';
+    const deliveryAddress = body.deliveryAddress ? String(body.deliveryAddress).trim() : null;
+    const deliveryPhone = body.deliveryPhone ? String(body.deliveryPhone).trim() : null;
+    const deliveryNotes = body.deliveryNotes ? String(body.deliveryNotes).trim() : null;
+    const scheduledDeliveryDate = body.scheduledDeliveryDate ? new Date(body.scheduledDeliveryDate) : null;
+    const deliveryStatus = orderType === 'delivery' ? (body.deliveryStatus || 'pending') : 'delivered';
+    const deliveredAt = body.deliveredAt ? new Date(body.deliveredAt) : (orderType === 'walk_in' ? saleDate : null);
+    
+    // Payment Status: if unpaid > 0.01 and marked pending / COD / credit
+    const unpaidAmount = Math.max(0, grandTotal - amountPaid);
+    const paymentStatus = body.paymentStatus
+      ? String(body.paymentStatus)
+      : unpaidAmount > 0.01
+      ? 'pending'
+      : 'paid';
+    const paymentDueDate = body.paymentDueDate ? new Date(body.paymentDueDate) : null;
 
     const count = await prisma.sale.count({ where: { userId } });
     const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
@@ -98,6 +113,15 @@ export const createSale = async (req: Request, res: Response) => {
         locationId,
         platform,
         userId,
+        orderType,
+        deliveryAddress,
+        deliveryPhone,
+        deliveryNotes,
+        scheduledDeliveryDate,
+        deliveryStatus,
+        deliveredAt,
+        paymentStatus,
+        paymentDueDate,
         createdAt: saleDate,
       },
     });
@@ -278,3 +302,103 @@ export const bulkDeleteSales = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to bulk delete sales' });
   }
 };
+
+/**
+ * Update delivery fulfillment status and/or payment status for a sale
+ * (e.g., mark out_for_delivery, delivered, or mark payment collected).
+ */
+export const updateSaleDeliveryStatus = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+    const { id } = req.params;
+    const { deliveryStatus, paymentStatus, paymentDueDate, deliveryAddress, deliveryPhone, deliveryNotes } = req.body;
+
+    const existing = await prisma.sale.findFirst({
+      where: { id: String(id), userId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Sale not found' });
+    }
+
+    const updateData: any = {};
+
+    if (deliveryStatus !== undefined) {
+      updateData.deliveryStatus = String(deliveryStatus);
+      if (deliveryStatus === 'delivered' && !existing.deliveredAt) {
+        updateData.deliveredAt = new Date();
+      }
+    }
+
+    if (paymentStatus !== undefined) {
+      updateData.paymentStatus = String(paymentStatus);
+    }
+
+    if (paymentDueDate !== undefined) {
+      updateData.paymentDueDate = paymentDueDate ? new Date(paymentDueDate) : null;
+    }
+
+    if (deliveryAddress !== undefined) {
+      updateData.deliveryAddress = String(deliveryAddress).trim();
+    }
+
+    if (deliveryPhone !== undefined) {
+      updateData.deliveryPhone = String(deliveryPhone).trim();
+    }
+
+    if (deliveryNotes !== undefined) {
+      updateData.deliveryNotes = String(deliveryNotes).trim();
+    }
+
+    const updated = await prisma.sale.update({
+      where: { id: existing.id },
+      data: updateData,
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    console.error('updateSaleDeliveryStatus error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to update delivery status' });
+  }
+};
+
+/**
+ * Fetch delivery orders and payment collection reminders
+ */
+export const getDeliveryReminders = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+
+    const pendingDeliveries = await prisma.sale.findMany({
+      where: {
+        userId,
+        orderType: 'delivery',
+        deliveryStatus: { in: ['pending', 'out_for_delivery'] },
+      },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { scheduledDeliveryDate: 'asc' },
+    });
+
+    const pendingPayments = await prisma.sale.findMany({
+      where: {
+        userId,
+        paymentStatus: 'pending',
+      },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { paymentDueDate: 'asc' },
+    });
+
+    res.json({
+      pendingDeliveries,
+      pendingPayments,
+    });
+  } catch (error: any) {
+    console.error('getDeliveryReminders error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to fetch delivery reminders' });
+  }
+};
+

@@ -16,7 +16,7 @@ import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle, Search, History, RotateCcw, Edit2, Check, FileText, CheckCircle2 } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle, Search, History, RotateCcw, Edit2, Check, FileText, CheckCircle2, Truck, User } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -100,33 +100,16 @@ export const POSLitePage = () => {
     localStorage.removeItem(RECENT_STORAGE_KEY)
     return readStored(recentStorageKey, [])
   })
-  const [lastBill, setLastBill] = useState<CartItem[]>(() => {
-    localStorage.removeItem(LAST_BILL_STORAGE_KEY)
-    return readStored(lastBillStorageKey, [])
-  })
+  const [items, setItems] = useState<CartItem[]>(() => readStored(liteCartStorageKey, []))
+  const [lastBill, setLastBill] = useState<CartItem[]>(() => readStored(lastBillStorageKey, []))
 
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
-
-  // Persist Quick Bill cart state in localStorage scoped by user
-  const [items, setItems] = useState<CartItem[]>(() => {
-    try {
-      localStorage.removeItem('pos_lite_cart')
-      const saved = localStorage.getItem(liteCartStorageKey)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
 
   // Whenever user changes, reload user-specific cart and recents
   useEffect(() => {
     try {
-      localStorage.removeItem('pos_lite_cart')
-      localStorage.removeItem(RECENT_STORAGE_KEY)
-      localStorage.removeItem(LAST_BILL_STORAGE_KEY)
-      const saved = localStorage.getItem(liteCartStorageKey)
-      setItems(saved ? JSON.parse(saved) : [])
       setRecentItems(readStored(recentStorageKey, []))
+      setItems(readStored(liteCartStorageKey, []))
       setLastBill(readStored(lastBillStorageKey, []))
     } catch {
       setItems([])
@@ -142,6 +125,14 @@ export const POSLitePage = () => {
   }, [liteCartStorageKey, items])
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [orderType, setOrderType] = useState<'walk_in' | 'delivery'>('walk_in')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryPhone, setDeliveryPhone] = useState('')
+  const [deliveryNotes, setDeliveryNotes] = useState('')
+  const [scheduledDeliveryDate, setScheduledDeliveryDate] = useState('')
+  const [deliveryPaymentStatus, setDeliveryPaymentStatus] = useState<'paid' | 'pending'>('paid')
+  const [paymentDueDate, setPaymentDueDate] = useState('')
+
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isRealisticReceiptOpen, setIsRealisticReceiptOpen] = useState(false)
@@ -165,6 +156,14 @@ export const POSLitePage = () => {
     method: typeof method
     amountPaidNum: number
     selectedCustomer: string
+    orderType?: 'walk_in' | 'delivery'
+    deliveryAddress?: string
+    deliveryPhone?: string
+    deliveryNotes?: string
+    scheduledDeliveryDate?: string
+    deliveryStatus?: 'pending' | 'out_for_delivery' | 'delivered' | 'cancelled'
+    paymentStatus?: 'paid' | 'pending'
+    paymentDueDate?: string
   } | null>(null)
 
   // GST mode: 'exclusive' = price is base (GST added on top), 'inclusive' = price already includes GST
@@ -480,9 +479,14 @@ export const POSLitePage = () => {
   const amountPaidNum = parseFloat(amountPaid) || 0
   const unpaidAmount = Math.max(0, finalTotal - amountPaidNum)
   const change = Math.max(0, amountPaidNum - finalTotal)
-  const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer)
+  const isDeliveryPending = orderType === 'delivery' && deliveryPaymentStatus === 'pending'
+  const isComplete = isDeliveryPending || unpaidAmount <= 0.01 || Boolean(selectedCustomer)
 
   const handleCheckout = () => {
+    const isDelivery = orderType === 'delivery'
+    const finalPaymentStatus = isDelivery ? deliveryPaymentStatus : (method === 'credit' ? 'pending' : 'paid')
+    const finalAmountPaid = isDelivery && deliveryPaymentStatus === 'pending' ? 0 : amountPaidNum
+
     const saleData: Parameters<typeof createSale>[0] = {
       items: items.map(item => {
         const resolvedProductId = (!item.id.startsWith('temp-'))
@@ -513,9 +517,17 @@ export const POSLitePage = () => {
       totalTax: taxAmount,
       grandTotal: finalTotal,
       paymentMethod: method,
-      amountPaid: amountPaidNum,
+      amountPaid: finalAmountPaid,
       changeReturned: change,
       isQuickBill: true,
+      orderType,
+      deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
+      deliveryPhone: orderType === 'delivery' ? deliveryPhone : undefined,
+      deliveryNotes: orderType === 'delivery' ? deliveryNotes : undefined,
+      scheduledDeliveryDate: orderType === 'delivery' && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
+      deliveryStatus: orderType === 'delivery' ? 'pending' : 'delivered',
+      paymentStatus: finalPaymentStatus,
+      paymentDueDate: orderType === 'delivery' && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
       createdAt: billDate ? new Date(`${billDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString() : undefined,
     }
 
@@ -542,8 +554,16 @@ export const POSLitePage = () => {
       orderDiscountAmount,
       finalTotal,
       method,
-      amountPaidNum,
+      amountPaidNum: finalAmountPaid,
       selectedCustomer,
+      orderType,
+      deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
+      deliveryPhone: orderType === 'delivery' ? deliveryPhone : undefined,
+      deliveryNotes: orderType === 'delivery' ? deliveryNotes : undefined,
+      scheduledDeliveryDate: orderType === 'delivery' && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
+      deliveryStatus: (orderType === 'delivery' ? 'pending' : 'delivered') as 'pending' | 'out_for_delivery' | 'delivered' | 'cancelled',
+      paymentStatus: finalPaymentStatus,
+      paymentDueDate: orderType === 'delivery' && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
     }
     setLastSaleData(snapshot)
     try {
@@ -608,6 +628,14 @@ export const POSLitePage = () => {
       amountPaid: amountPaidNum || finalTotal,
       changeReturned: change,
       isQuickBill: true,
+      orderType,
+      deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
+      deliveryPhone: orderType === 'delivery' ? deliveryPhone : undefined,
+      deliveryNotes: orderType === 'delivery' ? deliveryNotes : undefined,
+      scheduledDeliveryDate: orderType === 'delivery' && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
+      deliveryStatus: orderType === 'delivery' ? 'pending' : 'delivered',
+      paymentStatus: orderType === 'delivery' ? deliveryPaymentStatus : 'paid',
+      paymentDueDate: orderType === 'delivery' && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
       items: items.map(item => ({
         productId: item.id,
         productName: item.productName,
@@ -619,7 +647,8 @@ export const POSLitePage = () => {
         total: item.total,
       })),
       customerId: selectedCustomer,
-      customerName: (selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : undefined) || 'Walk-in Customer',
+      customerName: (selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : undefined) || (orderType === 'delivery' ? 'Delivery Customer' : 'Walk-in Customer'),
+      customerPhone: (selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.phone : undefined) || deliveryPhone,
     }
     setCurrentSaleForReceipt(tempSale)
     setIsRealisticReceiptOpen(true)
@@ -631,8 +660,16 @@ export const POSLitePage = () => {
       id: completedSaleId,
       invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
       customerId: lastSaleData.selectedCustomer,
-      customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || 'Walk-in Customer',
-      customerPhone: lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.phone : undefined,
+      customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || (lastSaleData.orderType === 'delivery' ? 'Delivery Customer' : 'Walk-in Customer'),
+      customerPhone: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.phone : undefined) || lastSaleData.deliveryPhone,
+      orderType: lastSaleData.orderType || 'walk_in',
+      deliveryAddress: lastSaleData.deliveryAddress,
+      deliveryPhone: lastSaleData.deliveryPhone,
+      deliveryNotes: lastSaleData.deliveryNotes,
+      scheduledDeliveryDate: lastSaleData.scheduledDeliveryDate,
+      deliveryStatus: lastSaleData.deliveryStatus || (lastSaleData.orderType === 'delivery' ? 'pending' : 'delivered'),
+      paymentStatus: lastSaleData.paymentStatus || 'paid',
+      paymentDueDate: lastSaleData.paymentDueDate,
       items: lastSaleData.items.map(item => ({
         productId: item.id,
         productName: item.productName,
@@ -1103,7 +1140,46 @@ export const POSLitePage = () => {
           </div>
 
           {/* Customer Selector — searchable by name/phone */}
-          <CustomerSelect value={selectedCustomer} onChange={setSelectedCustomer} size="default" />
+          <div className="space-y-2">
+            <CustomerSelect value={selectedCustomer} onChange={setSelectedCustomer} size="default" />
+
+            {/* Order Type Toggle: Walk-in vs Delivery */}
+            <div className="flex items-center p-1 bg-gray-100 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700/60">
+              <button
+                type="button"
+                onClick={() => setOrderType('walk_in')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  orderType === 'walk_in'
+                    ? 'bg-white dark:bg-dark-card text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200 dark:border-gray-700'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <User size={13} />
+                <span>Walk-in</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderType('delivery')
+                  if (selectedCustomer) {
+                    const cust = customers?.find(c => c.id === selectedCustomer)
+                    if (cust) {
+                      if (!deliveryPhone && cust.phone) setDeliveryPhone(cust.phone)
+                      if (!deliveryAddress && cust.address) setDeliveryAddress(cust.address)
+                    }
+                  }
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  orderType === 'delivery'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <Truck size={13} />
+                <span>Delivery</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Cart Items List */}
@@ -1330,6 +1406,143 @@ export const POSLitePage = () => {
             />
           </div>
 
+          {/* Delivery & Fulfillment Details (if Order Type is Delivery) */}
+          {orderType === 'delivery' && (
+            <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-950 dark:text-blue-200">
+                  <Truck size={16} className="text-blue-600 dark:text-blue-400" />
+                  <span>Delivery & Fulfillment Details</span>
+                </div>
+                <Badge variant="blue" size="sm">Delivery Order</Badge>
+              </div>
+
+              {/* Searchable Customer / Recipient Picker */}
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Customer / Recipient (Search by Name or Phone)
+                </label>
+                <CustomerSelect
+                  value={selectedCustomer}
+                  onChange={(custId) => {
+                    setSelectedCustomer(custId)
+                    if (custId) {
+                      const cust = customers?.find(c => c.id === custId)
+                      if (cust) {
+                        if (cust.phone) setDeliveryPhone(cust.phone)
+                        if (cust.address) setDeliveryAddress(cust.address)
+                      }
+                    }
+                  }}
+                  size="compact"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Delivery Phone
+                  </label>
+                  <Input
+                    type="tel"
+                    placeholder="Recipient phone number"
+                    value={deliveryPhone}
+                    onChange={e => setDeliveryPhone(e.target.value)}
+                    className="text-xs py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Scheduled Delivery Date
+                  </label>
+                  <Input
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    value={scheduledDeliveryDate}
+                    onChange={e => setScheduledDeliveryDate(e.target.value)}
+                    className="text-xs py-2"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Delivery Address
+                </label>
+                <Input
+                  type="text"
+                  placeholder="Complete shipping / delivery address"
+                  value={deliveryAddress}
+                  onChange={e => setDeliveryAddress(e.target.value)}
+                  className="text-xs py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Delivery Notes / Instructions (Optional)
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g., Gate code, deliver between 4-6 PM"
+                  value={deliveryNotes}
+                  onChange={e => setDeliveryNotes(e.target.value)}
+                  className="text-xs py-2"
+                />
+              </div>
+
+              <div className="pt-1">
+                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Payment Collection Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryPaymentStatus('paid')
+                      setAmountPaid(finalTotal.toFixed(2))
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all text-center cursor-pointer ${
+                      deliveryPaymentStatus === 'paid'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-sm'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                    }`}
+                  >
+                    ✓ Paid in Advance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryPaymentStatus('pending')
+                      setAmountPaid('0')
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all text-center cursor-pointer ${
+                      deliveryPaymentStatus === 'pending'
+                        ? 'border-amber-600 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-950/60 dark:text-amber-300 shadow-sm'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                    }`}
+                  >
+                    ⏳ Pay on Delivery (Pending / COD)
+                  </button>
+                </div>
+              </div>
+
+              {deliveryPaymentStatus === 'pending' && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1">
+                    Expected Payment Collection Due Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={paymentDueDate}
+                    onChange={e => setPaymentDueDate(e.target.value)}
+                    className="text-xs py-2"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Payment Methods */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('pos.paymentMethod')}</label>
@@ -1364,6 +1577,22 @@ export const POSLitePage = () => {
                 </button>
               ))}
             </div>
+
+            {/* In-Modal Searchable Customer Selection for Credit */}
+            {method === 'credit' && (
+              <div className="mt-3 p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-950 dark:text-blue-200">
+                  <UserPlus size={15} className="text-blue-600 dark:text-blue-400" />
+                  <span>Select Customer for Credit Account</span>
+                </div>
+                <CustomerSelect
+                  value={selectedCustomer}
+                  onChange={setSelectedCustomer}
+                  size="compact"
+                />
+              </div>
+            )}
+
             {method === 'upi' && (
               settings?.receiptConfig?.upiId || settings?.upiId ? (
                 <div className="mt-3">
@@ -1436,8 +1665,13 @@ export const POSLitePage = () => {
             )}
           </div>
 
-          {/* Partial Credit Allocation & Change Badges */}
-          {unpaidAmount > 0.01 ? (
+          {/* Partial Credit Allocation, COD Pending Notice & Change Badges */}
+          {isDeliveryPending ? (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
+              <span className="font-semibold">Pay on Delivery (COD) — Total to collect:</span>
+              <span className="font-extrabold text-sm">{formatINR(finalTotal)}</span>
+            </div>
+          ) : unpaidAmount > 0.01 ? (
             selectedCustomer ? (
               <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
                 <div className="font-bold flex items-center gap-1.5">
@@ -1449,14 +1683,21 @@ export const POSLitePage = () => {
                 </p>
               </div>
             ) : (
-              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-1">
+              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-2">
                 <div className="font-bold flex items-center gap-1.5">
                   <AlertTriangle size={15} className="text-red-600 dark:text-red-400" />
                   Customer Selection Required for Credit
                 </div>
                 <p>
-                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please select a registered customer to record credit, or collect full payment.
+                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please search and select a customer below:
                 </p>
+                <div className="pt-1">
+                  <CustomerSelect
+                    value={selectedCustomer}
+                    onChange={setSelectedCustomer}
+                    size="compact"
+                  />
+                </div>
               </div>
             )
           ) : change > 0 ? (

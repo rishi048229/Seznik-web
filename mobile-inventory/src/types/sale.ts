@@ -16,6 +16,9 @@ export interface SaleItem {
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'upi' | 'bank' | 'credit';
+export type OrderType = 'walk_in' | 'delivery';
+export type DeliveryStatus = 'pending' | 'out_for_delivery' | 'delivered' | 'cancelled';
+export type PaymentStatus = 'paid' | 'pending' | 'partial';
 
 export interface AppliedBillCharge {
   presetId: string;
@@ -47,6 +50,18 @@ export interface Sale {
   platform?: 'mobile' | 'web' | string;
   returnStatus?: 'none' | 'partial' | 'full';
   totalRefunded?: number;
+
+  // Delivery & Fulfillment fields
+  orderType?: OrderType;
+  deliveryAddress?: string | null;
+  deliveryPhone?: string | null;
+  deliveryNotes?: string | null;
+  scheduledDeliveryDate?: Date | string | null;
+  deliveryStatus?: DeliveryStatus;
+  deliveredAt?: Date | string | null;
+  paymentStatus?: PaymentStatus;
+  paymentDueDate?: Date | string | null;
+
   createdAt: string;
 }
 
