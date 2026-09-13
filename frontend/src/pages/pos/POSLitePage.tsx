@@ -527,7 +527,7 @@ export const POSLitePage = () => {
       scheduledDeliveryDate: orderType === 'delivery' && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
       deliveryStatus: orderType === 'delivery' ? 'pending' : 'delivered',
       paymentStatus: finalPaymentStatus,
-      paymentDueDate: orderType === 'delivery' && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
+      paymentDueDate: (orderType === 'delivery' || unpaidAmount > 0.01 || method === 'credit') && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
       createdAt: billDate ? new Date(`${billDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString() : undefined,
     }
 
@@ -563,8 +563,9 @@ export const POSLitePage = () => {
       scheduledDeliveryDate: orderType === 'delivery' && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
       deliveryStatus: (orderType === 'delivery' ? 'pending' : 'delivered') as 'pending' | 'out_for_delivery' | 'delivered' | 'cancelled',
       paymentStatus: finalPaymentStatus,
-      paymentDueDate: orderType === 'delivery' && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
+      paymentDueDate: (orderType === 'delivery' || unpaidAmount > 0.01 || method === 'credit') && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
     }
+
     setLastSaleData(snapshot)
     try {
       localStorage.setItem(lastBillStorageKey, JSON.stringify(items))
@@ -1673,16 +1674,88 @@ export const POSLitePage = () => {
             </div>
           ) : unpaidAmount > 0.01 ? (
             selectedCustomer ? (
-              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
-                <div className="font-bold flex items-center gap-1.5">
-                  <UserPlus size={15} className="text-amber-600 dark:text-amber-400" />
-                  Partial Credit Allocation
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <UserPlus size={15} className="text-amber-600 dark:text-amber-400" />
+                    Partial Credit Allocation
+                  </div>
+                  <p>
+                    {formatINR(amountPaidNum)} paid via {method.toUpperCase()}. Remaining <strong className="text-amber-900 dark:text-amber-100">{formatINR(unpaidAmount)}</strong> will be added to <strong>{customers?.find(c => c.id === selectedCustomer)?.name}</strong>'s Credit Balance.
+                  </p>
                 </div>
-                <p>
-                  {formatINR(amountPaidNum)} paid via {method.toUpperCase()}. Remaining <strong className="text-amber-900 dark:text-amber-100">{formatINR(unpaidAmount)}</strong> will be added to <strong>{customers?.find(c => c.id === selectedCustomer)?.name}</strong>'s Credit Balance.
-                </p>
+
+                {/* Credit Payment Due Date / Reminder Settings */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Calendar size={13} className="text-blue-600 dark:text-blue-400" />
+                      Payment Due Date / Reminder
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentDueDate('')}
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-colors ${!paymentDueDate ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'}`}
+                      >
+                        None
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date()
+                          d.setDate(d.getDate() + 7)
+                          setPaymentDueDate(d.toISOString().split('T')[0])
+                        }}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
+                      >
+                        +7d
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date()
+                          d.setDate(d.getDate() + 15)
+                          setPaymentDueDate(d.toISOString().split('T')[0])
+                        }}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
+                      >
+                        +15d
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date()
+                          d.setDate(d.getDate() + 30)
+                          setPaymentDueDate(d.toISOString().split('T')[0])
+                        }}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
+                      >
+                        +30d
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date()
+                          d.setDate(d.getDate() + 45)
+                          setPaymentDueDate(d.toISOString().split('T')[0])
+                        }}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
+                      >
+                        +45d
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    value={paymentDueDate}
+                    onChange={e => setPaymentDueDate(e.target.value)}
+                    className="w-full text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none"
+                  />
+                </div>
               </div>
             ) : (
+
               <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-2">
                 <div className="font-bold flex items-center gap-1.5">
                   <AlertTriangle size={15} className="text-red-600 dark:text-red-400" />

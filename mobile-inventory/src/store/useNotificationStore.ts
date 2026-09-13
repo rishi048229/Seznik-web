@@ -19,6 +19,7 @@ export type NotificationType =
   | 'critical_stock'
   | 'low_stock'
   | 'credit_due'
+  | 'purchase_due'
   | 'payment_due'
   | 'daily_sales_summary'
   | 'announcement'
@@ -37,6 +38,14 @@ export interface AppNotification {
   unit?: string;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
+  supplierId?: string;
+  supplierName?: string;
+  supplierPhone?: string;
+  purchaseId?: string;
+  invoiceNumber?: string;
+  dueDate?: string | null;
+  isOverdue?: boolean;
   amount?: number;
   totalSales?: number;
   ordersCount?: number;
@@ -49,11 +58,13 @@ export interface NotificationPreferences {
   lowStockAlertsEnabled: boolean;
   outOfStockAlertsEnabled: boolean;
   creditDueAlertsEnabled: boolean;
+  purchaseDueAlertsEnabled?: boolean;
   dailySummaryEnabled: boolean;
   pushNotificationsEnabled: boolean;
   soundEnabled: boolean;
   minimumThresholdMultiplier: number;
 }
+
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   lowStockAlertsEnabled: true,

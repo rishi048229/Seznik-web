@@ -5,6 +5,7 @@ import {
   sendPushNotificationToUser,
   checkAndSendLowStockPush,
   checkAndSendCustomerCreditDuePush,
+  checkAndSendSupplierPayableDuePush,
   sendDailyNightSalesSummaryPush,
   sendImportantAnnouncementPush,
   sendPaperRollsRefillPush,
@@ -98,12 +99,13 @@ router.post('/unregister-token', protect, async (req: any, res: any) => {
 });
 
 /**
- * Live Feed of real store notifications (Stock, Customer Credits, Daily Sales, Announcements)
+ * Live Feed of real store notifications (Stock, Customer Credits, Supplier Payables, Daily Sales, Announcements)
  */
 router.get('/feed', protect, async (req: any, res: any) => {
   try {
     const userId = req.user.id;
     const feed: any[] = [];
+    const now = new Date();
 
     // 1. Real Low Stock / Out of Stock Items
     const lowStockProducts = await prisma.product.findMany({
@@ -121,7 +123,7 @@ router.get('/feed', protect, async (req: any, res: any) => {
           message: isOutOfStock
             ? `"${p.name}" is completely sold out (0 ${p.unit || 'units'} left). Tap to reorder now.`
             : `Only ${p.currentStock} ${p.unit || 'units'} remaining (Threshold: ${threshold}). Tap to restock.`,
-          type: isOutOfStock ? 'out_of_stock' : 'low_stock',
+          type: 'out_of_stock',
           severity: isOutOfStock ? 'critical' : 'urgent',
           productId: p.id,
           productName: p.name,
@@ -134,7 +136,55 @@ router.get('/feed', protect, async (req: any, res: any) => {
       }
     }
 
-    // 2. Real Customer Credit / Payment Due
+    // 2. Customer Credit Sales & Overdue Payment Reminders
+    const creditSales = await prisma.sale.findMany({
+      where: {
+        userId,
+        paymentStatus: { in: ['pending', 'partial'] },
+      },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { paymentDueDate: 'asc' },
+      take: 10,
+    });
+
+    for (const s of creditSales) {
+      const custName = s.customer?.name || 'Walk-in Customer';
+      const unpaid = Math.max(0, s.grandTotal - s.amountPaid);
+      let isOverdue = false;
+      let dueDateStr = '';
+
+      if (s.paymentDueDate) {
+        const dueDate = new Date(s.paymentDueDate);
+        isOverdue = dueDate.getTime() < now.getTime();
+        dueDateStr = dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      }
+
+      feed.push({
+        id: `sale-credit-${s.id}`,
+        title: isOverdue 
+          ? `🚨 Credit Overdue: ${custName} (${s.invoiceNumber})`
+          : `💳 Payment Due: ${custName} (${s.invoiceNumber})`,
+        message: s.paymentDueDate
+          ? `₹${unpaid.toFixed(2)} due on ${dueDateStr} for Bill #${s.invoiceNumber}.${isOverdue ? ' Payment is overdue!' : ''}`
+          : `₹${unpaid.toFixed(2)} pending for Bill #${s.invoiceNumber}. Tap to collect payment.`,
+        type: 'credit_due',
+        severity: isOverdue ? 'critical' : 'warning',
+        saleId: s.id,
+        invoiceNumber: s.invoiceNumber,
+        customerId: s.customerId,
+        customerName: custName,
+        customerPhone: s.customer?.phone,
+        amount: unpaid,
+        dueDate: s.paymentDueDate ? s.paymentDueDate.toISOString() : null,
+        isOverdue,
+        createdAt: s.createdAt.toISOString(),
+        read: false,
+      });
+    }
+
+    // Also include Customers with high pending balance not already covered by specific sales
     const pendingCustomers = await prisma.customer.findMany({
       where: { userId, creditBalance: { gt: 0 } },
       select: { id: true, name: true, phone: true, creditBalance: true, oldestUnpaidSince: true, updatedAt: true },
@@ -143,21 +193,73 @@ router.get('/feed', protect, async (req: any, res: any) => {
     });
 
     for (const c of pendingCustomers) {
+      const alreadyInFeed = feed.some(f => f.customerId === c.id);
+      if (!alreadyInFeed) {
+        feed.push({
+          id: `credit-cust-${c.id}`,
+          title: `💳 Outstanding Khaata: ${c.name}`,
+          message: `₹${c.creditBalance.toFixed(2)} pending balance from ${c.name}. Tap to view customer ledger.`,
+          type: 'credit_due',
+          severity: 'warning',
+          customerId: c.id,
+          customerName: c.name,
+          customerPhone: c.phone,
+          amount: c.creditBalance,
+          createdAt: (c.oldestUnpaidSince || c.updatedAt).toISOString(),
+          read: false,
+        });
+      }
+    }
+
+    // 3. Supplier Purchase Payables & Due Date Reminders
+    const duePurchases = await prisma.purchase.findMany({
+      where: {
+        userId,
+        paymentStatus: { in: ['pending', 'partial'] },
+      },
+      include: {
+        supplier: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { paymentDueDate: 'asc' },
+      take: 10,
+    });
+
+    for (const p of duePurchases) {
+      const suppName = p.supplier?.name || 'Vendor';
+      const unpaid = Math.max(0, p.grandTotal - p.amountPaid);
+      let isOverdue = false;
+      let dueDateStr = '';
+
+      if (p.paymentDueDate) {
+        const dueDate = new Date(p.paymentDueDate);
+        isOverdue = dueDate.getTime() < now.getTime();
+        dueDateStr = dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      }
+
       feed.push({
-        id: `credit-${c.id}`,
-        title: `💳 Payment Due: ${c.name}`,
-        message: `₹${c.creditBalance.toFixed(2)} balance pending from ${c.name}. Tap to view customer ledger.`,
-        type: 'credit_due',
-        severity: 'warning',
-        customerId: c.id,
-        customerName: c.name,
-        amount: c.creditBalance,
-        createdAt: (c.oldestUnpaidSince || c.updatedAt).toISOString(),
+        id: `purchase-due-${p.id}`,
+        title: isOverdue 
+          ? `🚨 Vendor Due Overdue: ${suppName}` 
+          : `🏢 Vendor Payment Due: ${suppName}`,
+        message: p.paymentDueDate
+          ? `₹${unpaid.toFixed(2)} payable to ${suppName} due on ${dueDateStr}.${isOverdue ? ' Payment is overdue!' : ''}`
+          : `₹${unpaid.toFixed(2)} payable to ${suppName} for Bill #${p.supplierBillNumber || p.invoiceNumber}.`,
+        type: 'purchase_due',
+        severity: isOverdue ? 'critical' : 'warning',
+        purchaseId: p.id,
+        invoiceNumber: p.invoiceNumber,
+        supplierId: p.supplierId,
+        supplierName: suppName,
+        supplierPhone: p.supplier?.phone,
+        amount: unpaid,
+        dueDate: p.paymentDueDate ? p.paymentDueDate.toISOString() : null,
+        isOverdue,
+        createdAt: p.createdAt.toISOString(),
         read: false,
       });
     }
 
-    // 3. Today's Real Sales Summary
+    // 4. Today's Real Sales Summary
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -185,7 +287,7 @@ router.get('/feed', protect, async (req: any, res: any) => {
       read: false,
     });
 
-    // 4. System / Store Announcements
+    // 5. System / Store Announcements
     feed.push({
       id: 'system-announcement-ready',
       title: '📢 Cloud Sync & Backup Active',
@@ -202,6 +304,7 @@ router.get('/feed', protect, async (req: any, res: any) => {
     return res.status(500).json({ error: 'Failed to fetch notification feed' });
   }
 });
+
 
 /**
  * 1. Trigger Low Stock Scan & Push
@@ -230,6 +333,21 @@ router.post('/check-credit-due', protect, async (req: any, res: any) => {
     return res.status(500).json({ error: 'Failed to check customer credit due' });
   }
 });
+
+/**
+ * Trigger Supplier / Vendor Payable Due Check & Push
+ */
+router.post('/check-supplier-due', protect, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id;
+    const count = await checkAndSendSupplierPayableDuePush(userId);
+    return res.json({ success: true, suppliersDueCount: count });
+  } catch (err) {
+    console.error('[NotificationRoute] /check-supplier-due error:', err);
+    return res.status(500).json({ error: 'Failed to check supplier payable due' });
+  }
+});
+
 
 /**
  * 3. Trigger Daily Night Sales Summary Push

@@ -20,7 +20,21 @@ const ADDITIVE_COLUMNS = [
   `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "paymentDueDate" TIMESTAMP(3)`,
   `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "notes" TEXT`,
   `ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "payableBalance" DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "orderType" TEXT NOT NULL DEFAULT 'walk_in'`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "deliveryAddress" TEXT`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "deliveryPhone" TEXT`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "deliveryNotes" TEXT`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "scheduledDeliveryDate" TIMESTAMP(3)`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "deliveryStatus" TEXT NOT NULL DEFAULT 'delivered'`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "deliveredAt" TIMESTAMP(3)`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT NOT NULL DEFAULT 'paid'`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "paymentDueDate" TIMESTAMP(3)`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "extraChargesTotal" DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "billCharges" JSONB`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "returnStatus" TEXT NOT NULL DEFAULT 'none'`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "totalRefunded" DOUBLE PRECISION NOT NULL DEFAULT 0`,
 ] as const
+
 
 const ADDITIVE_TABLES = [
   `
@@ -43,6 +57,9 @@ const ADDITIVE_TABLES = [
   `CREATE INDEX IF NOT EXISTS "Supplier_userId_payableBalance_idx" ON "Supplier" ("userId", "payableBalance")`,
   `CREATE INDEX IF NOT EXISTS "Purchase_userId_paymentStatus_idx" ON "Purchase" ("userId", "paymentStatus")`,
   `CREATE INDEX IF NOT EXISTS "Purchase_userId_supplierId_idx" ON "Purchase" ("userId", "supplierId")`,
+  `CREATE INDEX IF NOT EXISTS "Sale_userId_orderType_deliveryStatus_idx" ON "Sale" ("userId", "orderType", "deliveryStatus")`,
+  `CREATE INDEX IF NOT EXISTS "Sale_userId_paymentStatus_idx" ON "Sale" ("userId", "paymentStatus")`,
+
   `
   CREATE TABLE IF NOT EXISTS "PurchaseReturn" (
     "id" TEXT PRIMARY KEY,

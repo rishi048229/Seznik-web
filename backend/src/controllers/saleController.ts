@@ -6,18 +6,20 @@ import { userTracksStock } from '../utils/stockTracking';
 export const getSales = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
-    // Optional limit/page, but ALWAYS capped even when the caller sends nothing — previously this
-    // returned the tenant's entire sales history unconditionally, unbounded by row count.
     const limit = Math.min(Number(req.query.limit) || 500, 500);
     const page = Math.max(Number(req.query.page) || 1, 1);
     const sales = await prisma.sale.findMany({
       where: { userId },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: (page - 1) * limit,
     });
     res.json(sales);
   } catch (error) {
+    console.error('getSales error:', error);
     res.status(500).json({ error: 'Failed to fetch sales' });
   }
 };
@@ -28,13 +30,18 @@ export const getSaleById = async (req: Request, res: Response) => {
     const { id } = req.params;
     const sale = await prisma.sale.findFirst({
       where: { id: String(id), userId },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+      },
     });
     if (!sale) return res.status(404).json({ error: 'Sale not found' });
     res.json(sale);
   } catch (error) {
+    console.error('getSaleById error:', error);
     res.status(500).json({ error: 'Failed to fetch sale' });
   }
 };
+
 
 export const createSale = async (req: Request, res: Response) => {
   try {

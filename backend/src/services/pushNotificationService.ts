@@ -360,3 +360,51 @@ export async function sendWeeklySummaryPush(userId: string): Promise<boolean> {
   }
 }
 
+/**
+ * 9. Supplier Payables & Bill Due Date Reminder Push
+ */
+export async function checkAndSendSupplierPayableDuePush(userId: string): Promise<number> {
+  try {
+    const suppliersWithDue = await prisma.supplier.findMany({
+      where: {
+        userId,
+        payableBalance: { gt: 0 },
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        payableBalance: true,
+      },
+      orderBy: { payableBalance: 'desc' },
+      take: 10,
+    });
+
+    if (suppliersWithDue.length === 0) return 0;
+
+    const topSupplier = suppliersWithDue[0];
+    const totalPayable = suppliersWithDue.reduce((sum, s) => sum + s.payableBalance, 0);
+
+    const title = `🏢 Supplier Payment Due: ${suppliersWithDue.length} Vendor${suppliersWithDue.length > 1 ? 's' : ''} (₹${totalPayable.toFixed(0)})`;
+    const body = `₹${topSupplier.payableBalance.toFixed(0)} payable to ${topSupplier.name}. Tap to view supplier ledger & record payment.`;
+
+    await sendPushNotificationToUser(userId, {
+      title,
+      body,
+      data: {
+        type: 'purchase_due',
+        supplierId: topSupplier.id,
+        supplierName: topSupplier.name,
+        totalPayable,
+        dueCount: suppliersWithDue.length,
+        actionUrl: `/suppliers/${topSupplier.id}`,
+      },
+    });
+
+    return suppliersWithDue.length;
+  } catch (err) {
+    console.error('[PushNotification] checkAndSendSupplierPayableDuePush error:', err);
+    return 0;
+  }
+}
+

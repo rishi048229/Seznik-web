@@ -11,24 +11,28 @@ let shuttingDown = false;
 let server: ReturnType<typeof app.listen> | null = null;
 
 const shutdown = (signal: string) => {
-  // A repeated signal must not restart the sequence, or the exit deadline keeps being pushed back
-  // and the watcher gives up and force-kills instead.
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`[server] ${signal} received — closing server`);
 
-  if (server) {
-    server.close(() => {
-      void prisma.$disconnect().finally(() => process.exit(0));
-    });
-    // server.close() waits for in-flight requests but idle keep-alive sockets would hold it open
-    // until they time out on their own.
-    server.closeIdleConnections();
-  } else {
-    void prisma.$disconnect().finally(() => process.exit(0));
+  try {
+    if (server) {
+      if (typeof (server as any).closeIdleConnections === 'function') {
+        (server as any).closeIdleConnections();
+      }
+      server.close();
+    }
+  } catch (err) {
+    // ignore
   }
-  setTimeout(() => process.exit(0), 2000).unref();
+
+  void prisma.$disconnect().finally(() => {
+    process.exit(0);
+  });
+
+  setTimeout(() => process.exit(0), 500).unref();
 };
+
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));

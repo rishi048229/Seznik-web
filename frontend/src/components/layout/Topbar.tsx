@@ -1,8 +1,9 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useSettings } from '@/hooks/useSettings'
-import { Menu, Bell, HelpCircle, Plus, ArrowLeft } from 'lucide-react'
+import { Menu, HelpCircle, Plus, ArrowLeft } from 'lucide-react'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler'
+import { NotificationCenterPopover } from '@/components/notifications/NotificationCenterPopover'
 
 import { Button } from '@/components/ui/Button'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -74,22 +75,29 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         {/* Theme toggle — animated view transition */}
         <AnimatedThemeToggler
           theme={isDark ? 'dark' : 'light'}
           onThemeChange={(newTheme) => setTheme(newTheme === 'dark')}
           variant="circle"
           duration={450}
-          className="p-2 inline-flex items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-elevated dark:hover:text-white transition-colors focus:outline-none"
+          className="w-9 h-9 inline-flex items-center justify-center rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-elevated transition-colors focus:outline-none cursor-pointer"
           title={isDark ? (t('theme.light') || 'Switch to Light Mode') : (t('theme.dark') || 'Switch to Dark Mode')}
         />
-        <Button variant="ghost" size="sm" className="p-2 hidden sm:flex">
-          <Bell size={18} className="text-gray-500" />
-        </Button>
-        <Button variant="ghost" size="sm" className="p-2 hidden sm:flex">
-          <HelpCircle size={18} className="text-gray-500" />
-        </Button>
+        {/* Notifications Popover */}
+        <NotificationCenterPopover />
+
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.FEEDBACK)}
+          title="Help & Feedback"
+          className="w-9 h-9 hidden sm:inline-flex items-center justify-center rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-elevated transition-colors focus:outline-none cursor-pointer"
+        >
+          <HelpCircle size={18} className="shrink-0" />
+        </button>
+
+
         <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-dark-elevated mx-1" />
         {/* New Bill (restaurant) or New Sale (retail) */}
         <Button

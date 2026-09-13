@@ -514,11 +514,19 @@ export const RecordPurchaseModal = ({
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-semibold text-slate-500">Payment Due Date:</span>
                     <div className="flex items-center gap-1">
+                      <button 
+                        type="button" 
+                        onClick={() => setPaymentDueDate('')} 
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-colors ${!paymentDueDate ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'}`}
+                      >
+                        None
+                      </button>
                       <button type="button" onClick={() => setDueDateOffset(7)} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100">+7d</button>
                       <button type="button" onClick={() => setDueDateOffset(15)} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100">+15d</button>
                       <button type="button" onClick={() => setDueDateOffset(30)} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100">+30d</button>
                       <button type="button" onClick={() => setDueDateOffset(45)} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100">+45d</button>
                     </div>
+
                   </div>
                   <input
                     type="date"
