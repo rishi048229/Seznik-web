@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { ArrowLeft, Printer, FileText, Bluetooth, Download } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
+import { effectiveReceiptDate } from '@/utils/date'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
@@ -165,7 +166,7 @@ export const SaleDetailPage = () => {
     )
   }
 
-  const saleDate = (sale.createdAt as unknown as { toDate?: () => Date })?.toDate ? new Date((sale.createdAt as unknown as { toDate?: () => Date }).toDate!()) : new Date(sale.createdAt || Date.now())
+  const saleDate = effectiveReceiptDate(sale.createdAt)
 
   const uniqueTaxRates = Array.from(new Set(sale.items?.map(item => item.taxRate || 0).filter(rate => rate > 0) ?? []))
   const formattedTaxRate = uniqueTaxRates.length === 1 ? (Math.round(uniqueTaxRates[0] * 100) / 100).toString() : ''

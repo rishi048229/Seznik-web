@@ -31,6 +31,7 @@ export const resolveEffectiveReceiptConfig = (
     showGSTIN: rConf?.showGSTIN ?? true,
     showCustomerDetails: rConf?.showCustomerDetails ?? true,
     showInvoiceNoAndDate: rConf?.showInvoiceNoAndDate ?? true,
+    showPrintTime: rConf?.showPrintTime ?? true,
     showSubtotalDiscount: rConf?.showSubtotalDiscount ?? true,
     showTaxBreakdown: rConf?.showTaxBreakdown ?? true,
     showFooterMessage: rConf?.showFooterMessage ?? true,

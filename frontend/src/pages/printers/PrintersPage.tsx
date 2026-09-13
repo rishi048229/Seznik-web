@@ -132,6 +132,7 @@ const defaultReceiptConfig: ReceiptConfig = {
   showGSTIN: true,
   showCustomerDetails: true,
   showInvoiceNoAndDate: true,
+  showPrintTime: true,
   showTaxBreakdown: true,
   showSubtotalDiscount: true,
   showFooterMessage: true,
@@ -900,6 +901,7 @@ export const PrintersPage = () => {
                         showGSTIN: true,
                         showCustomerDetails: true,
                         showInvoiceNoAndDate: true,
+                        showPrintTime: true,
                         showSubtotalDiscount: true,
                         showTaxBreakdown: true,
                         showFooterMessage: true,
@@ -925,6 +927,7 @@ export const PrintersPage = () => {
                         showGSTIN: false,
                         showCustomerDetails: false,
                         showInvoiceNoAndDate: true,
+                        showPrintTime: true,
                         showSubtotalDiscount: false,
                         showTaxBreakdown: false,
                         showFooterMessage: false,
@@ -1022,6 +1025,11 @@ export const PrintersPage = () => {
                   checked={receiptConfig.showInvoiceNoAndDate ?? true}
                   onChange={v => setReceiptConfig(prev => ({ ...prev, showInvoiceNoAndDate: v }))}
                   label="Invoice Number & Date Header"
+                />
+                <Switch
+                  checked={receiptConfig.showPrintTime ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showPrintTime: v }))}
+                  label="Print timings"
                 />
                 <Switch
                   checked={receiptConfig.showSubtotalDiscount ?? true}

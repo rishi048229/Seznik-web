@@ -1,5 +1,6 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
+import { composeReceiptDateLabel } from './date'
 
 export interface CompileReceiptParams {
   sale: Sale
@@ -351,6 +352,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const showGSTIN = receiptConfig?.showGSTIN ?? true
   const showCustomerDetails = receiptConfig?.showCustomerDetails ?? true
   const showInvoiceNoAndDate = receiptConfig?.showInvoiceNoAndDate ?? true
+  const showPrintTime = receiptConfig?.showPrintTime ?? true
   const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
   const showSubtotalDiscount = receiptConfig?.showSubtotalDiscount ?? true
   const showFooterMessage = receiptConfig?.showFooterMessage ?? true
@@ -390,9 +392,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
   // ── 2. META DETAILS ──
   if (showInvoiceNoAndDate || (showCustomerDetails && customerName)) {
-    const dateObj = sale.createdAt ? new Date(sale.createdAt) : new Date()
-    const dateStr = dateLabel
-      || `${dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+    const dateStr = composeReceiptDateLabel(dateLabel, sale.createdAt, showPrintTime)
 
     if (showInvoiceNoAndDate) {
       if (compactMode) {

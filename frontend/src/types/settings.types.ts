@@ -27,6 +27,8 @@ export interface ReceiptConfig {
   showGSTIN?: boolean
   showCustomerDetails?: boolean
   showInvoiceNoAndDate?: boolean
+  /** Print the sale clock time next to the date. Defaults on. */
+  showPrintTime?: boolean
   showTaxBreakdown?: boolean
   showSubtotalDiscount?: boolean
   showFooterMessage?: boolean

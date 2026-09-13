@@ -78,6 +78,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
       showPhone: settings?.receiptConfig?.showPhone ?? true,
       showGSTIN: settings?.receiptConfig?.showGSTIN ?? true,
       showTaxBreakdown: settings?.receiptConfig?.showTaxBreakdown ?? true,
+      showPrintTime: settings?.receiptConfig?.showPrintTime ?? true,
     })
     setKot(mergeKotConfig(settings?.kotConfig))
   }, [isOpen, initialTab, settings])
@@ -229,6 +230,11 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
               label="Show logo on customer bill"
               checked={receipt.showLogo ?? true}
               onChange={(checked) => setReceipt((r) => ({ ...r, showLogo: checked }))}
+            />
+            <Switch
+              label="Print timings"
+              checked={receipt.showPrintTime ?? true}
+              onChange={(checked) => setReceipt((r) => ({ ...r, showPrintTime: checked }))}
             />
           </div>
         )}

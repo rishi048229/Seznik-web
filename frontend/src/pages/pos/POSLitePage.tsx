@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { formatINR } from '@/utils/currency'
+import { localDateInputValue, saleTimestampFromBillDate } from '@/utils/date'
 import { printCompletedSale } from '@/utils/printCompletedSale'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -129,7 +130,7 @@ export const POSLitePage = () => {
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [amountPaid, setAmountPaid] = useState('')
-  const [billDate, setBillDate] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [billDate, setBillDate] = useState<string>(() => localDateInputValue())
 
   // GST mode: 'exclusive' = price is base (GST added on top), 'inclusive' = price already includes GST
   const [gstMode, setGstMode] = useState<'exclusive' | 'inclusive'>('exclusive')
@@ -476,7 +477,7 @@ export const POSLitePage = () => {
       amountPaid: amountPaidNum,
       changeReturned: change,
       isQuickBill: true,
-      createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
+      createdAt: saleTimestampFromBillDate(billDate),
     }
 
     if (selectedCustomer) {

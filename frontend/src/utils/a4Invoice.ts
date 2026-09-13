@@ -2,6 +2,7 @@ import type { Sale, SaleItem } from '@/types/sale.types'
 import type { PrinterConfig, ReceiptConfig } from '@/types/settings.types'
 import type { Product } from '@/types/product.types'
 import { getUpiQrImageUrl } from './upiQr'
+import { composeReceiptDateLabel } from './date'
 import {
   getA4InvoiceTemplate,
   type A4InvoiceLayout,
@@ -46,16 +47,6 @@ export function esc(value: string | number | null | undefined): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-}
-
-function formatDate(date: unknown): string {
-  const dateObj =
-    typeof date === 'object' && date && (date as { toDate?: () => Date }).toDate
-      ? (date as { toDate: () => Date }).toDate()
-      : typeof date === 'string' || typeof date === 'number'
-        ? new Date(date)
-        : new Date()
-  return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function numberToWords(amount: number): string {
@@ -229,7 +220,7 @@ export const generateA4InvoiceHTML = ({
   const billToEmail = customer?.email || ''
 
   const saleItems = sale.items ?? []
-  const dateStr = dateLabel || formatDate(sale.createdAt)
+  const dateStr = composeReceiptDateLabel(dateLabel, sale.createdAt, receiptConfig?.showPrintTime ?? true)
   const billTotal = Number(sale.grandTotal ?? 0)
   const paymentMade = sale.amountPaid || 0
   const balanceDue = Math.max(0, billTotal - paymentMade)

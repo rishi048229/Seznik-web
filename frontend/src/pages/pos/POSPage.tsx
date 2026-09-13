@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR } from '@/utils/currency'
+import { localDateInputValue, saleTimestampFromBillDate } from '@/utils/date'
 import { printCompletedSale } from '@/utils/printCompletedSale'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
@@ -204,7 +205,7 @@ export const POSPage = () => {
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [amountPaid, setAmountPaid] = useState('')
-  const [billDate, setBillDate] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [billDate, setBillDate] = useState<string>(() => localDateInputValue())
 
   // Build a map of product stock reserved in cart
   const cartReserved = items.reduce<Record<string, number>>((acc, item) => {
@@ -382,7 +383,7 @@ export const POSPage = () => {
       amountPaid: amountPaidNum,
       changeReturned: change,
       isQuickBill: false,
-      createdAt: billDate ? new Date(billDate + 'T12:00:00').toISOString() : undefined,
+      createdAt: saleTimestampFromBillDate(billDate),
     }
 
     if (selectedCustomer) {

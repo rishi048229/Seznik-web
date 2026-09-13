@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { formatINR } from '@/utils/currency'
+import { formatReceiptDateTime } from '@/utils/date'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
 import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
@@ -116,7 +117,7 @@ export const RealisticReceiptModal = ({
       businessGSTIN: receiptConfig?.gstin || settings?.businessGSTIN || '',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL || '',
       invoiceNumber: sale?.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-      date: sale?.createdAt ? new Date(sale.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+      date: formatReceiptDateTime(sale?.createdAt || new Date(), receiptConfig?.showPrintTime ?? true),
       customerName: initialCustomerName || (sale as any)?.customer?.name || 'Walk-in Customer',
       customerPhone: initialCustomerPhone || (sale as any)?.customer?.phone || '',
       items: mappedItems.length > 0 ? mappedItems : [

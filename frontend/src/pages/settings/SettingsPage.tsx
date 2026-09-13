@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS = {
     termsLine1: '1. Goods once sold will not be taken back or exchanged',
     termsLine2: '2. All disputes are subject to local jurisdiction only',
     termsLine3: '',
+    showPrintTime: true,
   },
 }
 
@@ -185,6 +186,7 @@ export const SettingsPage = () => {
       case 'invoice':
         handleSave(t('settings.invoiceSettingsLabel'), {
           receiptConfig: {
+            ...curReceipt,
             companyName:   val('settings-receipt-company'),
             address:       val('settings-receipt-address'),
             phone:         val('settings-receipt-phone'),
