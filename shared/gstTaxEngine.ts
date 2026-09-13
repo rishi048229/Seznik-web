@@ -6,8 +6,8 @@
  * 1. GST is always calculated on (Taxable Value − Discount), never on the original inclusive price.
  * 2. Discounts applied at or before invoicing directly reduce the taxable value when appearing on the invoice.
  * 3. Apportionment of bill-level discounts is value-weighted across normalized taxable values of all lines.
- * 4. Rate-wise summary grouping is based solely on gstRate (no HSN coupling).
- * 5. Single-pass rounding per tax component with residual round-off absorption.
+ * 4. Carries full (unrounded) precision through discount apportionment and GST calculation.
+ * 5. Single-pass rounding per tax component and final invoice total, avoiding intermediate rounding drift.
  * 6. Supports Composition Scheme ("Bill of Supply") and BOGO models.
  */
 
@@ -184,14 +184,14 @@ export function isValidGstSlab(rate: number): boolean {
 /**
  * Pure, testable calculation engine for Section 15 compliant GST billing.
  *
- * Execution follows the mandatory 7-step sequence:
+ * Execution sequence:
  * 1. Normalize every line to taxable value based on priceType ("inclusive" vs "exclusive").
  * 2. Apply item-level pre-configured discount on taxable value.
- * 3. Apportion bill-level discount across lines by value-weight (lineNet / totalNet).
- * 4. Compute GST per line on final net lineTaxableValue (split CGST/SGST or IGST).
- * 5. Group lines by gstRate into rate-wise summary buckets.
- * 6. Perform single-pass rounding per tax component and compute residual round-off.
- * 7. Produce per-line final amounts with explicit priceType preservation for receipts.
+ * 3. Apportion bill-level discount across lines using full unrounded precision.
+ * 4. Compute GST per line with unrounded precision.
+ * 5. Group lines by gstRate into rate-wise summary buckets with unrounded precision.
+ * 6. Compute grand total and tax component sums from unrounded line figures, rounding once at the end.
+ * 7. Provide 2-decimal rounded values for display while ensuring total equals sum of true unrounded values.
  */
 export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
   const errors: string[] = [];
@@ -249,7 +249,7 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
     !bill.billDiscountMetadata?.isPostSaleRebate;
 
   // =========================================================================
-  // STEP 1 & STEP 2: Normalization and Item-Level Discount
+  // STEP 1 & STEP 2: Normalization and Item-Level Discount (Unrounded)
   // =========================================================================
   interface IntermediateLine {
     raw: LineItemInput;
@@ -289,7 +289,6 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
     // Step 2: Apply item's own pre-configured discount (if any) on taxable value
     let calculatedItemDiscount = 0;
 
-    // Check for Section 15 exclusion metadata
     const hasReciprocal = Boolean(item.discountMetadata?.hasReciprocalObligation);
     const isPostRebate = Boolean(item.discountMetadata?.isPostSaleRebate);
 
@@ -308,13 +307,11 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
 
     if (allowItemDiscount) {
       if (item.isBogo) {
-        // BOGO Model: modeled as % discount on the combined multi-unit taxable value
         const bogoPercent = item.bogoDiscountPercent ?? 50;
         calculatedItemDiscount = (lineTaxableGross * bogoPercent) / 100;
       } else if (item.itemDiscountPercent !== undefined && item.itemDiscountPercent > 0) {
         calculatedItemDiscount = (lineTaxableGross * item.itemDiscountPercent) / 100;
       } else if (item.itemDiscountAmount !== undefined && item.itemDiscountAmount > 0) {
-        // If discount amount was entered in inclusive terms for inclusive items, normalize it, otherwise use raw
         if (item.priceType === 'inclusive' && gstRate > 0) {
           calculatedItemDiscount = item.itemDiscountAmount / (1 + gstRate / 100);
         } else {
@@ -326,7 +323,6 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
     let lineNetAfterItemDiscount = lineTaxableGross - calculatedItemDiscount;
     let isCappedAtZero = false;
 
-    // Negative Value Guard: floor at zero if discount exceeds line value
     if (lineNetAfterItemDiscount < 0) {
       isCappedAtZero = true;
       lineWarnings.push(
@@ -350,7 +346,7 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
   });
 
   // =========================================================================
-  // STEP 3: Value-Weighted Bill-Level Discount Apportionment
+  // STEP 3: Value-Weighted Bill-Level Discount Apportionment (Unrounded)
   // =========================================================================
   const totalNetAfterItemDiscounts = intermediateLines.reduce(
     (sum, line) => sum + line.lineNetAfterItemDiscount,
@@ -367,7 +363,6 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
     }
   }
 
-  // Guard: Bill discount exceeds total net value
   if (effectiveBillDiscountAmount > totalNetAfterItemDiscounts && totalNetAfterItemDiscounts > 0) {
     warnings.push(
       `Bill discount (₹${effectiveBillDiscountAmount.toFixed(
@@ -380,9 +375,27 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
   }
 
   // =========================================================================
-  // STEP 4: Compute Final Line Taxable Values & Line GST
+  // STEP 4: Compute Line Taxable Values & Line GST with Full Precision
   // =========================================================================
-  const calculatedLines: CalculatedLineItem[] = intermediateLines.map((line) => {
+  interface ProcessedLine {
+    raw: LineItemInput;
+    unitTaxableValue: number;
+    lineTaxableGross: number;
+    itemDiscountAmount: number;
+    lineNetAfterItemDiscount: number;
+    lineShareOfBill: number;
+    lineBillDiscount: number;
+    unroundedTaxable: number;
+    unroundedGst: number;
+    unroundedCgst: number;
+    unroundedSgst: number;
+    unroundedIgst: number;
+    unroundedFinalAmount: number;
+    isCappedAtZero: boolean;
+    lineWarnings?: string[];
+  }
+
+  const processedLines: ProcessedLine[] = intermediateLines.map((line) => {
     let lineShare = 0;
     let lineBillDiscount = 0;
 
@@ -391,42 +404,58 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
       lineBillDiscount = effectiveBillDiscountAmount * lineShare;
     }
 
-    let lineTaxableValue = round2(Math.max(0, line.lineNetAfterItemDiscount - lineBillDiscount));
-    let isCapped = line.isCappedAtZero;
-
+    const unroundedTaxable = Math.max(0, line.lineNetAfterItemDiscount - lineBillDiscount);
     const gstRate = Math.max(0, Number(line.raw.gstRate) || 0);
 
-    // GST Calculation per line on rounded lineTaxableValue
-    let lineGstAmount = 0;
-    let cgstRate = 0;
-    let cgstAmount = 0;
-    let sgstRate = 0;
-    let sgstAmount = 0;
-    let igstRate = 0;
-    let igstAmount = 0;
+    let unroundedGst = 0;
+    let unroundedCgst = 0;
+    let unroundedSgst = 0;
+    let unroundedIgst = 0;
 
-    if (!isCompositionScheme && gstRate > 0 && lineTaxableValue > 0) {
-      lineGstAmount = round2(lineTaxableValue * (gstRate / 100));
+    if (!isCompositionScheme && gstRate > 0 && unroundedTaxable > 0) {
+      unroundedGst = unroundedTaxable * (gstRate / 100);
 
       if (isIntraState) {
-        cgstRate = gstRate / 2;
-        cgstAmount = round2(lineGstAmount / 2);
-        sgstRate = gstRate / 2;
-        sgstAmount = round2(lineGstAmount - cgstAmount);
-        igstRate = 0;
-        igstAmount = 0;
+        unroundedCgst = unroundedGst / 2;
+        unroundedSgst = unroundedGst / 2;
+        unroundedIgst = 0;
       } else {
-        cgstRate = 0;
-        cgstAmount = 0;
-        sgstRate = 0;
-        sgstAmount = 0;
-        igstRate = gstRate;
-        igstAmount = lineGstAmount;
+        unroundedCgst = 0;
+        unroundedSgst = 0;
+        unroundedIgst = unroundedGst;
       }
     }
 
-    // Step 7: Line Final Display Amount (exact sum of rounded taxable + rounded line GST)
-    const lineFinalAmount = round2(lineTaxableValue + lineGstAmount);
+    const unroundedFinalAmount = unroundedTaxable + unroundedGst;
+
+    return {
+      raw: line.raw,
+      unitTaxableValue: line.unitTaxableValue,
+      lineTaxableGross: line.lineTaxableGross,
+      itemDiscountAmount: line.itemDiscountAmount,
+      lineNetAfterItemDiscount: line.lineNetAfterItemDiscount,
+      lineShareOfBill: lineShare,
+      lineBillDiscount,
+      unroundedTaxable,
+      unroundedGst,
+      unroundedCgst,
+      unroundedSgst,
+      unroundedIgst,
+      unroundedFinalAmount,
+      isCappedAtZero: line.isCappedAtZero,
+      lineWarnings: line.lineWarnings.length > 0 ? line.lineWarnings : undefined,
+    };
+  });
+
+  // Display lines (rounded for per-line table presentation)
+  const calculatedLines: CalculatedLineItem[] = processedLines.map((line) => {
+    const gstRate = Math.max(0, Number(line.raw.gstRate) || 0);
+    const lineTaxableValue = round2(line.unroundedTaxable);
+    const lineGstAmount = round2(line.unroundedGst);
+    const cgstAmount = isIntraState ? round2(line.unroundedCgst) : 0;
+    const sgstAmount = isIntraState ? round2(line.unroundedGst - round2(line.unroundedCgst)) : 0;
+    const igstAmount = !isIntraState ? round2(line.unroundedIgst) : 0;
+    const lineFinalAmount = round2(line.unroundedFinalAmount);
 
     return {
       id: line.raw.id,
@@ -435,27 +464,26 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
       qty: line.raw.qty,
       priceType: line.raw.priceType,
       gstRate,
-      unitTaxableValue: line.unitTaxableValue,
-      lineTaxableGross: line.lineTaxableGross,
-      itemDiscountAmount: line.itemDiscountAmount,
-      lineNetAfterItemDiscount: line.lineNetAfterItemDiscount,
-      lineShareOfBill: lineShare,
-      lineBillDiscount,
+      unitTaxableValue: round2(line.unitTaxableValue),
+      lineTaxableGross: round2(line.lineTaxableGross),
+      itemDiscountAmount: round2(line.itemDiscountAmount),
+      lineNetAfterItemDiscount: round2(line.lineNetAfterItemDiscount),
+      lineShareOfBill: round4(line.lineShareOfBill),
+      lineBillDiscount: round2(line.lineBillDiscount),
       lineTaxableValue,
       lineGstAmount,
-      cgstRate,
+      cgstRate: isIntraState ? gstRate / 2 : 0,
       cgstAmount,
-      sgstRate,
+      sgstRate: isIntraState ? gstRate / 2 : 0,
       sgstAmount,
-      igstRate,
+      igstRate: !isIntraState ? gstRate : 0,
       igstAmount,
       lineFinalAmount,
-      isCappedAtZero: isCapped,
-      warnings: line.lineWarnings.length > 0 ? line.lineWarnings : undefined,
+      isCappedAtZero: line.isCappedAtZero,
+      warnings: line.lineWarnings,
     };
   });
 
-  // Aggregate line-level warnings to bill warnings
   for (const line of calculatedLines) {
     if (line.warnings) {
       warnings.push(...line.warnings);
@@ -463,27 +491,27 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
   }
 
   // =========================================================================
-  // STEP 5: Group by gstRate to produce Rate-Wise Summary Table (No HSN)
+  // STEP 5: Group by gstRate with unrounded precision for Rate-Wise Summary
   // =========================================================================
-  const rateBucketsMap = new Map<number, RateWiseSummaryBucket>();
+  const rateBucketsMap = new Map<number, { rate: number; unroundedTaxable: number; unroundedCgst: number; unroundedSgst: number; unroundedIgst: number; unroundedGst: number; lineCount: number }>();
 
-  for (const line of calculatedLines) {
-    const rate = line.gstRate;
+  for (const line of processedLines) {
+    const rate = Math.max(0, Number(line.raw.gstRate) || 0);
     const existing = rateBucketsMap.get(rate) || {
       rate,
-      totalTaxableValue: 0,
-      totalCgst: 0,
-      totalSgst: 0,
-      totalIgst: 0,
-      totalGst: 0,
+      unroundedTaxable: 0,
+      unroundedCgst: 0,
+      unroundedSgst: 0,
+      unroundedIgst: 0,
+      unroundedGst: 0,
       lineCount: 0,
     };
 
-    existing.totalTaxableValue += line.lineTaxableValue;
-    existing.totalCgst += line.cgstAmount;
-    existing.totalSgst += line.sgstAmount;
-    existing.totalIgst += line.igstAmount;
-    existing.totalGst += line.lineGstAmount;
+    existing.unroundedTaxable += line.unroundedTaxable;
+    existing.unroundedCgst += line.unroundedCgst;
+    existing.unroundedSgst += line.unroundedSgst;
+    existing.unroundedIgst += line.unroundedIgst;
+    existing.unroundedGst += line.unroundedGst;
     existing.lineCount += 1;
 
     rateBucketsMap.set(rate, existing);
@@ -491,36 +519,49 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
 
   const rateWiseSummary: RateWiseSummaryBucket[] = Array.from(rateBucketsMap.values())
     .sort((a, b) => a.rate - b.rate)
-    .map((bucket) => ({
-      rate: bucket.rate,
-      totalTaxableValue: round2(bucket.totalTaxableValue),
-      totalCgst: round2(bucket.totalCgst),
-      totalSgst: round2(bucket.totalSgst),
-      totalIgst: round2(bucket.totalIgst),
-      totalGst: round2(bucket.totalGst),
-      lineCount: bucket.lineCount,
-    }));
+    .map((bucket) => {
+      const totalTaxableValue = round2(bucket.unroundedTaxable);
+      const totalGst = round2(bucket.unroundedGst);
+      const totalCgst = isIntraState ? round2(bucket.unroundedCgst) : 0;
+      const totalSgst = isIntraState ? round2(totalGst - totalCgst) : 0;
+      const totalIgst = !isIntraState ? round2(bucket.unroundedIgst) : 0;
+
+      return {
+        rate: bucket.rate,
+        totalTaxableValue,
+        totalCgst,
+        totalSgst,
+        totalIgst,
+        totalGst,
+        lineCount: bucket.lineCount,
+      };
+    });
 
   // =========================================================================
-  // STEP 6: Single-Pass Summation & Round-Off (Exact sum of line items)
+  // STEP 6: Single-Pass Summation on UNROUNDED figures (One final round at the end)
   // =========================================================================
-  const totalGrossTaxable = calculatedLines.reduce((acc, l) => acc + l.lineTaxableGross, 0);
-  const totalItemDiscounts = calculatedLines.reduce((acc, l) => acc + l.itemDiscountAmount, 0);
-  const totalBillDiscount = calculatedLines.reduce((acc, l) => acc + l.lineBillDiscount, 0);
-  const totalDiscounts = totalItemDiscounts + totalBillDiscount;
-  const totalTaxableValue = round2(calculatedLines.reduce((acc, l) => acc + l.lineTaxableValue, 0));
+  const unroundedTotalGrossTaxable = processedLines.reduce((acc, l) => acc + l.lineTaxableGross, 0);
+  const unroundedTotalItemDiscounts = processedLines.reduce((acc, l) => acc + l.itemDiscountAmount, 0);
+  const unroundedTotalBillDiscount = processedLines.reduce((acc, l) => acc + l.lineBillDiscount, 0);
+  const unroundedTotalTaxableValue = processedLines.reduce((acc, l) => acc + l.unroundedTaxable, 0);
+  const unroundedTotalCgst = processedLines.reduce((acc, l) => acc + l.unroundedCgst, 0);
+  const unroundedTotalSgst = processedLines.reduce((acc, l) => acc + l.unroundedSgst, 0);
+  const unroundedTotalIgst = processedLines.reduce((acc, l) => acc + l.unroundedIgst, 0);
+  const unroundedTotalTax = isCompositionScheme ? 0 : processedLines.reduce((acc, l) => acc + l.unroundedGst, 0);
+  const unroundedRawInvoiceTotal = processedLines.reduce((acc, l) => acc + l.unroundedFinalAmount, 0);
 
-  const totalCgst = round2(calculatedLines.reduce((acc, l) => acc + l.cgstAmount, 0));
-  const totalSgst = round2(calculatedLines.reduce((acc, l) => acc + l.sgstAmount, 0));
-  const totalIgst = round2(calculatedLines.reduce((acc, l) => acc + l.igstAmount, 0));
-  const totalTax = isCompositionScheme ? 0 : round2(calculatedLines.reduce((acc, l) => acc + l.lineGstAmount, 0));
+  const totalGrossTaxable = round2(unroundedTotalGrossTaxable);
+  const totalItemDiscounts = round2(unroundedTotalItemDiscounts);
+  const totalBillDiscount = round2(unroundedTotalBillDiscount);
+  const totalDiscounts = round2(totalItemDiscounts + totalBillDiscount);
+  const totalTaxableValue = round2(unroundedTotalTaxableValue);
 
-  const unroundedCgst = totalCgst;
-  const unroundedSgst = totalSgst;
-  const unroundedIgst = totalIgst;
-  const unroundedTotalTax = totalTax;
+  const totalCgst = round2(unroundedTotalCgst);
+  const totalSgst = round2(unroundedTotalSgst);
+  const totalIgst = round2(unroundedTotalIgst);
+  const totalTax = round2(unroundedTotalTax);
 
-  const rawInvoiceTotal = round2(calculatedLines.reduce((acc, l) => acc + l.lineFinalAmount, 0));
+  const rawInvoiceTotal = round2(unroundedRawInvoiceTotal);
 
   let finalInvoiceTotal = rawInvoiceTotal;
   let roundOff = 0;
@@ -538,23 +579,23 @@ export function calculateGstBill(bill: BillInput): GstBillCalculationResult {
     isCompositionScheme,
     isIntraState,
     lines: calculatedLines,
-    totalGrossTaxable: round2(totalGrossTaxable),
-    totalItemDiscounts: round2(totalItemDiscounts),
-    totalBillDiscount: round2(totalBillDiscount),
-    totalDiscounts: round2(totalDiscounts),
-    totalTaxableValue: round2(totalTaxableValue),
-    unroundedCgst,
-    unroundedSgst,
-    unroundedIgst,
+    totalGrossTaxable,
+    totalItemDiscounts,
+    totalBillDiscount,
+    totalDiscounts,
+    totalTaxableValue,
+    unroundedCgst: unroundedTotalCgst,
+    unroundedSgst: unroundedTotalSgst,
+    unroundedIgst: unroundedTotalIgst,
     unroundedTotalTax,
     totalCgst,
     totalSgst,
     totalIgst,
     totalTax,
     rateWiseSummary,
-    rawInvoiceTotal: round2(rawInvoiceTotal),
+    rawInvoiceTotal,
     roundOff,
-    finalInvoiceTotal: round2(finalInvoiceTotal),
+    finalInvoiceTotal,
     isValid: errors.length === 0,
     errors,
     warnings,

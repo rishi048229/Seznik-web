@@ -440,6 +440,76 @@ describe('Sales Return & Refund Calculation Engine — 10-Case Compliance & Inva
   });
 
   // =========================================================================
+  // MULTI-RATE DISCOUNTED RETURN PRECISION TEST (₹297.44 INVOICE)
+  // =========================================================================
+  it('correctly handles full and sequential partial returns for multi-rate discounted carts without 1-paisa drift', () => {
+    // Original Sale:
+    // Grape Coke: 2 units @ ₹70 (12% GST)
+    // Vanilla Coke: 1 unit @ ₹150 (5% GST)
+    // Slice: 1 unit @ ₹20 (5% GST)
+    // Total gross taxable: 310.00, Bill discount: 35.00
+    // Stored invoice: subtotal = 275.00, totalTax = 22.44, grandTotal = 297.44
+    const originalItems: OriginalSaleItem[] = [
+      { productId: 'p-grape', productName: 'Grape Coke', quantity: 2, sellingPrice: 70, taxRate: 12, priceIncludesGst: false },
+      { productId: 'p-vanilla', productName: 'Vanilla Coke', quantity: 1, sellingPrice: 150, taxRate: 5, priceIncludesGst: false },
+      { productId: 'p-slice', productName: 'Slice', quantity: 1, sellingPrice: 20, taxRate: 5, priceIncludesGst: false },
+    ];
+
+    const saleContext: OriginalSaleContext = {
+      subtotal: 275.0,
+      totalDiscount: 35.0,
+      totalTax: 22.44,
+      grandTotal: 297.44,
+      pastReturns: [],
+    };
+
+    // 1. Full return of entire cart: must refund EXACTLY ₹297.44
+    const fullReturn = calculateReturnSummary(
+      originalItems,
+      [
+        { productId: 'p-grape', quantity: 2 },
+        { productId: 'p-vanilla', quantity: 1 },
+        { productId: 'p-slice', quantity: 1 },
+      ],
+      0,
+      saleContext
+    );
+
+    expect(fullReturn.refundAmount).toBe(297.44);
+    expect(fullReturn.subtotal).toBe(275.0);
+    expect(fullReturn.totalTax).toBe(22.44);
+    expect(round2(fullReturn.subtotal + fullReturn.totalTax)).toBe(297.44);
+
+    // 2. Sequential partial returns of each item
+    // Return 1: Grape Coke (2 units)
+    const ret1 = calculateReturnSummary(originalItems, [{ productId: 'p-grape', quantity: 2 }], 0, saleContext);
+    expect(ret1.refundAmount).toBe(139.09); // 124.19 taxable + 14.90 tax = 139.09
+
+    saleContext.pastReturns = [
+      {
+        items: [{ productId: 'p-grape', productName: 'Grape Coke', quantity: 2, refundAmount: ret1.refundAmount }],
+        refundAmount: ret1.refundAmount,
+      },
+    ];
+
+    // Return 2: Vanilla Coke (1 unit)
+    const ret2 = calculateReturnSummary(originalItems, [{ productId: 'p-vanilla', quantity: 1 }], 0, saleContext);
+    expect(ret2.refundAmount).toBe(139.71); // 133.06 taxable + 6.65 tax = 139.71
+
+    saleContext.pastReturns.push({
+      items: [{ productId: 'p-vanilla', productName: 'Vanilla Coke', quantity: 1, refundAmount: ret2.refundAmount }],
+      refundAmount: ret2.refundAmount,
+    });
+
+    // Return 3: Slice (1 unit - final return)
+    const ret3 = calculateReturnSummary(originalItems, [{ productId: 'p-slice', quantity: 1 }], 0, saleContext);
+
+    // Total of all 3 sequential returns must equal EXACTLY ₹297.44
+    const cumulativeTotal = round2(ret1.refundAmount + ret2.refundAmount + ret3.refundAmount);
+    expect(cumulativeTotal).toBe(297.44);
+  });
+
+  // =========================================================================
   // INTEGRATION TEST: P&L METRICS WITH ACCURATE RETURN VALUES
   // =========================================================================
   it('correctly feeds returns into unified P&L metrics', () => {

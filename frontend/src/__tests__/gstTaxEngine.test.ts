@@ -455,4 +455,90 @@ describe('GST-Compliant Tax and Discount Calculation Engine (Section 15 CGST Act
     expect(result.totalTax).toBe(200);
     expect(result.finalInvoiceTotal).toBe(700);
   });
+
+  // -------------------------------------------------------------------------
+  // 13. Multi-Rate Bill-Level Discount Precision (1-Paisa Rounding Bug Fix)
+  // -------------------------------------------------------------------------
+  it('prevents 1-paisa rounding drift on multi-rate carts with bill-level discount (Grand total ₹297.44, not ₹297.43)', () => {
+    // Scenario:
+    // Grape Coke: 2 units @ ₹70 (12% GST) -> ₹140 taxable, ₹16.80 GST
+    // Vanilla Coke: 1 unit @ ₹150 (5% GST) -> ₹150 taxable, ₹7.50 GST
+    // Slice: 1 unit @ ₹20 (5% GST) -> ₹20 taxable, ₹1.00 GST
+    // Pre-discount total = ₹335.30 (Taxable ₹310, Tax ₹25.30)
+    // Flat Bill Discount = ₹35.00
+    //
+    // True unrounded precision:
+    // Grape Coke (12%): Taxable = 140 - 35 * (140/310) = 124.193548... | GST = 14.9032258...
+    // Vanilla Coke (5%): Taxable = 150 - 35 * (150/310) = 133.064516... | GST = 6.6532258...
+    // Slice (5%): Taxable = 20 - 35 * (20/310) = 17.7419354... | GST = 0.8870967...
+    //
+    // Sum of Unrounded Taxable = 275.00
+    // Sum of Unrounded GST = 22.443548... -> rounds to 22.44
+    // True Grand Total = 297.443548... -> rounds to 297.44 (NOT 297.43)
+    const bill: BillInput = {
+      lineItems: [
+        {
+          name: 'Grape Coke',
+          price: 70,
+          qty: 2,
+          gstRate: 12,
+          priceType: 'exclusive',
+        },
+        {
+          name: 'Vanilla Coke',
+          price: 150,
+          qty: 1,
+          gstRate: 5,
+          priceType: 'exclusive',
+        },
+        {
+          name: 'Slice',
+          price: 20,
+          qty: 1,
+          gstRate: 5,
+          priceType: 'exclusive',
+        },
+      ],
+      billDiscountAmount: 35,
+      isIntraState: true,
+      roundingMode: 'none',
+    };
+
+    const result = calculateGstBill(bill);
+
+    // Assert pre-discount gross taxable
+    expect(result.totalGrossTaxable).toBe(310.0);
+    expect(result.totalBillDiscount).toBe(35.0);
+    expect(result.totalTaxableValue).toBe(275.0);
+
+    // Assert unrounded sums carried through to final total
+    expect(result.unroundedTotalTax).toBeCloseTo(22.443548, 5);
+    expect(result.totalTax).toBe(22.44);
+
+    // Critical assertion: Grand total is exactly ₹297.44, NOT ₹297.43
+    expect(result.rawInvoiceTotal).toBe(297.44);
+    expect(result.finalInvoiceTotal).toBe(297.44);
+
+    // Line display values (rounded individually for tabular display)
+    expect(result.lines[0].lineTaxableValue).toBe(124.19);
+    expect(result.lines[0].lineGstAmount).toBe(14.9);
+    expect(result.lines[1].lineTaxableValue).toBe(133.06);
+    expect(result.lines[1].lineGstAmount).toBe(6.65);
+    expect(result.lines[2].lineTaxableValue).toBe(17.74);
+    expect(result.lines[2].lineGstAmount).toBe(0.89);
+
+    // Rate-wise summary buckets with unrounded precision
+    expect(result.rateWiseSummary.length).toBe(2);
+    // 5% slab (Vanilla Coke + Slice): 133.064516... + 17.7419354... = 150.80645... -> 150.81 taxable, 7.54 GST
+    const slab5 = result.rateWiseSummary.find((b) => b.rate === 5);
+    expect(slab5).toBeDefined();
+    expect(slab5?.totalTaxableValue).toBe(150.81);
+    expect(slab5?.totalGst).toBe(7.54);
+
+    // 12% slab (Grape Coke): 124.19 taxable, 14.90 GST
+    const slab12 = result.rateWiseSummary.find((b) => b.rate === 12);
+    expect(slab12).toBeDefined();
+    expect(slab12?.totalTaxableValue).toBe(124.19);
+    expect(slab12?.totalGst).toBe(14.9);
+  });
 });
