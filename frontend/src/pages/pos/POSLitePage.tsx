@@ -526,7 +526,14 @@ export const POSLitePage = () => {
       ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
-    // Snapshot current cart state for immediate printing before backend response
+    // =========================================================================
+    // OPTIMISTIC PRINTING & BACKGROUND SALE PERSISTENCE
+    // Mirroring Mobile POS flow:
+    // 1. Take snapshot of cart & create provisional invoice ID immediately.
+    // 2. Open print modal and reset POS cart instantly so user sees zero lag.
+    // 3. Persist sale to backend concurrently in the background; update with
+    //    official invoiceNumber/saleId once server responds.
+    // =========================================================================
     const provisionalInvoice = `INV-${Date.now().toString().slice(-8)}`
     const snapshot = {
       items: [...items],
@@ -548,18 +555,19 @@ export const POSLitePage = () => {
     setCompletedSaleId('')
     setCompletedInvoiceNumber(provisionalInvoice)
 
-    // Clear cart and open print modal immediately
+    // Step 1: Clear cart and display print pop-up immediately
     clearCart()
     setIsPaymentOpen(false)
     setMethod('cash')
     setAmountPaid('')
     setIsPrintModalOpen(true)
 
-    // Persist sale to backend in the background
+    // Step 2: Asynchronously persist sale to backend without blocking the UI
     createSale(saleData, {
       onSuccess: (result) => {
         const saleId = result.id
         const invoiceNumber = result.invoiceNumber || provisionalInvoice
+        // Update snapshot references with the official backend-assigned invoice number
         setCompletedSaleId(saleId)
         setCompletedInvoiceNumber(invoiceNumber)
         toast.success(t('pos.saleCompleted'))
