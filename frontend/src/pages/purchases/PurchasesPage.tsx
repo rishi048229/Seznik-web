@@ -13,48 +13,42 @@ import { DataTable, type ColumnDef } from '@/components/data-display/DataTable'
 import { DateRangePicker } from '@/components/forms/DateRangePicker'
 import { usePurchases, useCreatePurchase, useDeletePurchase } from '@/hooks/usePurchases'
 import { useProducts } from '@/hooks/useProducts'
-import { useSuppliers } from '@/hooks/useSuppliers'
+import { useSuppliers, useSupplierReminders } from '@/hooks/useSuppliers'
 import { QuickAddProductModal } from '@/components/common/QuickAddProductModal'
-import { Plus, PlusCircle, Trash2, Truck, Filter, Sparkles } from 'lucide-react'
+import { RecordPurchaseModal } from '@/components/purchases/RecordPurchaseModal'
+import { PurchaseDetailModal } from '@/components/purchases/PurchaseDetailModal'
+import { RecordPurchasePaymentModal } from '@/components/purchases/RecordPurchasePaymentModal'
+import { ProcessPurchaseReturnModal } from '@/components/purchases/ProcessPurchaseReturnModal'
+import { DebitNoteReceiptModal } from '@/components/purchases/DebitNoteReceiptModal'
+import { Plus, Trash2, Truck, Filter, RotateCcw, FileText, Eye, IndianRupee, Clock, Bell } from 'lucide-react'
+import { Badge } from '@/components/ui/Badge'
 import { formatINR } from '@/utils/currency'
 import toast from 'react-hot-toast'
 import type { Purchase } from '@/types/purchase.types'
+import type { PurchaseReturn } from '@/types/purchaseReturn.types'
 import { useLanguage } from '@/contexts/LanguageContext'
-
-
-
-interface PurchaseItemRow {
-  productId: string
-  productName: string
-  quantity: number
-  costPrice: number
-}
 
 export const PurchasesPage = () => {
   const { t } = useLanguage()
-  const PAYMENT_METHOD_OPTIONS = [
-    { value: 'cash', label: t('pos.cash') },
-    { value: 'bank', label: t('common.bankTransfer') },
-    { value: 'upi', label: t('pos.upi') },
-    { value: 'credit', label: t('purchases.creditPayLater') },
-  ]
   const pageTutorial = usePageTutorial('purchases')
   const { data: purchases, isLoading } = usePurchases()
-  const { data: products } = useProducts()
   const { data: suppliers } = useSuppliers()
-  const { mutate: createPurchase, isPending } = useCreatePurchase()
+  const { data: reminders } = useSupplierReminders()
   const { mutate: deletePurchase } = useDeletePurchase()
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isAddProductOpen, setIsAddProductOpen] = useState(false)
-  const [supplierId, setSupplierId] = useState('')
-  const [items, setItems] = useState<PurchaseItemRow[]>([])
-  const [selectedProduct, setSelectedProduct] = useState('')
-  const [quantityInput, setQuantityInput] = useState('1')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank' | 'upi' | 'credit'>('cash')
+  const [selectedDetailPurchase, setSelectedDetailPurchase] = useState<Purchase | null>(null)
+  const [paymentPurchase, setPaymentPurchase] = useState<Purchase | null>(null)
+  const [returnPurchase, setReturnPurchase] = useState<Purchase | null>(null)
+  const [debitNoteModalData, setDebitNoteModalData] = useState<{
+    purchaseReturn: PurchaseReturn | null
+    purchase: Purchase | null
+  }>({ purchaseReturn: null, purchase: null })
 
   // Filters
   const [filterSupplier, setFilterSupplier] = useState('')
+  const [filterStatus, setFilterStatus] = useState('all')
   const [filterStartDate, setFilterStartDate] = useState('')
   const [filterEndDate, setFilterEndDate] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -64,24 +58,24 @@ export const PurchasesPage = () => {
     ...(suppliers ?? []).map(s => ({ value: s.id, label: s.name })),
   ]
 
-  const formSupplierOptions = [
-    { value: '', label: t('purchases.selectSupplier') },
-    ...(suppliers ?? []).map(s => ({ value: s.id, label: s.name })),
-  ]
-
-  const productOptions = [
-    { value: '', label: t('purchases.selectProductPlaceholder') },
-    ...(products ?? [])
-      .filter(p => p.isActive)
-      .map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })),
-  ]
-
   // Filtered purchases
   const filteredPurchases = useMemo(() => {
     let result = purchases ?? []
 
     if (filterSupplier) {
       result = result.filter(p => p.supplierId === filterSupplier)
+    }
+
+    if (filterStatus !== 'all') {
+      result = result.filter(p => {
+        const isPaid = p.paymentStatus === 'paid' || (p.amountPaid || 0) >= (p.grandTotal || 0) - 0.001
+        if (filterStatus === 'paid') return isPaid
+        if (filterStatus === 'unpaid') return !isPaid
+        if (filterStatus === 'overdue') {
+          return !isPaid && p.paymentDueDate && new Date(p.paymentDueDate).getTime() < Date.now()
+        }
+        return true
+      })
     }
 
     if (filterStartDate) {
@@ -97,11 +91,36 @@ export const PurchasesPage = () => {
     }
 
     return result
-  }, [purchases, filterSupplier, filterStartDate, filterEndDate])
-
-  const totalAmount = items.reduce((sum, item) => sum + item.costPrice * item.quantity, 0)
+  }, [purchases, filterSupplier, filterStatus, filterStartDate, filterEndDate])
 
   const columns: ColumnDef<Purchase>[] = [
+    {
+      key: 'invoiceNumber',
+      header: 'Invoice / Bill #',
+      render: (row) => (
+        <div
+          onClick={() => setSelectedDetailPurchase(row)}
+          className="cursor-pointer group"
+        >
+          <span className="font-semibold text-blue-600 group-hover:underline dark:text-blue-400">
+            {row.invoiceNumber}
+          </span>
+          {row.supplierBillNumber && (
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+              Ref: {row.supplierBillNumber}
+            </p>
+          )}
+          {row.returnStatus && row.returnStatus !== 'none' && (
+            <div className="mt-1">
+              <Badge variant={row.returnStatus === 'full' ? 'danger' : 'warning'} className="text-[10px] py-0">
+                {row.returnStatus === 'full' ? 'FULLY RETURNED' : 'PARTIAL RETURN'}
+              </Badge>
+            </div>
+          )}
+        </div>
+      ),
+      sortable: true,
+    },
     {
       key: 'supplierId',
       header: t('common.supplier'),
@@ -109,8 +128,11 @@ export const PurchasesPage = () => {
         const supplier = suppliers?.find(s => s.id === row.supplierId)
         return (
           <div className="flex items-center gap-2">
-            <Truck size={16} className="text-gray-400" />
-            <span className="font-medium">{supplier?.name ?? t('purchases.unknownSupplier')}</span>
+            <Truck size={16} className="text-gray-400 shrink-0" />
+            <div>
+              <span className="font-medium text-slate-900 dark:text-slate-100">{supplier?.name ?? t('purchases.unknownSupplier')}</span>
+              {supplier?.phone && <p className="text-[11px] text-slate-400">{supplier.phone}</p>}
+            </div>
           </div>
         )
       },
@@ -119,9 +141,9 @@ export const PurchasesPage = () => {
       key: 'createdAt',
       header: t('common.date'),
       render: (row) => (
-        <span>
-          {new Date(row.createdAt).toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', year: 'numeric',
+        <span className="text-xs text-slate-600 dark:text-slate-300">
+          {new Date(row.createdAt).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric',
           })}
         </span>
       ),
@@ -131,115 +153,131 @@ export const PurchasesPage = () => {
       key: 'items',
       header: t('common.items'),
       render: (row) => (
-        <span className="text-sm text-gray-500">{row.items?.length ?? 0} {t('purchases.itemCountSuffix')}</span>
+        <span className="text-xs text-gray-500">{row.items?.length ?? 0} {t('purchases.itemCountSuffix')}</span>
       ),
     },
     {
-      key: 'paymentMethod',
-      header: t('purchases.paymentHeader'),
-      render: (row) => (
-        <span className="text-sm text-gray-500 uppercase">{row.paymentMethod}</span>
-      ),
+      key: 'paymentStatus',
+      header: 'Payment Status',
+      render: (row) => {
+        const isPaid = row.paymentStatus === 'paid' || (row.amountPaid || 0) >= (row.grandTotal || 0) - 0.001
+        const isPartial = !isPaid && (row.amountPaid || 0) > 0
+        const isOverdue = row.paymentDueDate && !isPaid && new Date(row.paymentDueDate).getTime() < Date.now()
+        const outstanding = Math.max(0, (row.grandTotal || 0) - (row.amountPaid || 0))
+
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Badge variant={isPaid ? 'success' : isPartial ? 'warning' : 'danger'} className="text-[10px] font-bold">
+                {isPaid ? 'PAID' : isPartial ? 'PARTIAL' : 'UNPAID'}
+              </Badge>
+              <span className="text-[10px] text-slate-400 uppercase font-mono">
+                {row.paymentMethod}
+              </span>
+            </div>
+            {!isPaid && (
+              <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                Due: {formatINR(outstanding)}
+              </p>
+            )}
+            {row.paymentDueDate && !isPaid && (
+              <div className="flex items-center gap-1 text-[10px]">
+                <Clock size={11} className={isOverdue ? 'text-red-500' : 'text-slate-400'} />
+                <span className={isOverdue ? 'text-red-600 dark:text-red-400 font-bold' : 'text-slate-500'}>
+                  {isOverdue ? 'Overdue' : 'Due'}: {new Date(row.paymentDueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                </span>
+              </div>
+            )}
+          </div>
+        )
+      },
     },
     {
       key: 'grandTotal',
       header: t('common.total'),
       render: (row) => (
-        <span className="font-semibold text-gray-900 dark:text-gray-100">{formatINR(row.grandTotal)}</span>
+        <div>
+          <span className="font-bold text-slate-900 dark:text-slate-100">{formatINR(row.grandTotal)}</span>
+          {row.totalReturned ? (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+              Returned: -{formatINR(row.totalReturned)}
+            </p>
+          ) : null}
+        </div>
       ),
       sortable: true,
     },
     {
       key: 'actions',
       header: t('common.actions'),
-      render: (row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => handleDelete(row.id)}
-        >
-          <Trash2 size={16} className="text-red-500" />
-        </Button>
-      ),
+      render: (row) => {
+        const isPaid = row.paymentStatus === 'paid' || (row.amountPaid || 0) >= (row.grandTotal || 0) - 0.001
+        return (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedDetailPurchase(row)}
+              title="View Purchase Bill Details"
+              className="p-1.5"
+            >
+              <Eye size={15} className="text-slate-600 dark:text-slate-400" />
+            </Button>
+            {!isPaid && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs py-1 px-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                onClick={() => setPaymentPurchase(row)}
+                title="Record Payment"
+              >
+                <IndianRupee size={13} className="mr-0.5" />
+                Pay
+              </Button>
+            )}
+            {row.returns && row.returns.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs py-1 px-2 text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                onClick={() => {
+                  const latestReturn = row.returns ? row.returns[row.returns.length - 1] : null
+                  if (latestReturn) {
+                    setDebitNoteModalData({ purchaseReturn: latestReturn, purchase: row })
+                  }
+                }}
+                title="View Debit Note Slip"
+              >
+                <FileText size={13} className="mr-0.5" />
+                Debit Note
+              </Button>
+            )}
+            {row.returnStatus !== 'full' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs py-1 px-2 text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                onClick={() => setReturnPurchase(row)}
+                title="Return to Supplier"
+              >
+                <RotateCcw size={13} className="mr-0.5" />
+                Return
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(row.id)}
+              title="Delete Purchase"
+              className="p-1.5"
+            >
+              <Trash2 size={15} className="text-red-500" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
-
-  const handleAddItem = () => {
-    if (!selectedProduct) return
-    const product = products?.find(p => p.id === selectedProduct)
-    if (!product) return
-
-    const qty = parseInt(quantityInput) || 1
-    if (qty <= 0) return
-
-    setItems(prev => {
-      const existing = prev.find(i => i.productId === product.id)
-      if (existing) {
-        return prev.map(i =>
-          i.productId === product.id
-            ? { ...i, quantity: i.quantity + qty }
-            : i
-        )
-      }
-      return [...prev, {
-        productId: product.id,
-        productName: product.name,
-        quantity: qty,
-        costPrice: product.costPrice,
-      }]
-    })
-    setSelectedProduct('')
-    setQuantityInput('1')
-  }
-
-  const handleRemoveItem = (productId: string) => {
-    setItems(prev => prev.filter(i => i.productId !== productId))
-  }
-
-  const handleUpdateItemQty = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      handleRemoveItem(productId)
-    } else {
-      setItems(prev => prev.map(i =>
-        i.productId === productId ? { ...i, quantity } : i
-      ))
-    }
-  }
-
-  const handleSave = () => {
-    if (!supplierId || items.length === 0) {
-      toast.error(t('purchases.errSelectSupplierItems'))
-      return
-    }
-
-    createPurchase(
-      {
-        supplierId,
-        items: items.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          costPrice: item.costPrice,
-          total: item.costPrice * item.quantity,
-        })),
-        subtotal: totalAmount,
-        totalTax: 0,
-        grandTotal: totalAmount,
-        paymentMethod,
-        amountPaid: paymentMethod === 'credit' ? 0 : totalAmount,
-      },
-      {
-        onSuccess: () => {
-          toast.success(t('purchases.recordedSuccess'))
-          setIsFormOpen(false)
-          setItems([])
-          setSupplierId('')
-          setPaymentMethod('cash')
-        },
-        onError: (err) => toast.error(err instanceof Error ? err.message : t('purchases.errRecordFailed')),
-      }
-    )
-  }
 
   const handleDelete = (id: string) => {
     if (!confirm(t('purchases.deleteConfirm'))) return
@@ -259,6 +297,48 @@ export const PurchasesPage = () => {
 
   return (
     <div>
+      {/* Supplier Payment Dues Reminder Banner */}
+      {reminders && (reminders.overdue?.length > 0 || reminders.upcoming?.length > 0) && (
+        <div className="mb-4 p-4 bg-gradient-to-r from-red-500/10 via-amber-500/10 to-blue-500/10 border border-amber-300 dark:border-amber-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Bell size={20} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <span>Supplier Payment Reminders</span>
+                <Badge variant="warning" size="sm">
+                  {(reminders.overdue?.length || 0) + (reminders.upcoming?.length || 0)} due bills
+                </Badge>
+              </h4>
+              <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                {reminders.overdue?.length > 0 && (
+                  <span className="font-semibold text-red-700 dark:text-red-400">
+                    ⚠️ {reminders.overdue.length} supplier bills are past due date.
+                  </span>
+                )}
+                {reminders.overdue?.length > 0 && reminders.upcoming?.length > 0 && ' • '}
+                {reminders.upcoming?.length > 0 && (
+                  <span className="font-semibold text-amber-800 dark:text-amber-200">
+                    🗓️ {reminders.upcoming.length} bills due within the next 7 days.
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowFilters(true)
+              setFilterStatus('overdue')
+            }}
+            className="text-xs font-bold px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors shrink-0 cursor-pointer"
+          >
+            View Overdue Bills
+          </button>
+        </div>
+      )}
+
       <div data-tour="purchases-header">
         <PageHeader
           title={t('page.purchases')}
@@ -302,19 +382,32 @@ export const PurchasesPage = () => {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Select
               label={t('common.supplier')}
               options={supplierOptions}
               value={filterSupplier}
               onChange={e => setFilterSupplier(e.target.value)}
             />
-            <DateRangePicker
-              startDate={filterStartDate}
-              endDate={filterEndDate}
-              onStartDateChange={setFilterStartDate}
-              onEndDateChange={setFilterEndDate}
+            <Select
+              label="Payment Status"
+              options={[
+                { value: 'all', label: 'All Statuses' },
+                { value: 'paid', label: 'Paid in Full' },
+                { value: 'unpaid', label: 'Unpaid / Partial' },
+                { value: 'overdue', label: 'Overdue Dues' },
+              ]}
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
             />
+            <div className="md:col-span-2">
+              <DateRangePicker
+                startDate={filterStartDate}
+                endDate={filterEndDate}
+                onStartDateChange={setFilterStartDate}
+                onEndDateChange={setFilterEndDate}
+              />
+            </div>
           </div>
         )}
       </Card>
@@ -330,157 +423,7 @@ export const PurchasesPage = () => {
         />
       </Card>
 
-      {/* Purchase Form Modal */}
-      <Modal
-        isOpen={isFormOpen}
-        onClose={() => { setIsFormOpen(false); setItems([]); setSupplierId('') }}
-        title={t('purchases.recordPurchase')}
-        size="lg"
-        footer={
-          <div className="flex justify-between items-center w-full">
-            <div>
-              <span className="text-sm text-gray-500">{t('common.total')}</span>
-              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{formatINR(totalAmount)}</p>
-            </div>
-            <div className="flex gap-3">
-              <Button variant="ghost" onClick={() => { setIsFormOpen(false); setItems([]); setSupplierId('') }}>
-                {t('action.cancel')}
-              </Button>
-              <Button onClick={handleSave} loading={isPending} disabled={!supplierId || items.length === 0}>
-                {t('purchases.recordPurchase')}
-              </Button>
-            </div>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('common.supplier')} *
-              <FieldInfo textKey="tip.purchase.supplier" />
-            </label>
-            <Select
-              options={formSupplierOptions}
-              value={supplierId}
-              onChange={e => setSupplierId(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('common.paymentMethod')}
-            </label>
-            <Select
-              options={PAYMENT_METHOD_OPTIONS}
-              value={paymentMethod}
-              onChange={e => setPaymentMethod(e.target.value as 'cash' | 'bank' | 'upi' | 'credit')}
-            />
-          </div>
-
-          {/* Add Items Section */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('purchases.productsLabel')}
-                <FieldInfo textKey="tip.purchase.products" />
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsAddProductOpen(true)}
-                className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-semibold flex items-center gap-1 bg-purple-50 dark:bg-purple-950/40 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800/40 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
-              >
-                <Plus size={13} />
-                <span>{t('products.addProduct') || '+ New Product'}</span>
-              </button>
-            </div>
-            <div className="flex gap-2 mb-3">
-              <Select
-                options={productOptions}
-                value={selectedProduct}
-                onChange={e => setSelectedProduct(e.target.value)}
-                placeholder={t('purchases.selectProductPlaceholder')}
-                className="flex-1"
-              />
-              <Input
-                type="number"
-                min="1"
-                value={quantityInput}
-                onChange={e => setQuantityInput(e.target.value)}
-                placeholder={t('purchases.qtyPlaceholder')}
-                className="w-24"
-                onKeyDown={e => { if (e.key === 'Enter') handleAddItem() }}
-              />
-              <Button onClick={handleAddItem} disabled={!selectedProduct} className="flex-shrink-0">
-                <PlusCircle size={16} className="mr-1" />
-                {t('action.add')}
-              </Button>
-            </div>
-
-            {/* Items List */}
-            {items.length > 0 ? (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {items.map(item => (
-                  <div key={item.productId} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-elevated/50 rounded-lg">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
-                      <p className="text-xs text-gray-400">{formatINR(item.costPrice)} {t('purchases.eachSuffix')}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500">{t('purchases.qtyColon')}</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={e => handleUpdateItemQty(item.productId, parseInt(e.target.value) || 1)}
-                        className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-card dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <button
-                      onClick={() => handleRemoveItem(item.productId)}
-                      className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                    <span className="text-sm font-semibold w-24 text-right">
-                      {formatINR(item.costPrice * item.quantity)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400 text-center py-4">{t('purchases.addProductsPrompt')}</p>
-            )}
-          </div>
-        </div>
-      </Modal>
-
-      {/* Quick Add Product Modal */}
-      <QuickAddProductModal
-        isOpen={isAddProductOpen}
-        onClose={() => setIsAddProductOpen(false)}
-        defaultSupplierId={supplierId}
-        onProductCreated={(newProd) => {
-          // If the Record Purchase modal is currently open, auto-add this new item to the purchase!
-          if (isFormOpen) {
-            setItems(prev => {
-              const existing = prev.find(i => i.productId === newProd.id)
-              if (existing) return prev
-              return [
-                ...prev,
-                {
-                  productId: newProd.id,
-                  productName: newProd.name,
-                  quantity: parseInt(quantityInput) || 1,
-                  costPrice: newProd.costPrice,
-                },
-              ]
-            })
-            setSelectedProduct(newProd.id)
-          }
-        }}
-      />
-
-      {/* Tutorial Video Modal & Guided Onboarding Tour */}
+      {/* Guided Tour & Video Tutorial */}
       <PageVideoTutorialModal
         isOpen={pageTutorial.isTutorialOpen}
         onClose={pageTutorial.closeTutorial}
@@ -493,6 +436,66 @@ export const PurchasesPage = () => {
         isOpen={pageTutorial.isTourOpen}
         onClose={pageTutorial.closeTour}
       />
+
+      {/* Record Purchase Modal */}
+      {isFormOpen && (
+        <RecordPurchaseModal
+          isOpen={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+        />
+      )}
+
+      {/* Purchase Details Modal */}
+      {selectedDetailPurchase && (
+        <PurchaseDetailModal
+          isOpen={Boolean(selectedDetailPurchase)}
+          onClose={() => setSelectedDetailPurchase(null)}
+          purchase={selectedDetailPurchase}
+          onPaymentRecorded={() => {
+            setSelectedDetailPurchase(null)
+          }}
+        />
+      )}
+
+      {/* Record Purchase Payment Modal */}
+      {paymentPurchase && (
+        <RecordPurchasePaymentModal
+          isOpen={Boolean(paymentPurchase)}
+          onClose={() => setPaymentPurchase(null)}
+          purchase={paymentPurchase}
+          onSuccess={() => {
+            setPaymentPurchase(null)
+          }}
+        />
+      )}
+
+      {/* Quick Add Product Modal */}
+      <QuickAddProductModal
+        isOpen={isAddProductOpen}
+        onClose={() => setIsAddProductOpen(false)}
+      />
+
+      {/* Process Purchase Return Modal */}
+      {returnPurchase && (
+        <ProcessPurchaseReturnModal
+          purchase={returnPurchase}
+          isOpen={Boolean(returnPurchase)}
+          onClose={() => setReturnPurchase(null)}
+          onSuccess={(newReturn) => {
+            setDebitNoteModalData({ purchaseReturn: newReturn, purchase: returnPurchase })
+          }}
+        />
+      )}
+
+      {/* Debit Note Slip Preview & Print Modal */}
+      {debitNoteModalData.purchaseReturn && debitNoteModalData.purchase && (
+        <DebitNoteReceiptModal
+          isOpen={Boolean(debitNoteModalData.purchaseReturn && debitNoteModalData.purchase)}
+          onClose={() => setDebitNoteModalData({ purchaseReturn: null, purchase: null })}
+          purchaseReturn={debitNoteModalData.purchaseReturn}
+          purchase={debitNoteModalData.purchase}
+        />
+      )}
     </div>
   )
 }

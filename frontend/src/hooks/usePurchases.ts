@@ -13,6 +13,15 @@ export const usePurchases = () => {
   })
 }
 
+export const usePurchaseById = (purchaseId: string) => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.PURCHASES, user?.uid, purchaseId],
+    queryFn: () => purchaseService.getPurchaseById(user!.uid, purchaseId),
+    enabled: !!user && !!purchaseId,
+  })
+}
+
 export const usePurchasesBySupplier = (supplierId: string) => {
   const { user } = useAuth()
   return useQuery({
@@ -23,6 +32,19 @@ export const usePurchasesBySupplier = (supplierId: string) => {
   })
 }
 
+export const useRecordPurchasePayment = () => {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ purchaseId, data }: { purchaseId: string; data: { amount: number; paymentMethod: string; notes?: string } }) =>
+      purchaseService.recordPurchasePayment(user!.uid, purchaseId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASES] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.SUPPLIERS] })
+    },
+  })
+}
+
 export const useCreatePurchase = () => {
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -30,7 +52,7 @@ export const useCreatePurchase = () => {
     mutationFn: (data: Parameters<typeof purchaseService.createPurchase>[1]) =>
       purchaseService.createPurchase(user!.uid, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASES, QUERY_KEYS.PRODUCTS] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASES, QUERY_KEYS.PRODUCTS, QUERY_KEYS.SUPPLIERS] })
     },
   })
 }
@@ -53,7 +75,8 @@ export const useDeletePurchase = () => {
   return useMutation({
     mutationFn: (purchaseId: string) => purchaseService.deletePurchase(user!.uid, purchaseId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASES, QUERY_KEYS.PRODUCTS] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASES, QUERY_KEYS.PRODUCTS, QUERY_KEYS.SUPPLIERS] })
     },
   })
 }
+

@@ -56,6 +56,8 @@ model User {
   printerLogs           PrinterLog[]
   saleReturns           SaleReturn[]
   saleExchanges         SaleExchange[]
+  purchaseReturns       PurchaseReturn[]
+  supplierTransactions  SupplierTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -178,18 +180,24 @@ model Customer {
 }
 
 model Supplier {
-  id        String     @id @default(uuid())
-  name      String
-  phone     String
-  email     String?
-  address   String?
-  gstin     String?
-  userId    String
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products  Product[]
-  purchases Purchase[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id                 String                @id @default(uuid())
+  name               String
+  phone              String
+  email              String?
+  address            String?
+  gstin              String?
+  payableBalance     Float                 @default(0)
+  userId             String
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products           Product[]
+  purchases          Purchase[]
+  purchaseReturns    PurchaseReturn[]
+  transactions       SupplierTransaction[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([userId])
+  @@index([userId, payableBalance])
 }
 
 model Product {
@@ -197,8 +205,6 @@ model Product {
   name              String
   sku               String
   barcode           String?
-  // Which symbology the barcode uses (CODE128 / EAN13 / QR) so label printing
-  // renders it correctly for this specific product.
   barcodeType       String    @default("CODE128")
   categoryId        String
   category          Category  @relation(fields: [categoryId], references: [id])
@@ -212,9 +218,7 @@ model Product {
   currentStock      Float     @default(0)
   lowStockThreshold Float     @default(0)
   unit              String    @default("piece")
-  /// Soft-delete / catalog membership. Soft-deleted products stay out of all catalogs.
   isActive          Boolean   @default(true)
-  /// Menu availability (restaurants/cafes). Independent of stock quantity and soft-delete.
   isAvailable       Boolean   @default(true)
 
   brand       String?
@@ -245,8 +249,6 @@ model StockHistory {
   barcode    String?
   productId  String
   product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  // Set only when the change happened against a specific location's stock
-  // pool (multi-location inventory) rather than the product's flat total.
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   userId     String
@@ -267,15 +269,12 @@ model Sale {
   totalDiscount  Float
   totalTax       Float
   grandTotal     Float
-  /** Restaurant / bill add-ons applied at checkout — [{ presetId, label, kind, type, value, amount }] */
   billCharges       Json?
   extraChargesTotal Float     @default(0)
   paymentMethod  String
   amountPaid     Float
   changeReturned Float
   isQuickBill    Boolean   @default(false)
-  // Which location this whole sale was billed from (multi-location inventory
-  // feature) — null when the feature is off or the location wasn't selected.
   locationId     String?
   platform       String    @default("web")
   userId         String
@@ -288,7 +287,6 @@ model Sale {
   exchangesAsOriginal SaleExchange[] @relation("OriginalSaleExchanges")
   exchangeAsNew      SaleExchange?  @relation("NewSaleExchange")
   
-  // Delivery & Fulfillment fields
   orderType             String    @default("walk_in") // 'walk_in' | 'delivery'
   deliveryAddress       String?
   deliveryPhone         String?
@@ -307,11 +305,6 @@ model Sale {
   @@index([userId, paymentStatus])
 }
 
-// A physical place stock can sit — a warehouse, a shop branch, etc. Purely
-// opt-in: Settings.locationConfig.enabled gates whether any of this is shown
-// in the UI. A product with no matching ProductLocationStock row at the
-// selected location is treated as 0 available there (not falling back to
-// Product.currentStock) — that's what makes stock genuinely per-location.
 model Location {
   id           String                 @id @default(uuid())
   name         String
@@ -328,9 +321,6 @@ model Location {
   updatedAt    DateTime               @updatedAt
 }
 
-// One row per (product, location): that location's stock count and an
-// optional price override (null = use Product.sellingPrice). This is the
-// join table that makes "sell from Warehouse vs Shop" mean something.
 model ProductLocationStock {
   id                String   @id @default(uuid())
   productId         String
@@ -348,7 +338,6 @@ model ProductLocationStock {
   @@unique([productId, locationId])
 }
 
-// A manual stock move between two locations for the same product.
 model StockTransfer {
   id             String   @id @default(uuid())
   productId      String
@@ -365,21 +354,47 @@ model StockTransfer {
 }
 
 model Purchase {
+  id                 String           @id @default(uuid())
+  invoiceNumber      String
+  supplierBillNumber String?
+  supplierId         String?
+  supplier           Supplier?        @relation(fields: [supplierId], references: [id])
+  items              Json
+  subtotal           Float
+  totalTax           Float
+  grandTotal         Float
+  paymentMethod      String           @default("cash") // 'cash' | 'bank' | 'upi' | 'credit'
+  paymentStatus      String           @default("paid") // 'paid' | 'partial' | 'pending'
+  amountPaid         Float            @default(0)
+  paymentDueDate     DateTime?
+  notes              String?
+  returnStatus       String           @default("none") // 'none' | 'partial' | 'full'
+  totalReturned      Float            @default(0)
+  returns            PurchaseReturn[]
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, paymentStatus])
+  @@index([userId, supplierId])
+}
+
+model SupplierTransaction {
   id            String    @id @default(uuid())
-  invoiceNumber String
-  supplierId    String?
-  supplier      Supplier? @relation(fields: [supplierId], references: [id])
-  items         Json
-  subtotal      Float
-  totalTax      Float
-  grandTotal    Float
-  paymentMethod String
-  amountPaid    Float
+  supplierId    String
+  supplier      Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  amount        Float
+  type          String    // 'purchase' | 'payment' | 'debit_note_reversal'
+  paymentMethod String?   // 'cash' | 'bank' | 'upi' | 'cheque' | 'credit'
+  referenceId   String?   // purchaseId or purchaseReturnId
+  notes         String?
   userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime  @default(now())
 
-  @@index([userId, createdAt])
+  @@index([userId])
+  @@index([supplierId, createdAt])
 }
 
 model Expense {
@@ -749,6 +764,32 @@ model SaleExchange {
   @@index([userId, createdAt])
   @@index([originalSaleId])
   @@index([userId, originalSaleId])
+}
+
+/// Supplier return / debit note records linked to a prior Purchase invoice.
+model PurchaseReturn {
+  id               String    @id @default(uuid())
+  returnNumber     String    // e.g. "DN-00001" or "PR-00001" (Debit Note)
+  purchaseId       String
+  purchase         Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  supplierId       String?
+  supplier         Supplier? @relation(fields: [supplierId], references: [id])
+  items            Json      // [{ productId, productName, quantity, unitCost, taxRate, taxableAmount, gstAmount, refundAmount }]
+  subtotal         Float     // Taxable value reversed
+  totalTax         Float     // ITC amount reversed
+  refundAmount     Float     // Total debit / refund amount credited back from supplier
+  settlementMethod String    // 'cash' | 'bank_transfer' | 'adjust_against_payable' | 'supplier_credit'
+  reason           String?   // 'damaged' | 'wrong_item' | 'quality_reject' | 'excess_stock' | 'other'
+  notes            String?
+  locationId       String?
+  platform         String    @default("web") // 'web' | 'mobile'
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([purchaseId])
+  @@index([supplierId])
 }
 
 

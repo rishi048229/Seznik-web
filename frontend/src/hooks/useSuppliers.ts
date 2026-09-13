@@ -13,6 +13,47 @@ export const useSuppliers = () => {
   })
 }
 
+export const useSupplierById = (supplierId: string) => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.SUPPLIERS, user?.uid, supplierId],
+    queryFn: () => supplierService.getSupplierById(user!.uid, supplierId),
+    enabled: !!user && !!supplierId,
+  })
+}
+
+export const useSupplierLedger = (supplierId: string) => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.SUPPLIERS, user?.uid, 'ledger', supplierId],
+    queryFn: () => supplierService.getSupplierLedger(user!.uid, supplierId),
+    enabled: !!user && !!supplierId,
+  })
+}
+
+export const useSupplierReminders = () => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.SUPPLIERS, user?.uid, 'reminders'],
+    queryFn: () => supplierService.getSupplierReminders(user!.uid),
+    enabled: !!user,
+    refetchInterval: 60 * 1000,
+  })
+}
+
+export const useRecordSupplierPayment = () => {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ supplierId, data }: { supplierId: string; data: { amount: number; paymentMethod: string; purchaseId?: string; notes?: string } }) =>
+      supplierService.recordSupplierPayment(user!.uid, supplierId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.SUPPLIERS] })
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASES] })
+    },
+  })
+}
+
 export const useCreateSupplier = () => {
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -47,3 +88,4 @@ export const useDeleteSupplier = () => {
     },
   })
 }
+

@@ -42,10 +42,22 @@ export const getPurchasesBySupplier = async (_uid: string, supplierId: string): 
   return purchases.filter(p => p.supplierId === supplierId)
 }
 
+export const recordPurchasePayment = async (
+  _uid: string,
+  purchaseId: string,
+  data: { amount: number; paymentMethod: string; notes?: string }
+): Promise<Purchase> => {
+  return await fetchApi(`/purchases/${purchaseId}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 export const updatePurchase = async (_uid: string, purchaseId: string, data: Partial<Purchase>): Promise<void> => {
   await fetchApi(`/purchases/${purchaseId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   })
 }
+
 

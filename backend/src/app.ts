@@ -39,6 +39,7 @@ import utilityBillRoutes from './routes/utilityBillRoutes';
 import printerLogRoutes from './routes/printerLogRoutes';
 import saleReturnRoutes from './routes/saleReturnRoutes';
 import saleExchangeRoutes from './routes/saleExchangeRoutes';
+import purchaseReturnRoutes from './routes/purchaseReturnRoutes';
 import { trackApiUsage } from './middlewares/apiUsageMiddleware';
 const app = express();
 
@@ -126,6 +127,7 @@ app.use('/api/utility-bills', utilityBillRoutes);
 app.use('/api/printer-logs', printerLogRoutes);
 app.use('/api/sale-returns', saleReturnRoutes);
 app.use('/api/sale-exchanges', saleExchangeRoutes);
+app.use('/api/purchase-returns', purchaseReturnRoutes);
 app.use(publicReceiptRoutes);
 
 // 5. Comprehensive Server & Database Health Check Endpoint

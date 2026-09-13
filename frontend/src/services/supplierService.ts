@@ -1,10 +1,33 @@
 import { fetchApi } from './api'
-import type { Supplier } from '@/types/supplier.types'
+import type { Supplier, SupplierLedger, SupplierRemindersResponse } from '@/types/supplier.types'
 
 export type { Supplier } from '@/types/supplier.types'
 
 export const getSuppliers = async (_uid: string): Promise<Supplier[]> => {
   return await fetchApi('/suppliers')
+}
+
+export const getSupplierById = async (_uid: string, supplierId: string): Promise<Supplier> => {
+  return await fetchApi(`/suppliers/${supplierId}`)
+}
+
+export const getSupplierLedger = async (_uid: string, supplierId: string): Promise<SupplierLedger> => {
+  return await fetchApi(`/suppliers/${supplierId}/ledger`)
+}
+
+export const recordSupplierPayment = async (
+  _uid: string,
+  supplierId: string,
+  data: { amount: number; paymentMethod: string; purchaseId?: string; notes?: string }
+): Promise<any> => {
+  return await fetchApi(`/suppliers/${supplierId}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export const getSupplierReminders = async (_uid: string): Promise<SupplierRemindersResponse> => {
+  return await fetchApi('/suppliers/reminders/due')
 }
 
 export const createSupplier = async (_uid: string, data: Omit<Supplier, 'id' | 'createdAt'>): Promise<string> => {
@@ -27,4 +50,5 @@ export const deleteSupplier = async (_uid: string, supplierId: string): Promise<
     method: 'DELETE',
   })
 }
+
 

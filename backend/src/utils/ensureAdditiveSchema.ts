@@ -13,9 +13,61 @@ const ADDITIVE_COLUMNS = [
   `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "operatorName" TEXT`,
   `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "billDate" TEXT`,
   `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "paymentMode" TEXT DEFAULT 'CASH'`,
+  `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "returnStatus" TEXT NOT NULL DEFAULT 'none'`,
+  `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "totalReturned" DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "supplierBillNumber" TEXT`,
+  `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT NOT NULL DEFAULT 'paid'`,
+  `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "paymentDueDate" TIMESTAMP(3)`,
+  `ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "notes" TEXT`,
+  `ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "payableBalance" DOUBLE PRECISION NOT NULL DEFAULT 0`,
 ] as const
 
 const ADDITIVE_TABLES = [
+  `
+  CREATE TABLE IF NOT EXISTS "SupplierTransaction" (
+    "id" TEXT PRIMARY KEY,
+    "supplierId" TEXT NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "type" TEXT NOT NULL,
+    "paymentMethod" TEXT,
+    "referenceId" TEXT,
+    "notes" TEXT,
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "SupplierTransaction_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "SupplierTransaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )
+  `,
+  `CREATE INDEX IF NOT EXISTS "SupplierTransaction_userId_idx" ON "SupplierTransaction" ("userId")`,
+  `CREATE INDEX IF NOT EXISTS "SupplierTransaction_supplierId_createdAt_idx" ON "SupplierTransaction" ("supplierId", "createdAt")`,
+  `CREATE INDEX IF NOT EXISTS "Supplier_userId_payableBalance_idx" ON "Supplier" ("userId", "payableBalance")`,
+  `CREATE INDEX IF NOT EXISTS "Purchase_userId_paymentStatus_idx" ON "Purchase" ("userId", "paymentStatus")`,
+  `CREATE INDEX IF NOT EXISTS "Purchase_userId_supplierId_idx" ON "Purchase" ("userId", "supplierId")`,
+  `
+  CREATE TABLE IF NOT EXISTS "PurchaseReturn" (
+    "id" TEXT PRIMARY KEY,
+    "returnNumber" TEXT NOT NULL,
+    "purchaseId" TEXT NOT NULL,
+    "supplierId" TEXT,
+    "items" JSONB NOT NULL,
+    "subtotal" DOUBLE PRECISION NOT NULL,
+    "totalTax" DOUBLE PRECISION NOT NULL,
+    "refundAmount" DOUBLE PRECISION NOT NULL,
+    "settlementMethod" TEXT NOT NULL,
+    "reason" TEXT,
+    "notes" TEXT,
+    "locationId" TEXT,
+    "platform" TEXT NOT NULL DEFAULT 'web',
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "PurchaseReturn_purchaseId_fkey" FOREIGN KEY ("purchaseId") REFERENCES "Purchase"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "PurchaseReturn_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "PurchaseReturn_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  )
+  `,
+  `CREATE INDEX IF NOT EXISTS "PurchaseReturn_userId_createdAt_idx" ON "PurchaseReturn" ("userId", "createdAt")`,
+  `CREATE INDEX IF NOT EXISTS "PurchaseReturn_purchaseId_idx" ON "PurchaseReturn" ("purchaseId")`,
+  `CREATE INDEX IF NOT EXISTS "PurchaseReturn_supplierId_idx" ON "PurchaseReturn" ("supplierId")`,
   `
   CREATE TABLE IF NOT EXISTS "ApiUsageBucket" (
     "id" TEXT PRIMARY KEY,

@@ -632,7 +632,7 @@ export const getDaybook = async (req: Request, res: Response) => {
     const dayStart = startOfDay(targetDate);
     const dayEnd = endOfDay(targetDate);
 
-    const [sales, returns, expenses, purchases, creditTxns, lowStockCount] = await Promise.all([
+    const [sales, returns, expenses, purchases, purchaseReturnsAgg, creditTxns, lowStockCount] = await Promise.all([
       prisma.sale.findMany({
         where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
         orderBy: { createdAt: 'desc' },
@@ -649,6 +649,10 @@ export const getDaybook = async (req: Request, res: Response) => {
       prisma.purchase.aggregate({
         where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
         _sum: { totalTax: true },
+      }),
+      prisma.purchaseReturn.aggregate({
+        where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
+        _sum: { totalTax: true, refundAmount: true },
       }),
       prisma.creditTransaction.findMany({
         where: { userId, createdAt: { gte: dayStart, lte: dayEnd } },
@@ -770,7 +774,9 @@ export const getDaybook = async (req: Request, res: Response) => {
 
     const topSellingItemToday = Array.from(productSalesMap.values()).sort((a, b) => b.revenue - a.revenue)[0] || null;
 
-    const gstPaid = purchases._sum.totalTax || 0;
+    const rawGstPaid = purchases._sum.totalTax || 0;
+    const purchaseReturnsTax = purchaseReturnsAgg._sum.totalTax || 0;
+    const gstPaid = Math.max(0, Math.round((rawGstPaid - purchaseReturnsTax) * 100) / 100);
     const productGstBreakdown = Array.from(productGstMap.values())
       .map((p) => ({
         name: p.name,

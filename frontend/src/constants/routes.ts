@@ -12,6 +12,7 @@ export const ROUTES = {
   CUSTOMERS: '/customers',
   CUSTOMER_DETAIL: (id: string) => `/customers/${id}`,
   SUPPLIERS: '/suppliers',
+  SUPPLIER_DETAIL: (id: string) => `/suppliers/${id}`,
   SALES: '/sales',
   SALE_DETAIL: (id: string) => `/sales/${id}`,
   PURCHASES: '/purchases',

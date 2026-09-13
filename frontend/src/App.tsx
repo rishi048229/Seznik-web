@@ -67,6 +67,7 @@ const CategoriesPage = lazyPage(() => import('@/pages/categories/CategoriesPage'
 const CustomersPage = lazyPage(() => import('@/pages/customers/CustomersPage'), 'CustomersPage')
 const CustomerDetailPage = lazyPage(() => import('@/pages/customers/CustomerDetailPage'), 'CustomerDetailPage')
 const SuppliersPage = lazyPage(() => import('@/pages/suppliers/SuppliersPage'), 'SuppliersPage')
+const SupplierDetailPage = lazyPage(() => import('@/pages/suppliers/SupplierDetailPage'), 'SupplierDetailPage')
 const SalesPage = lazyPage(() => import('@/pages/sales/SalesPage'), 'SalesPage')
 const SaleDetailPage = lazyPage(() => import('@/pages/sales/SaleDetailPage'), 'SaleDetailPage')
 const PurchasesPage = lazyPage(() => import('@/pages/purchases/PurchasesPage'), 'PurchasesPage')
@@ -276,6 +277,7 @@ function App() {
                 <Route path={ROUTES.CUSTOMERS} element={<CustomersPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path={ROUTES.SUPPLIERS} element={<PermissionRoute permission="canAccessSuppliers"><SuppliersPage /></PermissionRoute>} />
+                <Route path="/suppliers/:id" element={<PermissionRoute permission="canAccessSuppliers"><SupplierDetailPage /></PermissionRoute>} />
                 <Route path={ROUTES.SALES} element={<SalesPage />} />
                 <Route path="/sales/:id" element={<SaleDetailPage />} />
                 <Route path={ROUTES.PURCHASES} element={<PermissionRoute permission="canAccessPurchases"><PurchasesPage /></PermissionRoute>} />
