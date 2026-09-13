@@ -124,11 +124,18 @@ export const ProcessReturnModal = ({
 
     const extra = refundExtraCharges ? (sale.extraChargesTotal || 0) : 0
     try {
-      return calculateReturnSummary(items as any, requests, extra)
+      return calculateReturnSummary(items as any, requests, extra, {
+        subtotal: sale.subtotal,
+        totalDiscount: sale.totalDiscount,
+        totalTax: sale.totalTax,
+        grandTotal: sale.grandTotal,
+        extraChargesTotal: sale.extraChargesTotal,
+        pastReturns,
+      })
     } catch {
       return { items: [], subtotal: 0, totalTax: 0, extraChargesRefunded: 0, refundAmount: 0 }
     }
-  }, [sale.items, sale.extraChargesTotal, selectedItems, refundExtraCharges])
+  }, [sale, selectedItems, refundExtraCharges, pastReturns])
 
   const handleToggleSelect = (key: string) => {
     setSelectedItems((prev) => {

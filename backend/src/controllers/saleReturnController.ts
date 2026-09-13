@@ -74,7 +74,14 @@ export const createSaleReturn = async (req: Request, res: Response) => {
     }
 
     const extraChargesRefunded = Number(body.extraChargesRefunded) || 0;
-    const computed = calculateReturnSummary(originalItems, returnRequests, extraChargesRefunded);
+    const computed = calculateReturnSummary(originalItems, returnRequests, extraChargesRefunded, {
+      subtotal: sale.subtotal,
+      totalDiscount: sale.totalDiscount,
+      totalTax: sale.totalTax,
+      grandTotal: sale.grandTotal,
+      extraChargesTotal: sale.extraChargesTotal,
+      pastReturns: sale.returns,
+    });
 
     if (computed.refundAmount <= 0) {
       return res.status(400).json({ error: 'Computed refund amount must be greater than zero' });

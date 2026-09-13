@@ -106,20 +106,15 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       }
     }
 
-    // Inward Leg computation using live product tax mode if not explicitly saved on original line
-    const enrichedOriginalItems = originalItems.map((orig: any) => {
-      const prodId = orig.productId || orig.id;
-      const liveProd = prodId ? liveProductMap.get(prodId) : null;
-      return {
-        ...orig,
-        priceIncludesGst: orig.priceIncludesGst !== undefined 
-          ? orig.priceIncludesGst 
-          : (liveProd ? liveProd.priceIncludesGst : false),
-      };
-    });
-
     const extraChargesRefunded = Number(body.extraChargesRefunded) || 0;
-    const computedReturn = calculateReturnSummary(enrichedOriginalItems, returnRequests, extraChargesRefunded);
+    const computedReturn = calculateReturnSummary(originalItems, returnRequests, extraChargesRefunded, {
+      subtotal: originalSale.subtotal,
+      totalDiscount: originalSale.totalDiscount,
+      totalTax: originalSale.totalTax,
+      grandTotal: originalSale.grandTotal,
+      extraChargesTotal: originalSale.extraChargesTotal,
+      pastReturns: originalSale.returns,
+    });
 
     if (computedReturn.refundAmount <= 0) {
       return res.status(400).json({ error: 'Computed return credit value must be greater than zero' });

@@ -144,11 +144,18 @@ export const ProcessExchangeModal = ({
     })
 
     try {
-      return calculateReturnSummary(items as any, requests, 0)
+      return calculateReturnSummary(items as any, requests, 0, {
+        subtotal: sale.subtotal,
+        totalDiscount: sale.totalDiscount,
+        totalTax: sale.totalTax,
+        grandTotal: sale.grandTotal,
+        extraChargesTotal: sale.extraChargesTotal,
+        pastReturns,
+      })
     } catch {
       return { items: [], subtotal: 0, totalTax: 0, extraChargesRefunded: 0, refundAmount: 0 }
     }
-  }, [sale.items, returnSelection])
+  }, [sale, returnSelection, pastReturns])
 
   // Outward Leg New Sale Calculation
   const newSaleSummary = useMemo(() => {

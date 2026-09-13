@@ -120,11 +120,18 @@ export function ProcessReturnModal({
     });
 
     try {
-      return calculateReturnSummary(items as any, requests, 0);
+      return calculateReturnSummary(items as any, requests, 0, {
+        subtotal: sale.subtotal,
+        totalDiscount: sale.totalDiscount,
+        totalTax: sale.totalTax,
+        grandTotal: sale.grandTotal,
+        extraChargesTotal: sale.extraChargesTotal,
+        pastReturns,
+      });
     } catch {
       return { items: [], subtotal: 0, totalTax: 0, extraChargesRefunded: 0, refundAmount: 0 };
     }
-  }, [sale, selectedItems]);
+  }, [sale, selectedItems, pastReturns]);
 
   const handleToggleSelect = (key: string) => {
     setSelectedItems((prev) => {
