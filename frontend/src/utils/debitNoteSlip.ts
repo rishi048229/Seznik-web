@@ -4,6 +4,56 @@ import type { UserSettings } from '@/types/settings.types'
 import { formatINR } from './currency'
 import { EscPosBuilder, toPrinterSafeText } from './escpos'
 
+/**
+ * Word wraps text into lines of at most maxWidth characters without cutting words in the middle.
+ */
+export function wrapText(text: string, maxWidth: number): string[] {
+  if (!text) return []
+  const clean = text.trim()
+  if (clean.length <= maxWidth) return [clean]
+
+  const words = clean.split(/\s+/)
+  const lines: string[] = []
+  let currentLine = ''
+
+  for (const word of words) {
+    if (!currentLine) {
+      if (word.length <= maxWidth) {
+        currentLine = word
+      } else {
+        // Hard-break words longer than maxWidth
+        for (let i = 0; i < word.length; i += maxWidth) {
+          const slice = word.slice(i, i + maxWidth)
+          if (i + maxWidth >= word.length) {
+            currentLine = slice
+          } else {
+            lines.push(slice)
+          }
+        }
+      }
+    } else if (currentLine.length + 1 + word.length <= maxWidth) {
+      currentLine += ' ' + word
+    } else {
+      lines.push(currentLine)
+      if (word.length <= maxWidth) {
+        currentLine = word
+      } else {
+        currentLine = ''
+        for (let i = 0; i < word.length; i += maxWidth) {
+          const slice = word.slice(i, i + maxWidth)
+          if (i + maxWidth >= word.length) {
+            currentLine = slice
+          } else {
+            lines.push(slice)
+          }
+        }
+      }
+    }
+  }
+  if (currentLine) lines.push(currentLine)
+  return lines
+}
+
 export function generateDebitNoteSlipHTML(
   purchaseReturn: PurchaseReturn,
   purchase: Purchase,
@@ -15,20 +65,21 @@ export function generateDebitNoteSlipHTML(
   const businessAddress = settings?.businessAddress || ''
   const businessPhone = settings?.businessPhone || ''
   const businessGSTIN = settings?.businessGSTIN || ''
-  const returnDate = new Date(purchaseReturn.createdAt).toLocaleDateString('en-IN', {
+  const returnDate = new Date(purchaseReturn.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
-  const origDate = new Date(purchase.createdAt).toLocaleDateString('en-IN', {
+  const origDate = new Date(purchase.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   })
 
   const supplierName = purchaseReturn.supplier?.name || purchase.supplier?.name || 'Supplier'
+  const supplierAddress = (purchaseReturn.supplier as any)?.address || (purchase.supplier as any)?.address || ''
   const supplierPhone = purchaseReturn.supplier?.phone || purchase.supplier?.phone || ''
   const supplierGSTIN = purchaseReturn.supplier?.gstin || purchase.supplier?.gstin || ''
 
@@ -68,9 +119,11 @@ export function generateDebitNoteSlipHTML(
             color: #000;
             background: #fff;
             margin: 0 auto;
-            padding: 6px 4px 16px 4px;
+            padding: 8px 4px 18px 4px;
             width: ${maxWidth};
             max-width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
           }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
@@ -82,17 +135,17 @@ export function generateDebitNoteSlipHTML(
           .my-1 { margin-top: 4px; margin-bottom: 4px; }
           .my-2 { margin-top: 6px; margin-bottom: 6px; }
           table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-          td, th { padding: 2px 0; vertical-align: top; word-break: break-word; }
+          td, th { padding: 2px 0; vertical-align: top; word-break: break-word; overflow-wrap: break-word; }
           .w-item { width: 55%; text-align: left; }
           .w-qty { width: 15%; text-align: center; }
           .w-amt { width: 30%; text-align: right; }
         </style>
       </head>
       <body>
-        <div class="text-center font-bold" style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">${businessName}</div>
-        ${businessAddress ? `<div class="text-center" style="font-size: 9.5px; color: #333; margin-top: 1px;">${businessAddress}</div>` : ''}
-        ${businessPhone ? `<div class="text-center" style="font-size: 9.5px;">Ph: ${businessPhone}</div>` : ''}
-        ${businessGSTIN ? `<div class="text-center" style="font-size: 9.5px;">GSTIN: ${businessGSTIN}</div>` : ''}
+        <div class="text-center font-bold" style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; word-break: break-word;">${businessName}</div>
+        ${businessAddress ? `<div class="text-center" style="font-size: 9.5px; color: #333; margin-top: 1px; word-break: break-word; white-space: normal; line-height: 1.3;">${businessAddress}</div>` : ''}
+        ${businessPhone ? `<div class="text-center" style="font-size: 9.5px; word-break: break-word;">Ph: ${businessPhone}</div>` : ''}
+        ${businessGSTIN ? `<div class="text-center" style="font-size: 9.5px; word-break: break-word;">GSTIN: ${businessGSTIN}</div>` : ''}
         
         <div class="border-solid my-2 py-1 text-center font-bold" style="font-size: 11px; letter-spacing: 0.5px;">
           ** DEBIT NOTE / ${returnStatusLabel} **
@@ -113,17 +166,22 @@ export function generateDebitNoteSlipHTML(
           </tr>
           <tr>
             <td>Ref Purchase:</td>
-            <td class="text-right">#${purchase.invoiceNumber}</td>
+            <td class="text-right">#${purchase.invoiceNumber || '—'}</td>
           </tr>
           <tr>
-            <td>Supplier:</td>
-            <td class="text-right">${supplierName}</td>
+            <td style="vertical-align: top;">Supplier:</td>
+            <td class="text-right font-bold" style="word-break: break-word; white-space: normal;">${supplierName}</td>
           </tr>
+          ${supplierAddress ? `
+          <tr>
+            <td style="vertical-align: top;">Address:</td>
+            <td class="text-right" style="word-break: break-word; white-space: normal; font-size: 9.5px; color: #333;">${supplierAddress}</td>
+          </tr>` : ''}
           ${supplierPhone ? `<tr><td>Phone:</td><td class="text-right">${supplierPhone}</td></tr>` : ''}
           ${supplierGSTIN ? `<tr><td>GSTIN:</td><td class="text-right">${supplierGSTIN}</td></tr>` : ''}
           <tr>
             <td>Settlement:</td>
-            <td class="text-right font-bold" style="text-transform: uppercase;">${purchaseReturn.settlementMethod.replace(/_/g, ' ')}</td>
+            <td class="text-right font-bold" style="text-transform: uppercase;">${(purchaseReturn.settlementMethod || 'cash').replace(/_/g, ' ')}</td>
           </tr>
           ${purchaseReturn.reason ? `<tr><td>Reason:</td><td class="text-right" style="text-transform: capitalize;">${purchaseReturn.reason.replace(/_/g, ' ')}</td></tr>` : ''}
         </table>
@@ -138,13 +196,13 @@ export function generateDebitNoteSlipHTML(
             </tr>
           </thead>
           <tbody>
-            ${purchaseReturn.items
+            ${(purchaseReturn.items || [])
               .map(
                 (item) => `
               <tr>
                 <td class="w-item font-bold">${item.productName}</td>
                 <td class="w-qty">${item.quantity}</td>
-                <td class="w-amt font-bold">${formatINR(item.refundAmount)}</td>
+                <td class="w-amt font-bold">${formatINR(Number(item.refundAmount || 0))}</td>
               </tr>
             `
               )
@@ -156,15 +214,15 @@ export function generateDebitNoteSlipHTML(
         <table>
           <tr>
             <td>Taxable Reversed:</td>
-            <td class="text-right">${formatINR(purchaseReturn.subtotal)}</td>
+            <td class="text-right">${formatINR(Number(purchaseReturn.subtotal || 0))}</td>
           </tr>
           <tr>
             <td>ITC Reversal:</td>
-            <td class="text-right">${formatINR(purchaseReturn.totalTax)}</td>
+            <td class="text-right">${formatINR(Number(purchaseReturn.totalTax || 0))}</td>
           </tr>
           <tr class="font-bold border-t border-b" style="font-size: 12px;">
             <td class="py-1">TOTAL DEBIT AMOUNT:</td>
-            <td class="text-right py-1">${formatINR(purchaseReturn.refundAmount)}</td>
+            <td class="text-right py-1">${formatINR(Number(purchaseReturn.refundAmount || 0))}</td>
           </tr>
         </table>
 
@@ -217,7 +275,7 @@ export function generateDebitNoteSlipHTML(
       <div class="header">
         <div>
           <div class="title">${businessName}</div>
-          ${businessAddress ? `<div style="color: #64748b; margin-top: 4px;">${businessAddress}</div>` : ''}
+          ${businessAddress ? `<div style="color: #64748b; margin-top: 4px; word-break: break-word;">${businessAddress}</div>` : ''}
           ${businessPhone ? `<div style="color: #64748b;">Phone: ${businessPhone}</div>` : ''}
           ${businessGSTIN ? `<div style="font-weight: 600; margin-top: 4px;">GSTIN: ${businessGSTIN}</div>` : ''}
         </div>
@@ -233,14 +291,15 @@ export function generateDebitNoteSlipHTML(
         <div class="card">
           <div style="font-weight: 700; color: #475569; margin-bottom: 6px; font-size: 11px; text-transform: uppercase;">Supplier Details</div>
           <div style="font-size: 14px; font-weight: 700; color: #0f172a;">${supplierName}</div>
+          ${supplierAddress ? `<div style="color: #64748b; margin-top: 2px; word-break: break-word;">${supplierAddress}</div>` : ''}
           ${supplierPhone ? `<div style="color: #64748b; margin-top: 2px;">Phone: ${supplierPhone}</div>` : ''}
           ${supplierGSTIN ? `<div style="color: #64748b; margin-top: 2px;">GSTIN: ${supplierGSTIN}</div>` : ''}
         </div>
         <div class="card">
           <div style="font-weight: 700; color: #475569; margin-bottom: 6px; font-size: 11px; text-transform: uppercase;">Original Purchase Reference</div>
-          <div style="font-size: 14px; font-weight: 700; color: #0f172a;">Purchase #${purchase.invoiceNumber}</div>
+          <div style="font-size: 14px; font-weight: 700; color: #0f172a;">Purchase #${purchase.invoiceNumber || '—'}</div>
           <div style="color: #64748b; margin-top: 2px;">Purchase Date: ${origDate}</div>
-          <div style="color: #64748b; margin-top: 2px;">Original Grand Total: ${formatINR(purchase.grandTotal)}</div>
+          <div style="color: #64748b; margin-top: 2px;">Original Grand Total: ${formatINR(Number(purchase.grandTotal || 0))}</div>
         </div>
       </div>
 
@@ -258,18 +317,18 @@ export function generateDebitNoteSlipHTML(
           </tr>
         </thead>
         <tbody>
-          ${purchaseReturn.items
+          ${(purchaseReturn.items || [])
             .map(
               (item, idx) => `
             <tr>
               <td>${idx + 1}</td>
-              <td style="font-weight: 600;">${item.productName}</td>
+              <td style="font-weight: 600; word-break: break-word;">${item.productName}</td>
               <td style="text-align: center;">${item.quantity}</td>
-              <td style="text-align: right;">${formatINR(item.unitCost)}</td>
-              <td style="text-align: right;">${item.taxRate}%</td>
-              <td style="text-align: right;">${formatINR(item.taxableAmount)}</td>
-              <td style="text-align: right;">${formatINR(item.gstAmount)}</td>
-              <td style="text-align: right; font-weight: 700;">${formatINR(item.refundAmount)}</td>
+              <td style="text-align: right;">${formatINR(Number(item.unitCost || 0))}</td>
+              <td style="text-align: right;">${item.taxRate || 0}%</td>
+              <td style="text-align: right;">${formatINR(Number(item.taxableAmount || 0))}</td>
+              <td style="text-align: right;">${formatINR(Number(item.gstAmount || 0))}</td>
+              <td style="text-align: right; font-weight: 700;">${formatINR(Number(item.refundAmount || 0))}</td>
             </tr>
           `
             )
@@ -281,18 +340,18 @@ export function generateDebitNoteSlipHTML(
         <div class="totals-box">
           <div class="totals-row">
             <span>Taxable Value Reversed:</span>
-            <span>${formatINR(purchaseReturn.subtotal)}</span>
+            <span>${formatINR(Number(purchaseReturn.subtotal || 0))}</span>
           </div>
           <div class="totals-row">
             <span>Input Tax Credit (ITC) Reversal:</span>
-            <span>${formatINR(purchaseReturn.totalTax)}</span>
+            <span>${formatINR(Number(purchaseReturn.totalTax || 0))}</span>
           </div>
           <div class="totals-row grand">
             <span>Net Debit Amount:</span>
-            <span>${formatINR(purchaseReturn.refundAmount)}</span>
+            <span>${formatINR(Number(purchaseReturn.refundAmount || 0))}</span>
           </div>
           <div style="margin-top: 10px; font-size: 11px; color: #64748b;">
-            Settlement Mode: <strong style="text-transform: uppercase; color: #0f172a;">${purchaseReturn.settlementMethod.replace(/_/g, ' ')}</strong>
+            Settlement Mode: <strong style="text-transform: uppercase; color: #0f172a;">${(purchaseReturn.settlementMethod || 'cash').replace(/_/g, ' ')}</strong>
           </div>
           ${purchaseReturn.reason ? `
           <div style="margin-top: 4px; font-size: 11px; color: #64748b;">
@@ -327,7 +386,7 @@ export async function generateDebitNoteSlipEscPos(
   const businessPhone = settings?.businessPhone || ''
   const businessGSTIN = settings?.businessGSTIN || ''
 
-  const returnDate = new Date(purchaseReturn.createdAt).toLocaleDateString('en-IN', {
+  const returnDate = new Date(purchaseReturn.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -335,6 +394,9 @@ export async function generateDebitNoteSlipEscPos(
   })
 
   const supplierName = purchaseReturn.supplier?.name || purchase.supplier?.name || 'Supplier'
+  const supplierAddress = (purchaseReturn.supplier as any)?.address || (purchase.supplier as any)?.address || ''
+  const supplierPhone = purchaseReturn.supplier?.phone || purchase.supplier?.phone || ''
+  const supplierGSTIN = purchaseReturn.supplier?.gstin || purchase.supplier?.gstin || ''
 
   const totalOrigQty = Array.isArray(purchase.items)
     ? purchase.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)
@@ -345,11 +407,20 @@ export async function generateDebitNoteSlipEscPos(
   const isFullReturn = purchase.returnStatus === 'full' || (totalOrigQty > 0 && totalReturnQty >= totalOrigQty)
   const returnStatusLabel = isFullReturn ? 'FULL RETURN' : 'PARTIAL RETURN'
 
-  // Header
-  builder.align('center').bold(true).doubleHeight(true).line(toPrinterSafeText(businessName))
+  // Header - Business Details with multi-line word wrapping
+  builder.align('center').bold(true).doubleHeight(true)
+  const nameLines = wrapText(businessName, cols)
+  for (const nl of nameLines) {
+    builder.line(toPrinterSafeText(nl))
+  }
   builder.doubleHeight(false).bold(false)
 
-  if (businessAddress) builder.line(toPrinterSafeText(businessAddress.slice(0, cols)))
+  if (businessAddress) {
+    const addressLines = wrapText(businessAddress, cols)
+    for (const al of addressLines) {
+      builder.line(toPrinterSafeText(al))
+    }
+  }
   if (businessPhone) builder.line(`Ph: ${toPrinterSafeText(businessPhone)}`)
   if (businessGSTIN) builder.line(`GSTIN: ${toPrinterSafeText(businessGSTIN)}`)
 
@@ -359,47 +430,87 @@ export async function generateDebitNoteSlipEscPos(
 
   // Metadata
   builder.align('left')
-  builder.twoCol('DN No:', purchaseReturn.returnNumber, cols)
+  builder.twoCol('DN No:', purchaseReturn.returnNumber || 'DN', cols)
   builder.twoCol('Return Type:', returnStatusLabel, cols)
   builder.twoCol('Date:', returnDate, cols)
-  builder.twoCol('Ref Purchase:', `#${purchase.invoiceNumber}`, cols)
-  builder.twoCol('Supplier:', supplierName.slice(0, cols - 10), cols)
-  builder.twoCol('Settlement:', purchaseReturn.settlementMethod.toUpperCase().replace(/_/g, ' '), cols)
+  builder.twoCol('Ref Purchase:', `#${purchase.invoiceNumber || '—'}`, cols)
+
+  const sLines = wrapText(supplierName, cols - 10)
+  if (sLines.length <= 1) {
+    builder.twoCol('Supplier:', sLines[0] || supplierName, cols)
+  } else {
+    builder.line('Supplier:')
+    for (const sl of sLines) {
+      builder.line(`  ${toPrinterSafeText(sl)}`)
+    }
+  }
+
+  if (supplierAddress) {
+    const saLines = wrapText(supplierAddress, cols - 4)
+    builder.line('Address:')
+    for (const sal of saLines) {
+      builder.line(`  ${toPrinterSafeText(sal)}`)
+    }
+  }
+
+  if (supplierPhone) {
+    builder.twoCol('Phone:', supplierPhone, cols)
+  }
+  if (supplierGSTIN) {
+    builder.twoCol('GSTIN:', supplierGSTIN, cols)
+  }
+
+  const settlement = (purchaseReturn.settlementMethod || 'cash').toUpperCase().replace(/_/g, ' ')
+  builder.twoCol('Settlement:', settlement, cols)
+
   if (purchaseReturn.reason) {
-    builder.twoCol('Reason:', purchaseReturn.reason.replace(/_/g, ' '), cols)
+    const reasonText = purchaseReturn.reason.replace(/_/g, ' ')
+    const rLines = wrapText(reasonText, cols - 9)
+    if (rLines.length <= 1) {
+      builder.twoCol('Reason:', rLines[0] || reasonText, cols)
+    } else {
+      builder.line('Reason:')
+      for (const rl of rLines) {
+        builder.line(`  ${toPrinterSafeText(rl)}`)
+      }
+    }
   }
 
   builder.hr(cols, '-')
 
   // Items Header
-  if (cols === 32) {
-    builder.bold(true).threeCol('Item', 'Qty', 'Debit', 16, 4, 12).bold(false)
-  } else {
-    builder.bold(true).threeCol('Item', 'Qty', 'Debit', 24, 6, 18).bold(false)
-  }
+  const itemColW = cols === 32 ? 16 : 24
+  const qtyColW = cols === 32 ? 4 : 6
+  const amtColW = cols === 32 ? 12 : 18
+  builder.bold(true).threeCol('Item', 'Qty', 'Debit', itemColW, qtyColW, amtColW).bold(false)
   builder.hr(cols, '-')
 
   // Line items
-  for (const item of purchaseReturn.items) {
-    const name = toPrinterSafeText(item.productName)
-    const qty = String(item.quantity)
-    const refund = `Rs.${item.refundAmount.toFixed(2)}`
-    if (cols === 32) {
-      builder.threeCol(name.slice(0, 16), qty, refund, 16, 4, 12)
-    } else {
-      builder.threeCol(name.slice(0, 24), qty, refund, 24, 6, 18)
+  for (const item of purchaseReturn.items || []) {
+    const name = toPrinterSafeText(item.productName || 'Item')
+    const qty = String(item.quantity ?? 1)
+    const refund = `Rs.${Number(item.refundAmount || 0).toFixed(2)}`
+    const pLines = wrapText(name, itemColW)
+
+    builder.threeCol(pLines[0] || name, qty, refund, itemColW, qtyColW, amtColW)
+    for (let i = 1; i < pLines.length; i++) {
+      builder.line(pLines[i])
     }
   }
 
   builder.hr(cols, '-')
 
   // Totals
-  builder.twoCol('Taxable Reversed:', `Rs.${purchaseReturn.subtotal.toFixed(2)}`, cols)
-  builder.twoCol('ITC Reversal:', `Rs.${purchaseReturn.totalTax.toFixed(2)}`, cols)
+  const subtotalStr = `Rs.${Number(purchaseReturn.subtotal || 0).toFixed(2)}`
+  const taxStr = `Rs.${Number(purchaseReturn.totalTax || 0).toFixed(2)}`
+  const refundStr = `Rs.${Number(purchaseReturn.refundAmount || 0).toFixed(2)}`
+
+  builder.twoCol('Taxable Reversed:', subtotalStr, cols)
+  builder.twoCol('ITC Reversal:', taxStr, cols)
 
   builder.hr(cols, '=')
   builder.bold(true).doubleHeight(true)
-  builder.twoCol('TOTAL DEBIT:', `Rs.${purchaseReturn.refundAmount.toFixed(2)}`, cols)
+  builder.twoCol('TOTAL DEBIT:', refundStr, cols)
   builder.doubleHeight(false).bold(false)
   builder.hr(cols, '=')
 
@@ -411,3 +522,4 @@ export async function generateDebitNoteSlipEscPos(
 
   return builder.toBytes()
 }
+

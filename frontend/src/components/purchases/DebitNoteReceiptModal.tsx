@@ -46,7 +46,12 @@ export const DebitNoteReceiptModal = ({
   const slipHtml = generateDebitNoteSlipHTML(purchaseReturn, purchase, settings, printFormat)
 
   // Direct Browser / USB / Thermal print using 58mm or 80mm
-  const handlePrintThermal = (paperWidth: '50mm' | '80mm' = '50mm') => {
+  const handlePrintThermal = async (paperWidth: '50mm' | '80mm' = '50mm') => {
+    // If 58mm is requested and a Bluetooth printer is already connected, print directly over BLE!
+    if (paperWidth === '50mm' && blePrinter.status === 'connected') {
+      await handlePrintBluetooth()
+      return
+    }
     const html = generateDebitNoteSlipHTML(purchaseReturn, purchase, settings, paperWidth)
     printReceipt(html, paperWidth, purchaseReturn.returnNumber, () => {}, settings?.printerConfig?.receiptFont)
   }
@@ -61,7 +66,9 @@ export const DebitNoteReceiptModal = ({
       const paperSize = settings?.printerConfig?.paperSize || '58mm'
       const bytes = await generateDebitNoteSlipEscPos(purchaseReturn, purchase, settings, paperSize as any)
       await blePrinter.print(bytes)
-      toast.success('Debit note slip printed to Bluetooth 58mm printer')
+      toast.success(
+        `Debit note slip printed to ${blePrinter.deviceName || 'Bluetooth printer'}`
+      )
     } catch (err) {
       toastError(err, 'Failed to print debit note via Bluetooth')
     } finally {
@@ -115,14 +122,17 @@ export const DebitNoteReceiptModal = ({
           <button
             type="button"
             onClick={() => handlePrintThermal('50mm')}
-            className="flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 border-blue-200 dark:border-blue-900/60 hover:border-blue-600 dark:hover:border-blue-400 bg-white dark:bg-slate-900 transition-all text-center group shadow-sm hover:shadow-md"
+            disabled={isBlePrinting}
+            className="flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 border-blue-200 dark:border-blue-900/60 hover:border-blue-600 dark:hover:border-blue-400 bg-white dark:bg-slate-900 transition-all text-center group shadow-sm hover:shadow-md cursor-pointer disabled:opacity-50"
           >
             <div className="p-2 bg-blue-50 dark:bg-blue-950/40 rounded-lg text-blue-600 group-hover:scale-110 transition-transform">
               <Printer size={22} />
             </div>
             <div>
               <p className="font-bold text-slate-900 dark:text-slate-100 text-xs">Print 58mm Thermal</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Connected 58mm POS Printer</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {blePrinter.status === 'connected' ? `Direct to ${blePrinter.deviceName}` : 'Compact POS Roll'}
+              </p>
             </div>
           </button>
 
@@ -130,7 +140,7 @@ export const DebitNoteReceiptModal = ({
           <button
             type="button"
             onClick={() => handlePrintThermal('80mm')}
-            className="flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-600 dark:hover:border-blue-400 bg-white dark:bg-slate-900 transition-all text-center group shadow-sm hover:shadow-md"
+            className="flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-600 dark:hover:border-blue-400 bg-white dark:bg-slate-900 transition-all text-center group shadow-sm hover:shadow-md cursor-pointer"
           >
             <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 group-hover:scale-110 transition-transform">
               <Printer size={22} />
@@ -145,7 +155,7 @@ export const DebitNoteReceiptModal = ({
           <button
             type="button"
             onClick={handleDownloadA4}
-            className="flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-600 dark:hover:border-emerald-400 bg-white dark:bg-slate-900 transition-all text-center group shadow-sm hover:shadow-md"
+            className="flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-600 dark:hover:border-emerald-400 bg-white dark:bg-slate-900 transition-all text-center group shadow-sm hover:shadow-md cursor-pointer"
           >
             <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-600 group-hover:scale-110 transition-transform">
               <Download size={22} />
@@ -167,7 +177,7 @@ export const DebitNoteReceiptModal = ({
             onClick={handlePrintBluetooth}
           >
             {blePrinter.status === 'connected'
-              ? `Print to Connected 58mm Bluetooth (${blePrinter.deviceName})`
+              ? `Print to Connected Bluetooth Printer (${blePrinter.deviceName})`
               : 'Connect & Print to 58mm Bluetooth Printer'}
           </Button>
         )}
@@ -178,9 +188,9 @@ export const DebitNoteReceiptModal = ({
           <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
             <button
               onClick={() => setPrintFormat('50mm')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                 printFormat === '50mm'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-400'
               }`}
             >
@@ -188,9 +198,9 @@ export const DebitNoteReceiptModal = ({
             </button>
             <button
               onClick={() => setPrintFormat('80mm')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                 printFormat === '80mm'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-400'
               }`}
             >
@@ -198,9 +208,9 @@ export const DebitNoteReceiptModal = ({
             </button>
             <button
               onClick={() => setPrintFormat('210mm')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                 printFormat === '210mm'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-400'
               }`}
             >
@@ -210,16 +220,16 @@ export const DebitNoteReceiptModal = ({
         </div>
 
         {/* Preview Frame */}
-        <div className="flex justify-center bg-slate-100 dark:bg-slate-900 p-4 rounded-xl max-h-[45vh] overflow-y-auto">
+        <div className="flex justify-center bg-slate-100 dark:bg-slate-900 p-4 rounded-xl max-h-[50vh] overflow-y-auto">
           <div
             className="bg-white text-black p-3 shadow-md rounded-lg overflow-hidden transition-all"
-            style={{ width: printFormat === '50mm' ? '300px' : printFormat === '80mm' ? '400px' : '100%', maxWidth: '100%' }}
+            style={{ width: printFormat === '50mm' ? '320px' : printFormat === '80mm' ? '420px' : '100%', maxWidth: '100%' }}
           >
             <iframe
               srcDoc={slipHtml}
               title="Debit Note Preview"
-              className="w-full border-0 min-h-[380px]"
-              style={{ height: printFormat === '210mm' ? '500px' : '400px' }}
+              className="w-full border-0 min-h-[420px]"
+              style={{ height: printFormat === '210mm' ? '540px' : '440px' }}
             />
           </div>
         </div>

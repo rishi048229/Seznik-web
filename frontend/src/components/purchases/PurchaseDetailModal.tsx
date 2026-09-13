@@ -121,6 +121,11 @@ export const PurchaseDetailModal = ({
               <p className="font-bold text-slate-900 dark:text-slate-100 text-base">
                 {supplierObj?.name || 'Unknown Supplier'}
               </p>
+              {supplierObj?.address && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">
+                  📍 {supplierObj.address}
+                </p>
+              )}
               {supplierObj?.phone && <p className="text-xs text-slate-500">📞 {supplierObj.phone}</p>}
               {supplierObj?.gstin && (
                 <p className="text-xs text-slate-500 font-mono">GSTIN: {supplierObj.gstin}</p>

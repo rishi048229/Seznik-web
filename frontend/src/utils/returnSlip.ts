@@ -2,6 +2,7 @@ import type { SaleReturn, Sale } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
 import { formatINR } from './currency'
 import { EscPosBuilder, toPrinterSafeText } from './escpos'
+import { wrapText } from './debitNoteSlip'
 
 export function generateReturnSlipHTML(
   saleReturn: SaleReturn,
@@ -14,14 +15,14 @@ export function generateReturnSlipHTML(
   const businessAddress = settings?.businessAddress || ''
   const businessPhone = settings?.businessPhone || ''
   const businessGSTIN = settings?.businessGSTIN || ''
-  const returnDate = new Date(saleReturn.createdAt).toLocaleDateString('en-IN', {
+  const returnDate = new Date(saleReturn.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
-  const origDate = new Date(sale.createdAt).toLocaleDateString('en-IN', {
+  const origDate = new Date(sale.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -56,9 +57,11 @@ export function generateReturnSlipHTML(
             color: #000;
             background: #fff;
             margin: 0 auto;
-            padding: 6px 4px 16px 4px;
+            padding: 8px 4px 18px 4px;
             width: ${maxWidth};
             max-width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
           }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
@@ -70,17 +73,17 @@ export function generateReturnSlipHTML(
           .my-1 { margin-top: 4px; margin-bottom: 4px; }
           .my-2 { margin-top: 6px; margin-bottom: 6px; }
           table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-          td, th { padding: 2px 0; vertical-align: top; word-break: break-word; }
+          td, th { padding: 2px 0; vertical-align: top; word-break: break-word; overflow-wrap: break-word; }
           .w-item { width: 55%; text-align: left; }
           .w-qty { width: 15%; text-align: center; }
           .w-amt { width: 30%; text-align: right; }
         </style>
       </head>
       <body>
-        <div class="text-center font-bold" style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">${businessName}</div>
-        ${businessAddress ? `<div class="text-center" style="font-size: 9.5px; color: #333; margin-top: 1px;">${businessAddress}</div>` : ''}
-        ${businessPhone ? `<div class="text-center" style="font-size: 9.5px;">Ph: ${businessPhone}</div>` : ''}
-        ${businessGSTIN ? `<div class="text-center" style="font-size: 9.5px;">GSTIN: ${businessGSTIN}</div>` : ''}
+        <div class="text-center font-bold" style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; word-break: break-word;">${businessName}</div>
+        ${businessAddress ? `<div class="text-center" style="font-size: 9.5px; color: #333; margin-top: 1px; word-break: break-word; white-space: normal; line-height: 1.3;">${businessAddress}</div>` : ''}
+        ${businessPhone ? `<div class="text-center" style="font-size: 9.5px; word-break: break-word;">Ph: ${businessPhone}</div>` : ''}
+        ${businessGSTIN ? `<div class="text-center" style="font-size: 9.5px; word-break: break-word;">GSTIN: ${businessGSTIN}</div>` : ''}
         
         <div class="border-solid my-2 py-1 text-center font-bold" style="font-size: 11px; letter-spacing: 0.5px;">
           ** RETURN SLIP / CREDIT NOTE **
@@ -97,16 +100,16 @@ export function generateReturnSlipHTML(
           </tr>
           <tr>
             <td>Ref Invoice:</td>
-            <td class="text-right">#${sale.invoiceNumber}</td>
+            <td class="text-right">#${sale.invoiceNumber || '—'}</td>
           </tr>
           <tr>
-            <td>Customer:</td>
-            <td class="text-right">${customerName}</td>
+            <td style="vertical-align: top;">Customer:</td>
+            <td class="text-right font-bold" style="word-break: break-word; white-space: normal;">${customerName}</td>
           </tr>
           ${customerPhone ? `<tr><td>Phone:</td><td class="text-right">${customerPhone}</td></tr>` : ''}
           <tr>
             <td>Refund Mode:</td>
-            <td class="text-right font-bold" style="text-transform: uppercase;">${saleReturn.refundMethod.replace('_', ' ')}</td>
+            <td class="text-right font-bold" style="text-transform: uppercase;">${(saleReturn.refundMethod || 'cash').replace(/_/g, ' ')}</td>
           </tr>
           ${saleReturn.reason ? `<tr><td>Reason:</td><td class="text-right" style="text-transform: capitalize;">${saleReturn.reason.replace(/_/g, ' ')}</td></tr>` : ''}
         </table>
@@ -121,13 +124,13 @@ export function generateReturnSlipHTML(
             </tr>
           </thead>
           <tbody>
-            ${saleReturn.items
+            ${(saleReturn.items || [])
               .map(
                 (item) => `
               <tr>
                 <td class="w-item font-bold">${item.productName}</td>
                 <td class="w-qty">${item.quantity}</td>
-                <td class="w-amt font-bold">${formatINR(item.refundAmount)}</td>
+                <td class="w-amt font-bold">${formatINR(Number(item.refundAmount || 0))}</td>
               </tr>
             `
               )
@@ -139,20 +142,20 @@ export function generateReturnSlipHTML(
         <table>
           <tr>
             <td>Taxable Subtotal:</td>
-            <td class="text-right">${formatINR(saleReturn.subtotal)}</td>
+            <td class="text-right">${formatINR(Number(saleReturn.subtotal || 0))}</td>
           </tr>
           <tr>
             <td>GST Reversal:</td>
-            <td class="text-right">${formatINR(saleReturn.totalTax)}</td>
+            <td class="text-right">${formatINR(Number(saleReturn.totalTax || 0))}</td>
           </tr>
           ${
-            saleReturn.extraChargesRefunded > 0
-              ? `<tr><td>Extra Charges Refund:</td><td class="text-right">${formatINR(saleReturn.extraChargesRefunded)}</td></tr>`
+            (saleReturn.extraChargesRefunded || 0) > 0
+              ? `<tr><td>Extra Charges Refund:</td><td class="text-right">${formatINR(Number(saleReturn.extraChargesRefunded || 0))}</td></tr>`
               : ''
           }
           <tr class="font-bold border-t border-b" style="font-size: 12px;">
             <td class="py-1">TOTAL REFUND:</td>
-            <td class="text-right py-1">${formatINR(saleReturn.refundAmount)}</td>
+            <td class="text-right py-1">${formatINR(Number(saleReturn.refundAmount || 0))}</td>
           </tr>
         </table>
 
@@ -201,7 +204,7 @@ export function generateReturnSlipHTML(
       <div class="header">
         <div>
           <div class="title">${businessName}</div>
-          ${businessAddress ? `<div style="color: #64748b; margin-top: 4px;">${businessAddress}</div>` : ''}
+          ${businessAddress ? `<div style="color: #64748b; margin-top: 4px; word-break: break-word;">${businessAddress}</div>` : ''}
           ${businessPhone ? `<div style="color: #64748b;">Phone: ${businessPhone}</div>` : ''}
           ${businessGSTIN ? `<div style="font-weight: 600; margin-top: 4px;">GSTIN: ${businessGSTIN}</div>` : ''}
         </div>
@@ -220,9 +223,9 @@ export function generateReturnSlipHTML(
         </div>
         <div class="card">
           <div style="font-weight: 700; color: #475569; margin-bottom: 6px; font-size: 11px; text-transform: uppercase;">Original Invoice Details</div>
-          <div style="font-size: 14px; font-weight: 700; color: #0f172a;">Invoice #${sale.invoiceNumber}</div>
+          <div style="font-size: 14px; font-weight: 700; color: #0f172a;">Invoice #${sale.invoiceNumber || '—'}</div>
           <div style="color: #64748b; margin-top: 2px;">Invoice Date: ${origDate}</div>
-          <div style="color: #64748b; margin-top: 2px;">Original Grand Total: ${formatINR(sale.grandTotal)}</div>
+          <div style="color: #64748b; margin-top: 2px;">Original Grand Total: ${formatINR(Number(sale.grandTotal || 0))}</div>
         </div>
       </div>
 
@@ -240,18 +243,18 @@ export function generateReturnSlipHTML(
           </tr>
         </thead>
         <tbody>
-          ${saleReturn.items
+          ${(saleReturn.items || [])
             .map(
               (item, idx) => `
             <tr>
               <td>${idx + 1}</td>
-              <td style="font-weight: 600;">${item.productName}</td>
+              <td style="font-weight: 600; word-break: break-word;">${item.productName}</td>
               <td style="text-align: center;">${item.quantity}</td>
-              <td style="text-align: right;">${formatINR(item.unitPrice)}</td>
-              <td style="text-align: right;">${item.taxRate}%</td>
-              <td style="text-align: right;">${formatINR(item.taxableAmount)}</td>
-              <td style="text-align: right;">${formatINR(item.gstAmount)}</td>
-              <td style="text-align: right; font-weight: 700;">${formatINR(item.refundAmount)}</td>
+              <td style="text-align: right;">${formatINR(Number(item.unitPrice || 0))}</td>
+              <td style="text-align: right;">${item.taxRate || 0}%</td>
+              <td style="text-align: right;">${formatINR(Number(item.taxableAmount || 0))}</td>
+              <td style="text-align: right;">${formatINR(Number(item.gstAmount || 0))}</td>
+              <td style="text-align: right; font-weight: 700;">${formatINR(Number(item.refundAmount || 0))}</td>
             </tr>
           `
             )
@@ -263,28 +266,28 @@ export function generateReturnSlipHTML(
         <div class="totals-box">
           <div class="totals-row">
             <span>Taxable Subtotal:</span>
-            <span>${formatINR(saleReturn.subtotal)}</span>
+            <span>${formatINR(Number(saleReturn.subtotal || 0))}</span>
           </div>
           <div class="totals-row">
             <span>GST Output Tax Reversal:</span>
-            <span>${formatINR(saleReturn.totalTax)}</span>
+            <span>${formatINR(Number(saleReturn.totalTax || 0))}</span>
           </div>
           ${
-            saleReturn.extraChargesRefunded > 0
+            (saleReturn.extraChargesRefunded || 0) > 0
               ? `
           <div class="totals-row">
             <span>Extra Charges Refunded:</span>
-            <span>${formatINR(saleReturn.extraChargesRefunded)}</span>
+            <span>${formatINR(Number(saleReturn.extraChargesRefunded || 0))}</span>
           </div>
           `
               : ''
           }
           <div class="totals-row grand">
             <span>Net Refund Amount:</span>
-            <span>${formatINR(saleReturn.refundAmount)}</span>
+            <span>${formatINR(Number(saleReturn.refundAmount || 0))}</span>
           </div>
           <div style="margin-top: 10px; font-size: 11px; color: #64748b;">
-            Settlement Mode: <strong style="text-transform: uppercase; color: #0f172a;">${saleReturn.refundMethod.replace('_', ' ')}</strong>
+            Settlement Mode: <strong style="text-transform: uppercase; color: #0f172a;">${(saleReturn.refundMethod || 'cash').replace(/_/g, ' ')}</strong>
           </div>
         </div>
       </div>
@@ -315,7 +318,7 @@ export async function generateReturnSlipEscPos(
   const businessPhone = settings?.businessPhone || ''
   const businessGSTIN = settings?.businessGSTIN || ''
 
-  const returnDate = new Date(saleReturn.createdAt).toLocaleDateString('en-IN', {
+  const returnDate = new Date(saleReturn.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -325,10 +328,19 @@ export async function generateReturnSlipEscPos(
   const customerName = saleReturn.customer?.name || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in'
 
   // Header
-  builder.align('center').bold(true).doubleHeight(true).line(toPrinterSafeText(businessName))
+  builder.align('center').bold(true).doubleHeight(true)
+  const nameLines = wrapText(businessName, cols)
+  for (const nl of nameLines) {
+    builder.line(toPrinterSafeText(nl))
+  }
   builder.doubleHeight(false).bold(false)
 
-  if (businessAddress) builder.line(toPrinterSafeText(businessAddress.slice(0, cols)))
+  if (businessAddress) {
+    const addressLines = wrapText(businessAddress, cols)
+    for (const al of addressLines) {
+      builder.line(toPrinterSafeText(al))
+    }
+  }
   if (businessPhone) builder.line(`Ph: ${toPrinterSafeText(businessPhone)}`)
   if (businessGSTIN) builder.line(`GSTIN: ${toPrinterSafeText(businessGSTIN)}`)
 
@@ -338,49 +350,74 @@ export async function generateReturnSlipEscPos(
 
   // Metadata
   builder.align('left')
-  builder.twoCol('CN No:', saleReturn.returnNumber, cols)
+  builder.twoCol('CN No:', saleReturn.returnNumber || 'CN', cols)
   builder.twoCol('Date:', returnDate, cols)
-  builder.twoCol('Ref Invoice:', `#${sale.invoiceNumber}`, cols)
-  builder.twoCol('Customer:', customerName.slice(0, cols - 10), cols)
-  builder.twoCol('Refund Mode:', saleReturn.refundMethod.toUpperCase().replace('_', ' '), cols)
+  builder.twoCol('Ref Invoice:', `#${sale.invoiceNumber || '—'}`, cols)
+
+  const cLines = wrapText(customerName, cols - 10)
+  if (cLines.length <= 1) {
+    builder.twoCol('Customer:', cLines[0] || customerName, cols)
+  } else {
+    builder.line('Customer:')
+    for (const cl of cLines) {
+      builder.line(`  ${toPrinterSafeText(cl)}`)
+    }
+  }
+
+  const refundMethod = (saleReturn.refundMethod || 'cash').toUpperCase().replace(/_/g, ' ')
+  builder.twoCol('Refund Mode:', refundMethod, cols)
+
   if (saleReturn.reason) {
-    builder.twoCol('Reason:', saleReturn.reason.replace(/_/g, ' '), cols)
+    const reasonText = saleReturn.reason.replace(/_/g, ' ')
+    const rLines = wrapText(reasonText, cols - 9)
+    if (rLines.length <= 1) {
+      builder.twoCol('Reason:', rLines[0] || reasonText, cols)
+    } else {
+      builder.line('Reason:')
+      for (const rl of rLines) {
+        builder.line(`  ${toPrinterSafeText(rl)}`)
+      }
+    }
   }
 
   builder.hr(cols, '-')
 
   // Items Header
-  if (cols === 32) {
-    builder.bold(true).threeCol('Item', 'Qty', 'Refund', 16, 4, 12).bold(false)
-  } else {
-    builder.bold(true).threeCol('Item', 'Qty', 'Refund', 24, 6, 18).bold(false)
-  }
+  const itemColW = cols === 32 ? 16 : 24
+  const qtyColW = cols === 32 ? 4 : 6
+  const amtColW = cols === 32 ? 12 : 18
+  builder.bold(true).threeCol('Item', 'Qty', 'Refund', itemColW, qtyColW, amtColW).bold(false)
   builder.hr(cols, '-')
 
   // Line items
-  for (const item of saleReturn.items) {
-    const name = toPrinterSafeText(item.productName)
-    const qty = String(item.quantity)
-    const refund = `Rs.${item.refundAmount.toFixed(2)}`
-    if (cols === 32) {
-      builder.threeCol(name.slice(0, 16), qty, refund, 16, 4, 12)
-    } else {
-      builder.threeCol(name.slice(0, 24), qty, refund, 24, 6, 18)
+  for (const item of saleReturn.items || []) {
+    const name = toPrinterSafeText(item.productName || 'Item')
+    const qty = String(item.quantity ?? 1)
+    const refund = `Rs.${Number(item.refundAmount || 0).toFixed(2)}`
+    const pLines = wrapText(name, itemColW)
+
+    builder.threeCol(pLines[0] || name, qty, refund, itemColW, qtyColW, amtColW)
+    for (let i = 1; i < pLines.length; i++) {
+      builder.line(pLines[i])
     }
   }
 
   builder.hr(cols, '-')
 
   // Totals
-  builder.twoCol('Taxable Subtotal:', `Rs.${saleReturn.subtotal.toFixed(2)}`, cols)
-  builder.twoCol('GST Reversal:', `Rs.${saleReturn.totalTax.toFixed(2)}`, cols)
-  if (saleReturn.extraChargesRefunded > 0) {
-    builder.twoCol('Extra Charges Refund:', `Rs.${saleReturn.extraChargesRefunded.toFixed(2)}`, cols)
+  const subtotalStr = `Rs.${Number(saleReturn.subtotal || 0).toFixed(2)}`
+  const taxStr = `Rs.${Number(saleReturn.totalTax || 0).toFixed(2)}`
+  const refundStr = `Rs.${Number(saleReturn.refundAmount || 0).toFixed(2)}`
+
+  builder.twoCol('Taxable Subtotal:', subtotalStr, cols)
+  builder.twoCol('GST Reversal:', taxStr, cols)
+  if ((saleReturn.extraChargesRefunded || 0) > 0) {
+    builder.twoCol('Extra Charges Refund:', `Rs.${Number(saleReturn.extraChargesRefunded || 0).toFixed(2)}`, cols)
   }
 
   builder.hr(cols, '=')
   builder.bold(true).doubleHeight(true)
-  builder.twoCol('TOTAL REFUND:', `Rs.${saleReturn.refundAmount.toFixed(2)}`, cols)
+  builder.twoCol('TOTAL REFUND:', refundStr, cols)
   builder.doubleHeight(false).bold(false)
   builder.hr(cols, '=')
 
