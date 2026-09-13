@@ -129,7 +129,7 @@ export const generateRestaurantBillHTML = (ctx: RestaurantBillContext): string =
     <div style="border-top:2px solid #000;margin:8px 0 4px;"></div>
     <div style="text-align:center;font-size:10px;">${esc(footer)}</div>
     <div style="text-align:center;font-size:10px;font-weight:700;margin-top:4px;">-- Guest Copy --</div>
-    <div style="height:16mm;"></div>
+    <div style="height:2mm;"></div>
   </div>`
 }
 

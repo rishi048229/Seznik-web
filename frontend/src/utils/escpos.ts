@@ -115,15 +115,12 @@ export class EscPosBuilder {
   }
 
   /**
-   * Advance the slip past the cutter / tear bar, then partial-cut.
-   * Two line-feeds leave the last rows inside the printer on 58mm Seznik units.
+   * Leave ~2mm after the last printed line, then partial-cut.
+   * Same tail on 58mm and 80mm — no extra blank lines.
    */
-  ejectAndCut(lines = 8): this {
-    const n = Math.max(6, Math.min(12, Math.round(lines)))
-    this.newline(n)
-    this.feedDots(140)
-    // GS V 66 n — partial cut after extra feed (Epson + common clones)
-    return this.push(GS, 0x56, 0x42, 4)
+  ejectAndCut(): this {
+    this.feedDots(16)
+    return this.push(GS, 0x56, 0x01)
   }
 
   // 1D barcode via the standard GS k command. CODE128 uses the newer
