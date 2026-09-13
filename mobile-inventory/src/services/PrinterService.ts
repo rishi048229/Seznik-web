@@ -45,6 +45,7 @@ import { isRestaurantBusiness } from '../constants/businessTypes';
 import { useAuthStore } from '../store/useAuthStore';
 import { resolveStoreProfile } from '../hooks/useStoreProfile';
 import { getCachedSettings } from '../hooks/useSettings';
+import { logPrinterConnection } from '../api/printerLog';
 
 const NativeBluetoothManager = NativeModules.BluetoothManager;
 const NativeEscposPrinter = NativeModules.BluetoothEscposPrinter;
@@ -3313,6 +3314,12 @@ class ThermalPrinterServiceManager {
       } catch {}
       this.notifyStatusChange('connected', true);
       playPrinterConnectFeedback();
+      logPrinterConnection({
+        printerName,
+        deviceAddress: address || null,
+        platform: 'mobile',
+        connectionType: 'bluetooth',
+      });
     }
     return ok;
   }
@@ -3928,6 +3935,12 @@ class ThermalPrinterServiceManager {
       this.connectionState = 'connected';
       this.notifyStatusChange('connected', true);
       playPrinterConnectFeedback();
+      logPrinterConnection({
+        printerName,
+        deviceAddress: address || null,
+        platform: 'mobile',
+        connectionType: 'bluetooth',
+      });
     }
     return ok;
   }

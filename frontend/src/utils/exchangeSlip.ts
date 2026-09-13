@@ -92,7 +92,7 @@ export function generateExchangeSlipHTML(
         ${businessGSTIN ? `<div class="text-center" style="font-size: 9.5px;">GSTIN: ${businessGSTIN}</div>` : ''}
         
         <div class="border-solid my-2 py-1 text-center font-bold" style="font-size: 11px; letter-spacing: 0.5px;">
-          EXCHANGE VOUCHER
+          ** EXCHANGE VOUCHER **
         </div>
 
         <table>
@@ -355,8 +355,7 @@ export function generateExchangeSlipHTML(
       </div>
 
       <div class="footer">
-        This is a computer-generated Exchange Voucher.<br>
-        Powered by Seznik POS
+        This is a computer-generated Exchange Voucher.
       </div>
     </body>
     </html>
@@ -408,7 +407,7 @@ export async function generateExchangeSlipEscPos(
   if (businessGSTIN) builder.line(`GSTIN: ${toPrinterSafeText(businessGSTIN)}`)
 
   builder.hr(cols, '=')
-  builder.bold(true).line('*** EXCHANGE VOUCHER ***')
+  builder.bold(true).line('** EXCHANGE VOUCHER **')
   builder.bold(false).hr(cols, '=')
 
   // Metadata
@@ -467,7 +466,6 @@ export async function generateExchangeSlipEscPos(
   builder.align('center')
   builder.newline(1)
   builder.line('Retain this slip for warranty records.')
-  builder.line('Powered by Seznik POS')
   builder.feedAndCut(4)
 
   return builder.toBytes()

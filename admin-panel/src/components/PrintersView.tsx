@@ -569,18 +569,17 @@ export const PrintersView: React.FC = () => {
                   >
                     <th style={{ padding: '12px 16px', width: '60px' }}>#</th>
                     <th style={{ padding: '12px 16px' }}>Bluetooth Printer Name (As-Is)</th>
-                    <th style={{ padding: '12px 16px' }}>Connection Frequency</th>
+                    <th style={{ padding: '12px 16px' }}>Printer Frequency</th>
                     <th style={{ padding: '12px 16px' }}>Unique Users</th>
                     <th style={{ padding: '12px 16px' }}>Platform Share</th>
-                    <th style={{ padding: '12px 16px' }}>First Seen</th>
-                    <th style={{ padding: '12px 16px' }}>Last Active</th>
+                    <th style={{ padding: '12px 16px' }}>Logged At (IST)</th>
                     <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {summaryLoading ? (
                     <tr>
-                      <td colSpan={8} style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                           <Loader2 size={24} className="animate-spin" />
                           <span>Loading printer analytics...</span>
@@ -589,13 +588,13 @@ export const PrintersView: React.FC = () => {
                     </tr>
                   ) : summaryError ? (
                     <tr>
-                      <td colSpan={8} style={{ padding: '30px', textAlign: 'center', color: '#ef4444' }}>
+                      <td colSpan={7} style={{ padding: '30px', textAlign: 'center', color: '#ef4444' }}>
                         {summaryError}
                       </td>
                     </tr>
                   ) : filteredSummaryList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                           <Printer size={32} style={{ opacity: 0.4 }} />
                           <span>No printer connection logs found.</span>
@@ -726,9 +725,6 @@ export const PrintersView: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                          </td>
-                          <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                            {formatWhen(item.firstSeenAt)}
                           </td>
                           <td style={{ padding: '14px 16px', color: 'var(--text-main)', fontWeight: 500, fontSize: '0.78rem' }}>
                             {formatWhen(item.lastConnectedAt)}
@@ -903,7 +899,7 @@ export const PrintersView: React.FC = () => {
                     <th style={{ padding: '12px 16px' }}>Bluetooth Printer Name (As-Is)</th>
                     <th style={{ padding: '12px 16px' }}>Platform</th>
                     <th style={{ padding: '12px 16px' }}>Device / MAC Address</th>
-                    <th style={{ padding: '12px 16px' }}>Connected At (IST)</th>
+                    <th style={{ padding: '12px 16px' }}>Logged At (IST)</th>
                   </tr>
                 </thead>
                 <tbody>

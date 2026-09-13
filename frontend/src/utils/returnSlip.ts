@@ -83,7 +83,7 @@ export function generateReturnSlipHTML(
         ${businessGSTIN ? `<div class="text-center" style="font-size: 9.5px;">GSTIN: ${businessGSTIN}</div>` : ''}
         
         <div class="border-solid my-2 py-1 text-center font-bold" style="font-size: 11px; letter-spacing: 0.5px;">
-          RETURN SLIP / CREDIT NOTE
+          ** RETURN SLIP / CREDIT NOTE **
         </div>
 
         <table>
@@ -290,8 +290,7 @@ export function generateReturnSlipHTML(
       </div>
 
       <div class="footer">
-        This is a computer-generated Credit Note / Return Slip.<br>
-        Powered by Seznik POS
+        This is a computer-generated Credit Note / Return Slip.
       </div>
     </body>
     </html>
@@ -334,7 +333,7 @@ export async function generateReturnSlipEscPos(
   if (businessGSTIN) builder.line(`GSTIN: ${toPrinterSafeText(businessGSTIN)}`)
 
   builder.hr(cols, '=')
-  builder.bold(true).line('*** RETURN SLIP / CREDIT NOTE ***')
+  builder.bold(true).line('** RETURN SLIP / CREDIT NOTE **')
   builder.bold(false).hr(cols, '=')
 
   // Metadata
@@ -388,7 +387,6 @@ export async function generateReturnSlipEscPos(
   builder.align('center')
   builder.newline(1)
   builder.line('Retain this slip for records.')
-  builder.line('Powered by Seznik POS')
   builder.feedAndCut(4)
 
   return builder.toBytes()

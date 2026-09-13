@@ -817,7 +817,7 @@ export const PrintersPage = () => {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {bleState.status === 'connected'
-                    ? `${bleState.deviceName || 'Thermal Printer'}${bleState.profileName ? ` · ${bleState.profileName}` : ''}`
+                    ? (bleState.deviceName || 'Thermal Printer')
                     : bleState.status === 'unsupported'
                       ? 'Web Bluetooth unsupported in this browser'
                       : 'Not connected'}

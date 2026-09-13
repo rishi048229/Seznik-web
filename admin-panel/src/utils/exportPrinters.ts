@@ -53,7 +53,7 @@ function formatWhen(iso: string | null | undefined) {
 // ─── Export View 1: Printer Frequency ──────────────────────────────────────────
 
 export function exportPrinterFrequencyCsv(items: PrinterSummaryItem[], filenamePrefix = 'printer_frequency') {
-  const header = ['Rank', 'Bluetooth Printer Name', 'Total Connections', 'Unique Users', 'Web Connections', 'Mobile Connections', 'First Seen', 'Last Connected'];
+  const header = ['Rank', 'Bluetooth Printer Name', 'Total Connections', 'Unique Users', 'Web Connections', 'Mobile Connections', 'Logged At (IST)'];
   const lines = [
     header.join(','),
     ...items.map((p, idx) =>
@@ -64,7 +64,6 @@ export function exportPrinterFrequencyCsv(items: PrinterSummaryItem[], filenameP
         p.uniqueUsersCount,
         p.webCount,
         p.mobileCount,
-        formatWhen(p.firstSeenAt),
         formatWhen(p.lastConnectedAt),
       ]
         .map(escapeCsv)
@@ -85,7 +84,6 @@ export function exportPrinterFrequencyExcel(items: PrinterSummaryItem[], filenam
         <Cell><Data ss:Type="Number">${p.uniqueUsersCount}</Data></Cell>
         <Cell><Data ss:Type="Number">${p.webCount}</Data></Cell>
         <Cell><Data ss:Type="Number">${p.mobileCount}</Data></Cell>
-        <Cell><Data ss:Type="String">${escapeXml(formatWhen(p.firstSeenAt))}</Data></Cell>
         <Cell><Data ss:Type="String">${escapeXml(formatWhen(p.lastConnectedAt))}</Data></Cell>
       </Row>`
     )
@@ -106,8 +104,7 @@ export function exportPrinterFrequencyExcel(items: PrinterSummaryItem[], filenam
     <Cell><Data ss:Type="String">Unique Users</Data></Cell>
     <Cell><Data ss:Type="String">Web Connections</Data></Cell>
     <Cell><Data ss:Type="String">Mobile Connections</Data></Cell>
-    <Cell><Data ss:Type="String">First Seen</Data></Cell>
-    <Cell><Data ss:Type="String">Last Connected</Data></Cell>
+    <Cell><Data ss:Type="String">Logged At (IST)</Data></Cell>
    </Row>
    ${bodyRows}
   </Table>
@@ -121,7 +118,7 @@ export function exportPrinterFrequencyExcel(items: PrinterSummaryItem[], filenam
 // ─── Export View 2: User & Printer Logs ────────────────────────────────────────
 
 export function exportPrinterUserLogsCsv(logs: PrinterUserLogRecord[], filenamePrefix = 'user_printer_logs') {
-  const header = ['User Name', 'Business Name', 'Phone', 'Email', 'Plan', 'Bluetooth Printer Name', 'Device Address / MAC', 'Platform', 'Connection Type', 'Connected At (IST)'];
+  const header = ['User Name', 'Business Name', 'Phone', 'Email', 'Plan', 'Bluetooth Printer Name', 'Device Address / MAC', 'Platform', 'Connection Type', 'Logged At (IST)'];
   const lines = [
     header.join(','),
     ...logs.map((l) =>
@@ -181,7 +178,7 @@ export function exportPrinterUserLogsExcel(logs: PrinterUserLogRecord[], filenam
     <Cell><Data ss:Type="String">Device Address / MAC</Data></Cell>
     <Cell><Data ss:Type="String">Platform</Data></Cell>
     <Cell><Data ss:Type="String">Connection Type</Data></Cell>
-    <Cell><Data ss:Type="String">Connected At (IST)</Data></Cell>
+    <Cell><Data ss:Type="String">Logged At (IST)</Data></Cell>
    </Row>
    ${bodyRows}
   </Table>

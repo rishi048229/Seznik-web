@@ -26,6 +26,22 @@ export async function ensurePrinterLogTable(pool) {
   }
 }
 
+function toUtcIso(val) {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    if (val.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(val)) {
+      return new Date(val).toISOString();
+    }
+    return new Date(val.replace(' ', 'T') + 'Z').toISOString();
+  }
+  if (val instanceof Date) {
+    const offsetMs = val.getTimezoneOffset() * 60000;
+    const naiveUtcMs = val.getTime() - offsetMs;
+    return new Date(naiveUtcMs).toISOString();
+  }
+  return new Date(val).toISOString();
+}
+
 export async function getPrinterSummary(pool, { timeRange = 'all' } = {}) {
   await ensurePrinterLogTable(pool);
   const intervals = getTimeIntervals(timeRange);
@@ -87,8 +103,8 @@ export async function getPrinterSummary(pool, { timeRange = 'all' } = {}) {
       uniqueUsersCount: Number(r.uniqueUsersCount || 0),
       webCount: Number(r.webCount || 0),
       mobileCount: Number(r.mobileCount || 0),
-      firstSeenAt: r.firstSeenAt ? new Date(r.firstSeenAt).toISOString() : null,
-      lastConnectedAt: r.lastConnectedAt ? new Date(r.lastConnectedAt).toISOString() : null,
+      firstSeenAt: toUtcIso(r.firstSeenAt),
+      lastConnectedAt: toUtcIso(r.lastConnectedAt),
     })),
   };
 }
@@ -183,7 +199,7 @@ export async function getPrinterUserLogs(pool, { search, platform, printerName, 
       deviceAddress: r.deviceAddress || null,
       platform: r.platform || 'web',
       connectionType: r.connectionType || 'bluetooth',
-      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      createdAt: toUtcIso(r.createdAt) || new Date().toISOString(),
     })),
     pagination: {
       total,

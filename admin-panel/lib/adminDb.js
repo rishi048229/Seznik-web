@@ -1,6 +1,11 @@
 import pg from 'pg';
 import { pgConnectionString, pgSslConfig } from './pgSsl.js';
 
+// Guarantee TIMESTAMP WITHOUT TIME ZONE (OID 1114) is parsed as UTC
+pg.types.setTypeParser(1114, (str) => {
+  return str ? new Date(str.replace(' ', 'T') + 'Z').toISOString() : null;
+});
+
 let pool;
 
 function isTransientDbError(err) {

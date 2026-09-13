@@ -255,6 +255,12 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         const justConnected = activeDevice && state === 'connected' && prev.connectionState !== 'connected';
         if (justConnected) {
           playPrinterConnectFeedback();
+          logPrinterConnection({
+            printerName: activeDevice.name || 'Bluetooth Printer',
+            deviceAddress: activeDevice.id || activeDevice.macAddress || null,
+            platform: 'mobile',
+            connectionType: 'bluetooth',
+          });
         }
         if (activeDevice && state === 'connected') {
           const idx = updatedPaired.findIndex((d) => d.id === activeDevice.id);
