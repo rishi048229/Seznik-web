@@ -158,7 +158,7 @@ export const POSPage = () => {
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
   const trackStock = usesStockTracking(userProfile?.businessType, settings?.trackStock)
-  const { items, addItem, removeItem, updateQty, clearCart, totals, updateItemDetails } = useCart()
+  const { items, addItem, removeItem, updateQty, applyDiscount, clearCart, totals, updateItemDetails } = useCart()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
 
   const [search, setSearch] = useState('')
@@ -172,6 +172,7 @@ export const POSPage = () => {
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
+  const [itemDiscountOpenId, setItemDiscountOpenId] = useState<string | null>(null)
 
   // Quick-edit a product's own details (name/price/stock/etc.) without leaving
   // the billing screen — opened from either the product grid or a cart line.
@@ -1247,26 +1248,108 @@ export const POSPage = () => {
 
                   {/* Quantity Controls + Line Total - Separate Row */}
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-600">
-                    <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
+                        <button
+                          onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
+                          className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="text-sm font-bold w-8 text-center text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                        <button
+                          onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
+                          className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          disabled={trackStock && item.quantity >= available}
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+
+                      {/* Item Discount Trigger Badge */}
                       <button
-                        onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
-                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
+                        type="button"
+                        onClick={() => setItemDiscountOpenId(itemDiscountOpenId === item.productId ? null : item.productId)}
+                        className={`text-[11px] px-2 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                          item.discount > 0
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
+                            : 'bg-gray-100 hover:bg-blue-50 text-gray-500 hover:text-blue-600 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
+                        }`}
+                        title="Add/Edit discount for this specific item"
                       >
-                        <Minus size={14} />
-                      </button>
-                      <span className="text-sm font-bold w-8 text-center text-gray-900 dark:text-gray-100">{item.quantity}</span>
-                      <button
-                        onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
-                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        disabled={trackStock && item.quantity >= available}
-                      >
-                        <Plus size={14} />
+                        <Tag size={12} />
+                        <span>{item.discount > 0 ? `-${formatINR(item.discount)}` : '+ Disc'}</span>
                       </button>
                     </div>
-                    <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                      {formatINR(item.sellingPrice * item.quantity)}
-                    </span>
+
+                    <div className="text-right">
+                      {item.discount > 0 && (
+                        <p className="text-[11px] text-gray-400 line-through leading-tight">
+                          {formatINR(item.sellingPrice * item.quantity)}
+                        </p>
+                      )}
+                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                        {formatINR(Math.max(0, item.sellingPrice * item.quantity - item.discount))}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Inline Item Discount Popover / Mini Editor */}
+                  {itemDiscountOpenId === item.productId && (
+                    <div className="mt-2.5 p-2 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1">
+                          <Tag size={12} className="text-blue-600" />
+                          <span>Line Discount for {item.productName}:</span>
+                        </span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">Max: {formatINR(item.sellingPrice * item.quantity)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="relative flex-1">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.sellingPrice * item.quantity}
+                            step="0.01"
+                            placeholder="0.00"
+                            value={item.discount || ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0
+                              const safeVal = Math.max(0, Math.min(item.sellingPrice * item.quantity, val))
+                              applyDiscount(item.productId, safeVal)
+                            }}
+                            className="w-full h-8 pl-6 pr-2 text-xs font-bold rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          />
+                        </div>
+                        <div className="flex gap-1">
+                          {[5, 10, 20].map((pct) => (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => {
+                                const d = roundCurrency((item.sellingPrice * item.quantity) * (pct / 100))
+                                applyDiscount(item.productId, d)
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold rounded bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 text-blue-700 dark:text-blue-300 cursor-pointer"
+                            >
+                              {pct}%
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              applyDiscount(item.productId, 0)
+                              setItemDiscountOpenId(null)
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold rounded bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-100 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })
@@ -1274,35 +1357,52 @@ export const POSPage = () => {
         </div>
 
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-20 sm:pb-4 space-y-2">
-          {/* Order Discount (Order-level only) */}
+        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-20 sm:pb-4 space-y-2.5">
+          {/* Order / Bill Level Discount */}
           {items.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder={t('pos.discount')}
-                value={orderDiscount || ''}
-                onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                className="flex-1 h-9 text-xs"
-              />
-              <div className="relative shrink-0">
-                <select
-                  value={orderDiscountType}
-                  onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="flat">₹</option>
-                  <option value="percent">%</option>
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      placeholder={t('pos.discount')}
+                      value={orderDiscount || ''}
+                      onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
+                      className="flex-1 h-9 text-xs"
+                    />
+                    <div className="relative shrink-0">
+                      <select
+                        value={orderDiscountType}
+                        onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
+                        className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      >
+                        <option value="flat">₹</option>
+                        <option value="percent">%</option>
+                      </select>
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 min-w-[90px]">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
+                  <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
                 </div>
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
-                <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
+
+              {/* Legal / Indian GST Section 15 Compliance Note */}
+              <div className="p-2 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-lg text-[10.5px] leading-tight flex items-start gap-1.5 text-blue-900 dark:text-blue-200">
+                <Info size={13} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">GST Note (Sec. 15, CGST Act): </span>
+                  <span className="text-blue-800 dark:text-blue-300">
+                    Discounts reduce the base taxable value first. GST is recalculated on the discounted taxable amount.
+                  </span>
+                </div>
               </div>
             </div>
           )}

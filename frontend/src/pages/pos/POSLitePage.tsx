@@ -16,7 +16,7 @@ import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle, Search, History, RotateCcw, Edit2, Check, FileText, CheckCircle2, Truck, User } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Printer, Barcode, ScanLine, Bluetooth, Video, Calendar, AlertTriangle, Search, History, RotateCcw, Edit2, Check, FileText, CheckCircle2, Truck, User, Info, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -1205,7 +1205,7 @@ export const POSLitePage = () => {
             items.map(item => (
               <div key={item.id} className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-700/60 last:border-0">
                 {editingItemId === item.id ? (
-                  <div className="space-y-2 bg-blue-50/50 dark:bg-blue-950/30 p-2.5 rounded-xl border border-blue-200 dark:border-blue-800/60">
+                  <div className="space-y-2.5 bg-blue-50/50 dark:bg-blue-950/30 p-2.5 rounded-xl border border-blue-200 dark:border-blue-800/60">
                     <div className="flex items-center justify-between gap-2">
                       <Input
                         value={item.productName}
@@ -1216,13 +1216,13 @@ export const POSLitePage = () => {
                       <button
                         type="button"
                         onClick={() => setEditingItemId(null)}
-                        className="p-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded"
+                        className="p-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded cursor-pointer"
                         title="Done editing"
                       >
                         <Check size={16} />
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
                       <div>
                         <span className="text-[10px] text-gray-500 block">Unit Price (₹)</span>
                         <input
@@ -1230,6 +1230,22 @@ export const POSLitePage = () => {
                           step="0.01"
                           value={item.sellingPrice}
                           onChange={e => handleUpdateCartItem(item.id, { sellingPrice: parseFloat(e.target.value) || 0 })}
+                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Item Disc (₹)</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={item.sellingPrice * item.quantity}
+                          value={item.discount || ''}
+                          placeholder="0"
+                          onChange={e => {
+                            const val = parseFloat(e.target.value) || 0
+                            handleUpdateCartItem(item.id, { discount: Math.max(0, Math.min(item.sellingPrice * item.quantity, val)) })
+                          }}
                           className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
                         />
                       </div>
@@ -1251,39 +1267,63 @@ export const POSLitePage = () => {
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{formatINR(item.total)}</p>
+                        <div className="text-right">
+                          {item.discount > 0 && (
+                            <p className="text-[10px] text-gray-400 line-through">
+                              {formatINR(item.sellingPrice * item.quantity)}
+                            </p>
+                          )}
+                          <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{formatINR(item.total)}</p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setEditingItemId(item.id)}
-                          className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Edit item line"
+                          className="p-1 text-gray-400 hover:text-blue-600 transition-colors cursor-pointer"
+                          title="Edit item line and discount"
                         >
                           <Edit2 size={13} />
                         </button>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => updateQty(item.id, item.quantity - 1)}
+                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="w-8 text-center text-xs font-bold text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateQty(item.id, item.quantity + 1)}
+                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+
+                        {/* Item Discount Trigger Badge */}
                         <button
                           type="button"
-                          onClick={() => updateQty(item.id, item.quantity - 1)}
-                          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                          onClick={() => setEditingItemId(item.id)}
+                          className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                            item.discount > 0
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
+                              : 'bg-gray-100 hover:bg-blue-50 text-gray-500 hover:text-blue-600 dark:bg-gray-700/60 dark:text-gray-300'
+                          }`}
                         >
-                          <Minus size={14} />
-                        </button>
-                        <span className="w-8 text-center text-xs font-bold text-gray-900 dark:text-gray-100">{item.quantity}</span>
-                        <button
-                          type="button"
-                          onClick={() => updateQty(item.id, item.quantity + 1)}
-                          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
-                        >
-                          <Plus size={14} />
+                          <Tag size={10} />
+                          <span>{item.discount > 0 ? `-${formatINR(item.discount)}` : '+ Disc'}</span>
                         </button>
                       </div>
+
                       <button
                         type="button"
                         onClick={() => removeItem(item.id)}
-                        className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                        className="text-gray-400 hover:text-red-500 p-1 transition-colors cursor-pointer"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -1312,32 +1352,45 @@ export const POSLitePage = () => {
             </div>
           )}
           {items.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder={t('pos.discount')}
-                value={orderDiscount || ''}
-                onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                className="flex-1 h-9 text-xs"
-              />
-              <div className="relative shrink-0">
-                <select
-                  value={orderDiscountType}
-                  onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="flat">₹</option>
-                  <option value="percent">%</option>
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  placeholder={t('pos.discount')}
+                  value={orderDiscount || ''}
+                  onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
+                  className="flex-1 h-9 text-xs"
+                />
+                <div className="relative shrink-0">
+                  <select
+                    value={orderDiscountType}
+                    onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
+                    className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="flat">₹</option>
+                    <option value="percent">%</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
+                  <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
                 </div>
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
-                <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
+
+              {/* Indian GST Section 15 Compliance Note */}
+              <div className="p-2 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-lg text-[10.5px] leading-tight flex items-start gap-1.5 text-blue-900 dark:text-blue-200">
+                <Info size={13} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">GST Note (Sec. 15, CGST Act): </span>
+                  <span className="text-blue-800 dark:text-blue-300">
+                    Discounts reduce the base taxable price directly. GST is recalculated on the discounted taxable amount.
+                  </span>
+                </div>
               </div>
             </div>
           )}
