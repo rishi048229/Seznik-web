@@ -83,6 +83,7 @@ export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = 
     ${data.notes ? `<div style="margin-top:8px;font-size:${smallFs};"><strong>Order note:</strong> ${escapeHtml(data.notes)}</div>` : ''}
     <div style="border-top:2px solid #000;margin:10px 0 4px;"></div>
     <div style="text-align:center;font-size:${smallFs};">${cancelled ? '-- Stop preparing --' : '-- Kitchen Copy --'}</div>
+    <div style="height:16mm;"></div>
   </div>`
 }
 
@@ -135,8 +136,7 @@ export const generateKotSlipEscPos = (data: KotSlipData, paperSize: '58mm' | '80
   b.hr(cols, '=')
   b.align('center')
   b.line(cancelled ? '-- Stop preparing --' : '-- Kitchen Copy --')
-  b.feed(2)
-  b.cut()
+  b.ejectAndCut()
   return b.toBytes()
 }
 

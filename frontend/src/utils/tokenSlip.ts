@@ -227,8 +227,7 @@ export const composeTokenSlipEscPos = (
   if (token.paymentMethod) b.line(token.paymentMethod.toUpperCase())
   b.hr(cols, '-')
   b.line(template.footerMessage)
-  b.feed(2)
-  b.cut()
+  b.ejectAndCut()
   return b.toBytes()
 }
 

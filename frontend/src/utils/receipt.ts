@@ -237,6 +237,7 @@ export const generateReceiptHTML = ({
 ${effectiveLogo ? `<div style="text-align:center;margin:0 auto 8px auto;padding-bottom:4px;border-bottom:1px dashed #000;display:block;"><img src="${effectiveLogo}" alt="Store Logo" style="max-height:56px;max-width:180px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
 ${rawLinesHtml}
 ${effectivePaymentQR ? `<div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px dashed #000;display:block;"><div style="font-size:${tinyFS};font-weight:900;margin-bottom:4px;letter-spacing:0.5px;">SCAN TO PAY &#x20B9;${billTotal.toFixed(2)} VIA UPI</div><img src="${effectivePaymentQR}" alt="Payment QR" style="width:130px;height:130px;object-fit:contain;margin:0 auto;display:block;" /></div>` : ''}
+  <div style="height:16mm;"></div>
   </div>`
 }
 
@@ -251,7 +252,7 @@ export const printReceipt = (
 ) => {
   const isThermal = width === '50mm' || width === '80mm'
   const paperWidth = width === '80mm' ? '80mm' : width === '50mm' ? '72mm' : 'A4'
-  const pageMargin = width === '80mm' ? '2mm 2mm 10mm 2mm' : isThermal ? '2mm 1mm 10mm 1mm' : '12mm 15mm'
+  const pageMargin = width === '80mm' ? '2mm 2mm 18mm 2mm' : isThermal ? '2mm 1mm 18mm 1mm' : '12mm 15mm'
 
   const fullHTML = `<!DOCTYPE html>
 <html>
@@ -276,7 +277,7 @@ export const printReceipt = (
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    #receipt { width: 100%; margin: 0; padding: 0; }
+    #receipt { width: 100%; margin: 0; padding: 0 0 ${isThermal ? '16mm' : '0'}; }
     img { -webkit-print-color-adjust: exact; print-color-adjust: exact; image-rendering: auto; }
   </style>
 </head>
@@ -432,8 +433,7 @@ export const generateReceiptEscPos = async ({
     b.qr(qrPayload, paperSize === '80mm' ? 6 : 4)
   }
 
-  b.feed(2)
-  b.cut()
+  b.ejectAndCut()
 
   return b.toBytes()
 }

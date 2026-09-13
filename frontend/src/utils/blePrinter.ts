@@ -233,13 +233,18 @@ export async function printEscPos(bytes: Uint8Array): Promise<void> {
     const useFastStream = supportsWriteWithoutResponse
     for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
       const chunk = bytes.slice(offset, offset + CHUNK_SIZE)
+      const remaining = bytes.length - offset - chunk.length
+      const isTail = remaining <= CHUNK_SIZE * 4
       if (useFastStream) {
         await characteristic.writeValueWithoutResponse(chunk)
-        await new Promise(resolve => setTimeout(resolve, 3))
+        // Tail packets carry feed/cut — give the printer buffer time so the
+        // slip actually ejects instead of stopping halfway out.
+        await new Promise(resolve => setTimeout(resolve, isTail ? 18 : 5))
       } else {
         await characteristic.writeValueWithResponse(chunk)
       }
     }
+    await new Promise(resolve => setTimeout(resolve, 250))
   } finally {
     setState({ status: characteristic ? 'connected' : 'disconnected' })
   }
