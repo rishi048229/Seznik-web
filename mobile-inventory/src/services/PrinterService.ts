@@ -3455,58 +3455,32 @@ class ThermalPrinterServiceManager {
   }
 
   /**
-   * Adapts a label spec for the TEJ (Y50) printer hardware geometry.
+   * Adapts a label spec for the YX/TEJ printer.
    *
-   * Physical Reason:
-   * The TEJ printer's thermal print head is physically located ~6.5mm downstream
-   * of the tear bar / gap alignment point. When printing begins on gap paper,
-   * the head is resting 6.5mm below the top edge of the label.
+   * This used to carry a "~6.5mm print-head offset" compensation that shrank the
+   * rendered bitmap to (heightMm - 6.5) and scaled every element's y-coordinate into
+   * that shorter canvas. It could not have worked: shrinking an image never moves its
+   * content up the page — an element authored at y=0 is still the first thing the head
+   * prints, whatever height the bitmap is. All that pass actually did was squash every
+   * label's layout vertically, which is why prints stopped matching the Label Studio
+   * preview. Removed for that reason, not merely simplified.
    *
-   * If a full-height bitmap (e.g. 30mm) is sent, the motor feeds:
-   * 6.5mm (start offset) + 30mm (bitmap) = 36.5mm of paper.
-   * On a 30mm label, the last 6.5mm spills across the gap onto the next label,
-   * ruining the next label. On a 50x50mm label, 6.5 + 30 = 36.5 < 50mm,
-   * so it completes inside the single 50mm label without spilling over.
-   *
-   * Solution:
-   * On gap paper, calculate the effective printable height:
-   * printableHeightMm = Math.max(14, targetHmm - effectiveOffsetMm)
-   * where effectiveOffsetMm = 6.5mm + userOffsetMm.
-   * Scale and fit all element vertical coordinates (y, height, fontHeight, etc.)
-   * proportionally into printableHeightMm, and set heightMm to printableHeightMm.
-   *
-   * The motor feeds: 6.5mm + 23.5mm = 30.0mm (EXACT label boundary).
-   * The print stops right at the gap without spilling a single dot onto the next label!
+   * What is left is deliberately as close to a no-op as this printer allows — mirroring
+   * JoshLabelPrinter, which receives its spec with NO adaptation at all and positions
+   * correctly purely on its own firmware's gap sensor (LPAPI's GAP_TYPE). YX/TEJ's
+   * fixedPoint() is the equivalent native call (see nextPrint() in the Kotlin module),
+   * so the same should hold here: the spec passes through unchanged, and the only field
+   * added is the user's own explicit Vertical Trim, applied as a plain translation by
+   * the native rasterizer — never a hidden, printer-specific size or coordinate rewrite.
    */
   public adaptSpecForYxPrinter(spec: JoshLabelSpec): JoshLabelSpec {
     if (spec.offsetAdjusted) {
       return spec;
     }
-    const targetHmm = spec.heightMm > 0 ? spec.heightMm : 30.0;
-    const userOffsetMm = this.getLabelOffsetMm();
-    const config = getLabelSizeConfig(spec.widthMm, targetHmm, spec.gapMm ?? 2);
-
-    let adjustedElements = spec.elements || [];
-    if (userOffsetMm !== 0) {
-      adjustedElements = adjustedElements.map((el) => {
-        const copy: any = { ...el };
-        if (typeof copy.y === 'number') {
-          copy.y = Math.max(0, copy.y + userOffsetMm);
-        }
-        if (typeof copy.y2 === 'number') {
-          copy.y2 = Math.max(0, copy.y2 + userOffsetMm);
-        }
-        return copy as JoshLabelElement;
-      });
-    }
-
     return {
       ...spec,
-      widthMm: config.widthMm,
-      heightMm: config.heightMm,
       offsetAdjusted: true,
-      offsetMm: userOffsetMm,
-      elements: adjustedElements,
+      offsetMm: this.getLabelOffsetMm(),
     };
   }
 
@@ -3515,13 +3489,37 @@ class ThermalPrinterServiceManager {
    *
    * This is the single hand-off point where the two vendors diverge: LPAPI turns the
    * elements into draw commands, the YX SDK rasterizes them to a bitmap natively. Both
-   * accept the same spec object, so nothing upstream has to branch.
+   * accept the same spec object, so nothing upstream has to branch. Neither path resizes
+   * or rewrites the spec beyond the user's own explicit Vertical Trim (see
+   * adaptSpecForYxPrinter) — positioning is left entirely to each printer's own
+   * firmware-level gap sensor, not to a JS-side guess about its hardware geometry.
    */
   private async printSpecOnLabelPrinter(spec: JoshLabelSpec): Promise<boolean> {
     const kind = await this.getConnectedLabelPrinterKind();
     if (kind === 'yx' && YxLabelPrinter) {
-      const adaptedSpec = this.adaptSpecForYxPrinter(spec);
-      return await YxLabelPrinter.printLabel(adaptedSpec);
+      // TEJ no longer prints labels through the YX vendor SDK's own printLabel at all.
+      // Two separate, unrelated things about that SDK path have never been resolved
+      // across many attempts on this specific unit:
+      //  1. Positioning: five different command sequences (CreatePage, LEARN_LABEL+
+      //     calibration(), removing the per-label forwardPaper/backoffPaper bias, a
+      //     vertical-trim translation, and the connection-polling fix) never moved the
+      //     physical result at all.
+      //  2. Connection reliability: connect() has been observed timing out even at a
+      //     40s ceiling while the printer becomes usable moments later regardless —
+      //     onConneted() has never been seen to fire on this hardware.
+      // TSPL was tried as an alternative and is now a confirmed dead end (this printer
+      // echoes TSPL commands as literal printed text rather than executing them).
+      // What IS proven reliable on this exact hardware: receipts, which go through the
+      // plain ESC/POS bridge via ensureConnected() — the same one DEV's labels use, with
+      // a confirmed-correct 50x30mm bitmap (device logs) and the same feed-distance fix
+      // already verified working on DEV. That bridge doesn't depend on the YX SDK's
+      // connection state at all, so it also sidesteps problem #2 above entirely.
+      return await this.printSpecViaEscposGraphic(
+        spec,
+        this.getEscPosPaperWidth(),
+        Math.max(1, Math.round(spec.copies ?? 1)),
+        this.safeMm(spec.gapMm, 2)
+      );
     }
     if (!JoshLabelPrinter) return false;
     return await JoshLabelPrinter.printLabel(spec);
@@ -3572,6 +3570,12 @@ class ThermalPrinterServiceManager {
   private preferTsplForLabels(): boolean {
     if (!NativeTscPrinter || typeof NativeTscPrinter.printLabel !== 'function') return false;
     if (this.getLabelPaperMode() === 'continuous') return false;
+    // TEJ must NEVER go through TSPL. This was tried directly and the result was not
+    // misalignment — it was the literal TSPL command text (SIZE/GAP/DIRECTION/TEXT/
+    // PRINT) printed as plain readable characters on the label, confirmed from a device
+    // photo. That means this printer's firmware does not parse TSPL as commands at all;
+    // it just echoes whatever bytes it receives as text, the same as its ESC/POS receipt
+    // mode does. TSPL is provably not an option for this hardware, not merely unreliable.
     try {
       const { usePrinterStore } = require('../store/usePrinterStore');
       const model = usePrinterStore.getState().connectedPrinterModel;
@@ -3604,7 +3608,22 @@ class ThermalPrinterServiceManager {
     if (!YxLabelPrinter || typeof (YxLabelPrinter as any).calibrate !== 'function') return false;
     try {
       const gType = typeof gapType === 'number' ? gapType : (this.getLabelPaperMode() === 'continuous' ? 0 : 2);
-      return await (YxLabelPrinter as any).calibrate(gType);
+      // The printer needs its real physical label size (CreatePage, sent inside the
+      // native calibrate implementation) before positioning against it means anything —
+      // pulling the configured roll size here rather than leaving it to a hardcoded
+      // default is the same fix as nextPrint()'s CreatePage call, applied to the
+      // standalone Calibrate button.
+      let widthMm = 50;
+      let heightMm = 30;
+      try {
+        const { usePrinterStore } = require('../store/usePrinterStore');
+        const s = usePrinterStore.getState();
+        widthMm = s.labelWidthMm || 50;
+        heightMm = s.labelHeightMm || 30;
+      } catch {
+        // Fall through to the defaults above.
+      }
+      return await (YxLabelPrinter as any).calibrate(gType, widthMm, heightMm);
     } catch (e) {
       console.warn('[PrinterService] yxCalibrate failed:', e);
       return false;
@@ -3660,8 +3679,16 @@ class ThermalPrinterServiceManager {
     await this.initPrinter(paperWidth);
 
     const labelWidthDots = Math.min(paperSizeDots, Math.round(spec.widthMm * 8));
-    // Gap feed dots: ensures the printer head advances across the die-cut gap to the top of the next label
-    const feedDots = Math.max(16, Math.min(48, Math.round((labelGapMm || 2) * 8)));
+    // Gap feed dots: ensures the printer head advances across the die-cut gap to the top of the
+    // next label. The 16-dot (2mm) floor only makes sense for die-cut mode, where SOME gap must
+    // physically exist for the label to be a separate sticker at all — a continuous roll has no
+    // die-cut, so forcing that same floor there inserted an unwanted ~2mm of blank paper between
+    // every print regardless of what was actually configured, which is its own kind of
+    // misalignment on a roll meant to print flush.
+    const isContinuous = spec.gapType === 0 || this.getLabelPaperMode() === 'continuous';
+    const feedDots = isContinuous
+      ? Math.max(0, Math.min(48, Math.round((labelGapMm || 0) * 8)))
+      : Math.max(16, Math.min(48, Math.round((labelGapMm || 2) * 8)));
 
     for (let i = 0; i < Math.max(1, copies); i++) {
       await this.printEscPosBitmap(base64, {
@@ -4586,6 +4613,10 @@ class ThermalPrinterServiceManager {
     const fit = headMm > 0 && rawWidthMm > headMm ? headMm / rawWidthMm : 1;
     const widthMm = rawWidthMm * fit;
     const heightMm = rawHeightMm * fit;
+    console.log(
+      `[PrinterService] printLabelViaJosh: kind=${await this.getConnectedLabelPrinterKind()} ` +
+      `rawW=${rawWidthMm} rawH=${rawHeightMm} headMm=${headMm} fit=${fit} -> sentW=${widthMm} sentH=${heightMm}`
+    );
 
     const elements = await this.buildJoshElementsForTemplate(product, template, fit);
 
@@ -4797,10 +4828,13 @@ class ThermalPrinterServiceManager {
 
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
     const labelKind = await this.getConnectedLabelPrinterKind();
+    console.log(`[PATH] printLabelFromTemplate: labelKind=${labelKind}`);
     if (labelKind === 'josh') {
+      console.log('[PATH] -> printLabelViaJosh (LPAPI)');
       return await this.printLabelViaJosh(product, template, copies, labelGapMm);
     }
     if (labelKind === 'yx') {
+      console.log('[PATH] -> printSpecOnLabelPrinter (YX SDK / TEJ TSPL bridge)');
       const elements = await this.buildJoshElementsForTemplate(product, template, 1);
       const spec: JoshLabelSpec = {
         widthMm: this.safeMm(template.widthMm, 50),
@@ -4817,8 +4851,11 @@ class ThermalPrinterServiceManager {
     // Ensure ESC/POS / TSPL socket is ready before printing
     await this.ensureConnected();
 
+    const preferTspl = this.preferTsplForLabels();
+    console.log(`[PATH] labelKind=null, preferTsplForLabels=${preferTspl}`);
     // Prioritize hardware TSPL with native gap sensing for connected 2-in-1 printers in die-cut label mode
-    if (!this.preferTsplForLabels()) {
+    if (!preferTspl) {
+      console.log('[PATH] -> ESC/POS graphic raster (printSpecViaEscposGraphic) or receipt-paper fallback');
       // Try high-resolution graphic raster for connected Bluetooth thermal ESC/POS printer (DEV / VEER)
       try {
         if (await this.isSocketConnected()) {
@@ -4874,41 +4911,54 @@ class ThermalPrinterServiceManager {
     const qrFields: any[] = [];
     const imageFields: any[] = [];
 
-    // If template has shapes (rect, line, circle, table), rasterize the entire template
-    // to a pixel-perfect 203 DPI bitmap and print via TSPL hardware image command at (0, 0)!
-    const hasComplexElements = (template.elements || []).some((el: any) =>
-      ['rect', 'curveRect', 'line', 'circle', 'table'].includes(el.type)
-    );
     const hasQrElement = (template.elements || []).some((el: any) => el.type === 'qrcode');
 
-    if (hasComplexElements) {
-      try {
-        const rawElements = await this.buildJoshElementsForTemplate(product, template, 1);
-        const elements = userOffsetMm !== 0
-          ? rawElements.map((el) => ({ ...el, y: Math.max(0, el.y + userOffsetMm) }))
-          : rawElements;
-        const spec: JoshLabelSpec = {
-          widthMm: this.safeMm(template.widthMm, 50),
-          heightMm: this.safeMm(template.heightMm, 30),
-          rotation: 0,
-          copies: 1,
-          gapMm: this.safeMm(labelGapMm, 2),
-          gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
-          elements,
-        };
-        const base64 = await this.rasterizeLabelSpec(spec, this.safeMm(template.widthMm, 50));
-        if (base64) {
-          imageFields.push({
-            x: 0,
-            y: 0,
-            width: toDots(template.widthMm),
-            mode: 0,
-            image: base64,
-          });
-        }
-      } catch (rastErr) {
-        console.warn('[PrinterService] TSPL rasterization failed, falling back to field extraction:', rastErr);
+    // Always rasterize to one bitmap and send it via TSPL's own hardware image command,
+    // rather than TSPL's raw TEXT/BARCODE/QRCODE field commands (still kept a few lines
+    // below, but now only as the last-resort fallback if rasterization itself fails).
+    // This used to be conditional on the template having "complex" shape elements
+    // (rect/line/circle/table) — a plain text+barcode label would skip the bitmap and go
+    // straight to TSPL's TEXT command, which sends raw strings through a GB2312 encode
+    // step (see RNBluetoothTscPrinterModule.printLabel) and a device-chosen FONTTYPE. On
+    // this printer that produced literal on-label gibberish — confirmed by device logs:
+    // preferTsplForLabels() correctly resolved true, so this really was TSPL's own text
+    // path at fault, not a routing mistake. The bitmap path sends only pixels; there is no
+    // font or encoding step for the firmware to get wrong.
+    console.log('[PATH] -> TSPL rasterize-to-bitmap branch (always, not just for complex elements)');
+    try {
+      const rawElements = await this.buildJoshElementsForTemplate(product, template, 1);
+      const elements = userOffsetMm !== 0
+        ? rawElements.map((el) => ({ ...el, y: Math.max(0, el.y + userOffsetMm) }))
+        : rawElements;
+      const spec: JoshLabelSpec = {
+        widthMm: this.safeMm(template.widthMm, 50),
+        heightMm: this.safeMm(template.heightMm, 30),
+        rotation: 0,
+        copies: 1,
+        gapMm: this.safeMm(labelGapMm, 2),
+        gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
+        elements,
+      };
+      // 48mm = this printer's actual printable head width (384 dots at 8 dots/mm), the
+      // same constant used everywhere else a label gets rasterized for this hardware.
+      // The previous call here passed the template's own width as headMm, which meant
+      // no clamping ever happened — a 50mm-wide template rasterized at full 50mm/400
+      // dots, wider than the head can physically mark, then got resized a second time
+      // inside TSPL's own addBitmap. Passing 48 here and the SAME clamped width below
+      // makes that second resize a no-op instead of a mismatched double-scale.
+      const tsplHeadMm = 48;
+      const base64 = await this.rasterizeLabelSpec(spec, tsplHeadMm);
+      if (base64) {
+        imageFields.push({
+          x: 0,
+          y: 0,
+          width: toDots(Math.min(this.safeMm(template.widthMm, 50), tsplHeadMm)),
+          mode: 0,
+          image: base64,
+        });
       }
+    } catch (rastErr) {
+      console.warn('[PrinterService] TSPL rasterization failed, falling back to field extraction:', rastErr);
     }
 
     if (!imageFields.length) {
@@ -5257,125 +5307,6 @@ class ThermalPrinterServiceManager {
         </body>
       </html>
     `;
-  }
-
-  /**
-   * Vendor-neutral label alignment self-test.
-   *
-   * Prints a border box + centre crosshair + corner ticks on N consecutive labels. It is
-   * deliberately ONE utility rather than per-module logic: it emits a plain JoshLabelSpec
-   * and hands it to the same dispatcher every real label goes through, so whichever
-   * printer is connected — Josh (LPAPI), YX, ESC/POS raster or TSPL — renders it by its
-   * own normal path. Any module added later is covered with no extra work here.
-   *
-   * How to read the result:
-   *  - Border sits evenly inside all four die-cut edges  -> aligned, nothing to do.
-   *  - Border is cut off at top/bottom by the same amount on every label -> a fixed phase
-   *    offset: adjust the vertical offset trim by that amount (positive moves content down).
-   *  - The cut grows label to label -> pitch is wrong, not phase: labelHeightMm + labelGapMm
-   *    do not match the physical stock, so fix those first — the offset cannot absorb it.
-   */
-  public buildAlignmentTestSpec(
-    widthMm: number,
-    heightMm: number,
-    index: number,
-    total: number,
-    gapMm: number
-  ): JoshLabelSpec {
-    const w = this.safeMm(widthMm, 50);
-    const h = this.safeMm(heightMm, 30);
-    // 1mm inset so the border prints just inside the die-cut: a border drawn exactly on
-    // the edge is indistinguishable from one that has drifted a whole millimetre off it.
-    const inset = 1;
-    const bw = Math.max(2, w - inset * 2);
-    const bh = Math.max(2, h - inset * 2);
-    const cx = w / 2;
-    const cy = h / 2;
-    const arm = Math.min(bw, bh) * 0.22;
-    const tick = Math.min(bw, bh) * 0.14;
-    const thin = 0.25;
-
-    const elements: JoshLabelElement[] = [
-      { type: 'rectangle', x: inset, y: inset, width: bw, height: bh, thickness: thin },
-      // Centre crosshair — vertical misalignment shows as the horizontal arm sitting off
-      // the label's own midline, which is far easier to eyeball than a shifted border.
-      { type: 'line', x: cx - arm, y: cy, x2: cx + arm, y2: cy, thickness: thin },
-      { type: 'line', x: cx, y: cy - arm, x2: cx, y2: cy + arm, thickness: thin },
-      // Corner ticks: if the top pair is missing but the bottom pair prints, content has
-      // moved down; the reverse means up.
-      { type: 'line', x: inset, y: inset, x2: inset + tick, y2: inset, thickness: thin },
-      { type: 'line', x: w - inset - tick, y: inset, x2: w - inset, y2: inset, thickness: thin },
-      { type: 'line', x: inset, y: h - inset, x2: inset + tick, y2: h - inset, thickness: thin },
-      { type: 'line', x: w - inset - tick, y: h - inset, x2: w - inset, y2: h - inset, thickness: thin },
-      {
-        type: 'text',
-        value: `${index}/${total}  ${w}x${h}mm`,
-        x: inset + 1.5,
-        y: cy - 4.2,
-        width: bw - 3,
-        height: 3.2,
-        fontHeight: 3,
-        align: 1,
-      },
-    ];
-
-    return {
-      widthMm: w,
-      heightMm: h,
-      rotation: 0,
-      copies: 1,
-      gapMm: this.safeMm(gapMm, 2),
-      gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
-      elements,
-    };
-  }
-
-  /**
-   * Prints the alignment pattern across `count` consecutive labels on whichever label
-   * printer is connected. Sizes come from the saved calibration unless overridden, so the
-   * test always exercises the exact geometry real labels use.
-   */
-  public async printAlignmentTest(
-    count: number = 4,
-    overrides?: { widthMm?: number; heightMm?: number; gapMm?: number }
-  ): Promise<boolean> {
-    let widthMm = 50;
-    let heightMm = 30;
-    let gapMm = 2;
-    try {
-      const { usePrinterStore } = require('../store/usePrinterStore');
-      const s = usePrinterStore.getState();
-      widthMm = s.labelWidthMm;
-      heightMm = s.labelHeightMm;
-      gapMm = s.labelGapMm;
-    } catch {
-      // Fall through to the defaults above — the test is still meaningful.
-    }
-    widthMm = this.safeMm(overrides?.widthMm ?? widthMm, 50);
-    heightMm = this.safeMm(overrides?.heightMm ?? heightMm, 30);
-    gapMm = this.safeMm(overrides?.gapMm ?? gapMm, 2);
-
-    const total = Math.max(1, Math.min(10, Math.round(count)));
-    let printed = 0;
-
-    for (let i = 1; i <= total; i++) {
-      const spec = this.buildAlignmentTestSpec(widthMm, heightMm, i, total, gapMm);
-
-      // Same routing rule as every other label entry point: a linked label printer owns
-      // the job, and we never fall through to the receipt socket behind its back.
-      if ((await this.getConnectedLabelPrinterKind()) !== null) {
-        if (await this.printSpecOnLabelPrinter(spec)) printed++;
-        continue;
-      }
-
-      if (await this.isSocketConnected()) {
-        if (await this.printSpecViaEscposGraphic(spec, this.getEscPosPaperWidth(), 1, gapMm)) {
-          printed++;
-        }
-      }
-    }
-
-    return printed === total;
   }
 
   public async printCustomLabel(
@@ -6899,6 +6830,41 @@ class ThermalPrinterServiceManager {
           align: 'center',
         },
       ];
+
+      // Millimetre ruler down the left edge, so this print can be MEASURED rather than
+      // eyeballed. Two numbers come straight off the paper and settle every remaining
+      // alignment question:
+      //   - where the die-cut falls against the scale = the stock's TRUE label height
+      //   - where the 0 tick sits against the label's top edge = the head start offset
+      // Ticks are absolute millimetres, so they stay readable even when the configured
+      // height is wrong — which is exactly the case this is meant to diagnose.
+      for (let mm = 0; mm <= Math.floor(heightMm); mm += 5) {
+        const major = mm % 10 === 0;
+        elements.push({
+          id: `tick_${mm}`,
+          type: 'line',
+          xMm: 0,
+          yMm: mm,
+          x2Mm: major ? 6.0 : 3.5,
+          y2Mm: mm,
+          thickness: 0.25,
+        });
+        if (major) {
+          elements.push({
+            id: `ticklbl_${mm}`,
+            type: 'text',
+            binding: 'custom',
+            customText: `${mm}`,
+            xMm: 6.6,
+            yMm: Math.max(0, mm - 1.1),
+            widthMm: 7,
+            heightMm: 2.2,
+            fontSizePt: 1.6,
+            bold: false,
+            align: 'left',
+          });
+        }
+      }
 
       const testTemplate: any = {
         id: `align-test-${i + 1}`,

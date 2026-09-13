@@ -60,11 +60,14 @@ import java.util.concurrent.ConcurrentHashMap
 class YxLabelPrinterModule : Module() {
 
   companion object {
-    // Bound to the demo app's package in the vendor's sample; unconfirmed whether
-    // this vendor's licensing is package/signature-locked like some Chinese thermal-
-    // printer SDKs commonly are. If printing silently fails, request a key issued
-    // for com.rishi048229.seznikapp (or the plan's applicationId) from the vendor and
-    // swap it in here — everything else about the integration is verified working.
+    // Reverted from "TC1N6F77FaWH+Djsj5ymYA==" (the key shown in the vendor's official
+    // "Flashlabel Doc.docx", backend/src/Flaslabel_SDK_JavaDoc/) — tested against the
+    // real TEJ unit and it broke the connection outright: 10s connect timeout, never
+    // reaching onConneted at all, confirmed via logcat. This demo-app key at least
+    // connects successfully (misalignment aside), so it stays until the manufacturer
+    // issues one confirmed for com.rishi048229.seznikapp. Concrete report for them: the
+    // demo key connects; the docx's merchant key does not connect at all on this
+    // hardware — sounds like it needs one actually issued for our package/signature.
     private const val SDK_KEY = "d2fnGqzf2Rs="
 
     @Volatile private var sdkInitialized = false
@@ -87,6 +90,8 @@ class YxLabelPrinterModule : Module() {
   private var jobSendIndex = 0
   private var jobAllCount = 0
   private var jobPaperType = PrinterConstantPool.PaperType.GAP
+  private var jobWidthMm = 50.0
+  private var jobHeightMm = 30.0
   private var jobPromise: Promise? = null
 
   // The vendor's own Printer_Y50 header says "Y50 没有主动上报" — this model does not
@@ -153,6 +158,37 @@ class YxLabelPrinterModule : Module() {
     override fun onConneted() {
       lastState = "connected"
       sendEvent("onPrinterStateChange", bundleOf("state" to "connected", "address" to (printer.deviceItem?.address ?: ""), "name" to (printer.deviceItem?.name ?: "")))
+
+      // Diagnostic only. modelKey is documented by the vendor as the "printer instruction
+      // matching key" — it is what the SDK uses to encode every command's actual wire
+      // bytes for this specific hardware model, not a cosmetic label. We have never had
+      // a confirmed-correct value for this OEM-branded (SEZNIK) unit — "Z212" is carried
+      // over from the vendor demo's own reference hardware, an unverified guess. If it's
+      // wrong, commands like CreatePage/fixedPoint could be malformed on the wire even
+      // though they compile and run without error on our side. Logging the key actually
+      // in use, plus the printer's own self-reported identity, gives something concrete
+      // to hand to the manufacturer instead of guessing further.
+      val usedModelKey = printer.deviceItem?.modelKey ?: "(none)"
+      Log.i("YxLabel", "connected: modelKey=$usedModelKey address=${printer.deviceItem?.address} name=${printer.deviceItem?.name}")
+      try {
+        printer.addTask(Command.get_deviceName(), "diag-model", false, object : TaskCallback() {
+          override fun readCall(bean: TaskCallBean) {
+            Log.i("YxLabel", "get_deviceName -> ${printer.data2Str(bean)}")
+          }
+        })
+        printer.addTask(Command.get_DeviceInfo(), "diag-info", false, object : TaskCallback() {
+          override fun readCall(bean: TaskCallBean) {
+            Log.i("YxLabel", "get_DeviceInfo -> ${printer.data2Str(bean)}")
+          }
+        })
+        printer.addTask(Command.DPI(), "diag-dpi", false, object : TaskCallback() {
+          override fun readCall(bean: TaskCallBean) {
+            Log.i("YxLabel", "DPI -> ${printer.data2Str(bean)}")
+          }
+        })
+      } catch (e: Throwable) {
+        Log.w("YxLabel", "diagnostic query failed: ${e.message}")
+      }
     }
 
     override fun onConnetFailed(s: String?) {
@@ -344,36 +380,67 @@ class YxLabelPrinterModule : Module() {
         // (e.g. an unexpected close) cannot resolve this promise twice.
         var settled = false
         val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        val timeoutRunnable = Runnable {
+
+        // Logcat evidence from real hardware: across two connect attempts, onConneted()
+        // NEVER fired — not within the old 10s watchdog, and not even by the time a
+        // print later succeeded (30-40+ seconds after connect() was called). Yet
+        // printer.isConnect had clearly become true by then, since printLabel's own
+        // "if (!printer.isConnect) throw" guard did not trip. That means this printer's
+        // ConnectListener callback cannot be trusted to fire at all for this model —
+        // isConnect is the only signal actually observed to be reliable. A longer fixed
+        // timeout waiting on onConneted would still be gambling on a callback with no
+        // confirmed track record; polling the real flag directly is not a guess.
+        //
+        // This is not cosmetic: connectedPrinterModel only gets set to 'tej' in the
+        // success branch of this very promise (see tejConnect in PrinterService.ts), so
+        // every earlier false resolution left the app believing no label printer was
+        // connected even once it genuinely was — misrouting prints, and making a real
+        // Calibrate press look like a no-op, since it also gates on printer.isConnect.
+        var pollCount = 0
+        val maxPolls = 80 // 80 * 500ms = 40s ceiling — comfortably past the ~43s worst case seen
+        lateinit var pollRunnable: Runnable
+        pollRunnable = Runnable {
           if (!settled) {
-            settled = true
-            Log.w("YxLabelPrinter", "Connection timeout after 10s for $address")
-            printer.setListener(connectListener)
-            lastState = "disconnected"
-            promise.resolve(false)
+            if (printer.isConnect) {
+              settled = true
+              Log.i("YxLabelPrinter", "Connected (observed via isConnect poll) for $address")
+              printer.setListener(connectListener)
+              connectListener.onConneted()
+              promise.resolve(true)
+            } else {
+              pollCount++
+              if (pollCount >= maxPolls) {
+                settled = true
+                Log.w("YxLabelPrinter", "Connection timeout after ${maxPolls / 2}s for $address")
+                printer.setListener(connectListener)
+                lastState = "disconnected"
+                promise.resolve(false)
+              } else {
+                timeoutHandler.postDelayed(pollRunnable, 500L)
+              }
+            }
           }
         }
-        // Safety timeout: 10 seconds. Settle false instead of hanging the React Native bridge indefinitely.
-        timeoutHandler.postDelayed(timeoutRunnable, 10000L)
+        timeoutHandler.postDelayed(pollRunnable, 500L)
 
         val bridge = object : ConnectListener {
           override fun onConneted() {
             Log.i("YxLabelPrinter", "Successfully connected to $address")
-            timeoutHandler.removeCallbacks(timeoutRunnable)
+            timeoutHandler.removeCallbacks(pollRunnable)
             printer.setListener(connectListener)
             connectListener.onConneted()
             if (!settled) { settled = true; promise.resolve(true) }
           }
           override fun onConnetFailed(s: String?) {
             Log.w("YxLabelPrinter", "Connection failed for $address: $s")
-            timeoutHandler.removeCallbacks(timeoutRunnable)
+            timeoutHandler.removeCallbacks(pollRunnable)
             printer.setListener(connectListener)
             connectListener.onConnetFailed(s)
             if (!settled) { settled = true; promise.resolve(false) }
           }
           override fun closed() {
             Log.i("YxLabelPrinter", "Connection closed for $address")
-            timeoutHandler.removeCallbacks(timeoutRunnable)
+            timeoutHandler.removeCallbacks(pollRunnable)
             printer.setListener(connectListener)
             connectListener.closed()
             if (!settled) { settled = true; promise.resolve(false) }
@@ -432,8 +499,7 @@ class YxLabelPrinterModule : Module() {
         }
 
         val headMm = 48.0
-        val isGap = paperType != PrinterConstantPool.PaperType.CONTINUOUS
-        val bitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm, 0.0, isGap)
+        val bitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
         isPrinting = true
         jobPromise = promise
 
@@ -448,7 +514,7 @@ class YxLabelPrinterModule : Module() {
           false,
           object : TaskCallback() {
             override fun readCall(bean: TaskCallBean) {
-              checkStatusAndPrint(bean, h, bitmap, copies, paperType, density)
+              checkStatusAndPrint(bean, h, bitmap, copies, paperType, density, widthMm, heightMm)
             }
           }
         )
@@ -457,7 +523,7 @@ class YxLabelPrinterModule : Module() {
         statusWatchdog.postDelayed({
           if (statusHandled.compareAndSet(false, true)) {
             try {
-              startPrintJob(h, bitmap, copies, paperType, density)
+              startPrintJob(h, bitmap, copies, paperType, density, widthMm, heightMm)
             } catch (e: Throwable) {
               finishJob(h, false, e.message ?: "Printing failed")
             }
@@ -472,7 +538,7 @@ class YxLabelPrinterModule : Module() {
       }
     }
 
-    AsyncFunction("calibrate") { gapTypeParam: Int?, promise: Promise ->
+    AsyncFunction("calibrate") { gapTypeParam: Int?, widthMmParam: Double?, heightMmParam: Double?, promise: Promise ->
       try {
         ensureSdkInitialized()
         if (!printer.isConnect) {
@@ -481,6 +547,8 @@ class YxLabelPrinterModule : Module() {
         }
         val h = helper ?: printer.getHelper().also { helper = it }
         val gapType = gapTypeParam ?: 2
+        val calWidthMm = widthMmParam ?: 50.0
+        val calHeightMm = heightMmParam ?: 30.0
         val paperType = if (gapType == 0) PrinterConstantPool.PaperType.CONTINUOUS else PrinterConstantPool.PaperType.GAP
         val build = h.build(object : TaskCallback() {
           override fun readCall(bean: TaskCallBean) {
@@ -492,7 +560,21 @@ class YxLabelPrinterModule : Module() {
             }
           }
         })
+        // LEARN_LABEL()/calibration() are deliberately NOT sent here. They looked right
+        // from the SDK's command list, but the vendor's own reference app (Demo_small,
+        // the ground truth for this integration) never calls either one, anywhere, on
+        // any of its printer models — and it prints correctly with nothing but
+        // paperType(GAP) + fixedPoint(). Sending an unverified "teach the printer this
+        // length" command was itself a guess, and a wrong one: if that learn pass
+        // measured incorrectly (a plausible failure mode, not a confirmed one — there
+        // was no way to verify it from here), it would make fixedPoint() seek to a
+        // WRONG length on every single print rather than reading the sensor fresh each
+        // time, i.e. exactly a fixed-offset symptom like the one still being seen.
+        // Matching the vendor's verified command sequence removes that as a variable.
         build.enable()
+        // Same reasoning as nextPrint(): the printer needs to know the real label size
+        // (CreatePage) before it can be asked to position against it.
+        build.CreatePage(calWidthMm.toInt(), calHeightMm.toInt())
         build.paperType(paperType)
         if (paperType == PrinterConstantPool.PaperType.GAP) {
           build.fixedPoint()
@@ -513,8 +595,7 @@ class YxLabelPrinterModule : Module() {
         val heightMm = finite(spec["heightMm"], 30.0)
         val headMm = finite(spec["headMm"], 48.0)
         val gapType = finiteInt(spec["gapType"], 2)
-        val isGap = gapType != 0
-        val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm, 0.0, isGap)
+        val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm)
         val stream = java.io.ByteArrayOutputStream()
         labelBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
         val base64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
@@ -554,7 +635,9 @@ class YxLabelPrinterModule : Module() {
     bitmap: Bitmap,
     copies: Int,
     paperType: Int,
-    density: Int
+    density: Int,
+    widthMm: Double,
+    heightMm: Double
   ) {
     if (!statusHandled.compareAndSet(false, true)) return
     statusWatchdog.removeCallbacksAndMessages(null)
@@ -575,7 +658,7 @@ class YxLabelPrinterModule : Module() {
       return
     }
 
-    startPrintJob(h, bitmap, copies, paperType, density)
+    startPrintJob(h, bitmap, copies, paperType, density, widthMm, heightMm)
   }
 
   private fun startPrintJob(
@@ -583,7 +666,9 @@ class YxLabelPrinterModule : Module() {
     bitmap: Bitmap,
     copies: Int,
     paperType: Int,
-    density: Int
+    density: Int,
+    widthMm: Double,
+    heightMm: Double
   ) {
     printer.addTask(Command.set_Density(density), true)
 
@@ -594,6 +679,8 @@ class YxLabelPrinterModule : Module() {
     jobSendIndex = 0
     jobAllCount = jobImgNames.size
     jobPaperType = paperType
+    jobWidthMm = widthMm
+    jobHeightMm = heightMm
     nextPrint(h)
   }
 
@@ -604,17 +691,35 @@ class YxLabelPrinterModule : Module() {
 
     val build = h.build(printCall(h))
     build.enable()
-    if (jobSendIndex == 1 && isGap) {
-      build.backoffPaper()
-    }
+    // Tell the firmware the actual physical label size before asking it to position
+    // against it. This is documented in the vendor's own SDK JavaDoc as CreatePage(width,
+    // height) — "Create label page size", parameters in mm — but is used by NEITHER our
+    // prior implementation NOR the vendor's own demo app, which is exactly why it was
+    // missing: there was no working reference to copy it from, only the class signature.
+    // Without it, fixedPoint() has no confirmed page length to position against and may
+    // fall back to a stale or factory-default length, which matches the fixed (not
+    // growing) split seen in testing — the same wrong boundary on every label rather than
+    // a drifting one.
+    build.CreatePage(jobWidthMm.toInt(), jobHeightMm.toInt())
     build.paperType(jobPaperType)
     build.printImg(jobImgNames.removeAt(0))
     if (isGap) {
+      // fixedPoint() alone positions the paper: it seeks the sensed gap, i.e. the label
+      // boundary, which is precisely where the next label must start.
+      //
+      // forwardPaper()/backoffPaper() are deliberately NOT used here, even though the
+      // vendor demo pairs them. The demo prints an entire run as ONE job, so it advances
+      // to the tear bar once at the end and retracts once at the start of the next run —
+      // the pair cancels out across a run. This app issues one job per label, so that
+      // pair would run on EVERY label, and any imbalance between how far the printer
+      // advances versus how far it can reverse becomes a per-label bias in the forward
+      // direction. Measured on real stock, that bias was ~10mm: every label printed
+      // about 10mm low and spilled its tail across the die-cut onto the next one.
+      //
+      // Dropping both leaves the paper parked at the label boundary where fixedPoint put
+      // it. The trade-off is that the final label is not pushed out to the tear bar, so
+      // it needs a feed press to tear — a fair price for every label landing square.
       build.fixedPoint()
-      if (jobSendIndex == jobAllCount) {
-        // Feed the finished job forward to the tear bar once all copies are completed
-        build.forwardPaper()
-      }
     } else {
       build.printLinedots((if (jobSendIndex == jobAllCount) 20 else 5) * 8)
     }
@@ -697,42 +802,50 @@ class YxLabelPrinterModule : Module() {
     widthMm: Double,
     heightMm: Double,
     headMm: Double = 48.0,
-    dotsPerMmOverride: Double = 0.0,
-    isGap: Boolean = true
+    dotsPerMmOverride: Double = 0.0
   ): Bitmap {
+    // Structurally identical to JoshLabelPrinterModule.buildLabelBitmap — single `fit`
+    // ratio applied uniformly to both axes, full authored height, no printer-specific
+    // squashing. An earlier version here shrank the bitmap to compensate a "~6.5mm head
+    // offset" and scaled y-coordinates into that shorter canvas; it could not have
+    // worked (shrinking an image never moves its content up the page — an element
+    // authored at y=0 is still the first thing the head prints, whatever height the
+    // bitmap is), and it also gave this renderer a fitX/fitY split Josh's never needed,
+    // which is why the two could drift apart. Removed both. Where the paper actually
+    // starts under the head is a positioning problem, fixed by the printer's own gap
+    // sensor (see nextPrint()/calibrate below) — never by distorting the artwork.
     val dotsPerMm = if (dotsPerMmOverride > 0.0) dotsPerMmOverride else 8.0
-    val targetWmm = if (widthMm > 0.0) widthMm else 50.0
-    val targetHmm = if (heightMm > 0.0) heightMm else 30.0
-
-    // Thermal hardware gap sensor sits ~6.5mm upstream of the thermal printhead.
-    // On die-cut gap paper, the print starts 6.5mm down the label face.
-    // When JS has already adapted the spec (offsetAdjusted == true), targetHmm is already
-    // the effective printable height and elements are already scaled.
-    val isAlreadyAdjusted = (spec["offsetAdjusted"] as? Boolean) == true
-    val hwOffsetMm = if (isGap && !isAlreadyAdjusted) 6.5 else 0.0
-    val userOffsetMm = if (!isAlreadyAdjusted) finite(spec["offsetMm"], 0.0) else 0.0
-    val effectiveOffsetMm = if (isGap && !isAlreadyAdjusted) (hwOffsetMm + userOffsetMm).coerceIn(0.0, maxOf(0.0, targetHmm - 12.0)) else 0.0
-
-    val printWmm = minOf(targetWmm, headMm)
-    val printHmm = if (isGap && !isAlreadyAdjusted) maxOf(14.0, targetHmm - effectiveOffsetMm) else targetHmm
-
-    val fitX = if (targetWmm > 0.0) printWmm / targetWmm else 1.0
-    // Scale vertical coordinates to fit cleanly within the remaining physical label area
-    val fitY = if (isGap && !isAlreadyAdjusted && targetHmm > 0.0) printHmm / targetHmm else 1.0
+    val printWmm = minOf(widthMm, headMm)
+    val printHmm = heightMm
+    val fit = if (widthMm > 0) printWmm / widthMm else 1.0
 
     val wPx = (printWmm * dotsPerMm).toInt().coerceAtLeast(64)
     val hPx = (printHmm * dotsPerMm).toInt().coerceAtLeast(64)
 
+    // Diagnostic only — the last several rounds of fixes were guesses because nobody
+    // (including me) could see what values actually reached the printer versus what the
+    // app believed it was sending. This makes that visible in `adb logcat -s YxLabel`.
+    android.util.Log.i(
+      "YxLabel",
+      "buildLabelBitmap: widthMm=$widthMm heightMm=$heightMm headMm=$headMm dotsPerMm=$dotsPerMm " +
+        "-> printWmm=$printWmm printHmm=$printHmm wPx=$wPx hPx=$hPx offsetMm=${finite(spec["offsetMm"], 0.0)}"
+    )
+
     val bmp = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     canvas.drawColor(Color.WHITE)
+
+    // Residual alignment trim, as a true translation rather than a scale. Negative
+    // lifts content toward the label's top edge, positive pushes it down.
+    val offsetPx = (finite(spec["offsetMm"], 0.0) * dotsPerMm).toFloat()
+    if (offsetPx != 0f) canvas.translate(0f, offsetPx)
 
     @Suppress("UNCHECKED_CAST")
     val elements = (spec["elements"] as? List<Map<String, Any?>>) ?: emptyList()
 
     elements.forEach { el ->
       try {
-        drawElementOnCanvas(canvas, el, dotsPerMm, fitX, fitY, wPx, hPx)
+        drawElementOnCanvas(canvas, el, dotsPerMm, fit, wPx, hPx)
       } catch (e: Throwable) {
         android.util.Log.w("YxLabel", "Skipping element on canvas: ${e.message}")
       }
@@ -745,15 +858,14 @@ class YxLabelPrinterModule : Module() {
     canvas: Canvas,
     el: Map<String, Any?>,
     dotsPerMm: Double,
-    fitX: Double,
-    fitY: Double,
+    fit: Double,
     canvasWidthPx: Int,
     canvasHeightPx: Int
   ) {
-    val xPx = (finite(el["x"], 0.0) * fitX * dotsPerMm).toFloat()
-    val yPx = (finite(el["y"], 0.0) * fitY * dotsPerMm).toFloat()
-    val wPx = (finite(el["width"], 0.0) * fitX * dotsPerMm).toFloat()
-    val hPx = (finite(el["height"], 0.0) * fitY * dotsPerMm).toFloat()
+    val xPx = (finite(el["x"], 0.0) * fit * dotsPerMm).toFloat()
+    val yPx = (finite(el["y"], 0.0) * fit * dotsPerMm).toFloat()
+    val wPx = (finite(el["width"], 0.0) * fit * dotsPerMm).toFloat()
+    val hPx = (finite(el["height"], 0.0) * fit * dotsPerMm).toFloat()
 
     val rot = finite(el["rotation"], 0.0).toFloat()
     val hasRot = rot % 360f != 0f
@@ -768,7 +880,7 @@ class YxLabelPrinterModule : Module() {
       "text" -> {
         val value = el["value"] as? String ?: return
         if (value.isEmpty()) return
-        val fontHeightMm = finite(el["fontHeight"], 3.5) * fitY
+        val fontHeightMm = finite(el["fontHeight"], 3.5) * fit
         val fontSizePx = (fontHeightMm * dotsPerMm).toFloat().coerceAtLeast(14f)
         val bold = (el["bold"] as? Boolean) == true
         val align = finiteInt(el["align"], 0)
@@ -803,7 +915,7 @@ class YxLabelPrinterModule : Module() {
         val barcodeW = if (wPx > 0) wPx.toInt() else (canvasWidthPx - xPx.toInt()).coerceAtLeast(100)
         val barcodeH = if (hPx > 0) hPx.toInt() else 80
         val type = finiteInt(el["barcodeType"], 60)
-        val requestedTextHeight = (finite(el["textHeight"], 3.0) * fitY * dotsPerMm).toFloat()
+        val requestedTextHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
         val textHeight = if (requestedTextHeight > 0f) requestedTextHeight.coerceAtMost(barcodeH * 0.4f) else 0f
         val showText = textHeight >= 10f
         val barOnlyHeight = (if (showText) barcodeH - textHeight.toInt() else barcodeH).coerceAtLeast(1)
@@ -828,7 +940,7 @@ class YxLabelPrinterModule : Module() {
       "qrcode" -> {
         val value = el["value"] as? String ?: return
         if (value.isEmpty()) return
-        val rawSize = finite(el["size"], 15.0) * fitY * dotsPerMm
+        val rawSize = finite(el["size"], 15.0) * fit * dotsPerMm
         val sizePx = rawSize.toInt().coerceIn(32, minOf(canvasWidthPx, canvasHeightPx))
         val qrBmp = generateQrBitmap(value, sizePx)
         if (qrBmp != null) {
@@ -849,9 +961,9 @@ class YxLabelPrinterModule : Module() {
         }
       }
       "line" -> {
-        val x2 = (finite(el["x2"], el["x"] as? Double ?: 0.0) * fitX * dotsPerMm).toFloat()
-        val y2 = (finite(el["y2"], el["y"] as? Double ?: 0.0) * fitY * dotsPerMm).toFloat()
-        val thickness = (finite(el["thickness"], 0.3) * fitY * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val x2 = (finite(el["x2"], el["x"] as? Double ?: 0.0) * fit * dotsPerMm).toFloat()
+        val y2 = (finite(el["y2"], el["y"] as? Double ?: 0.0) * fit * dotsPerMm).toFloat()
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
         val paint = Paint().apply {
           color = Color.BLACK
           strokeWidth = thickness
@@ -861,9 +973,9 @@ class YxLabelPrinterModule : Module() {
       }
       "rectangle" -> {
         if (wPx <= 0 || hPx <= 0) return
-        val thickness = (finite(el["thickness"], 0.3) * fitY * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
         val filled = (el["filled"] as? Boolean) == true
-        val radius = (finite(el["cornerRadius"], 0.0) * fitY * dotsPerMm).toFloat()
+        val radius = (finite(el["cornerRadius"], 0.0) * fit * dotsPerMm).toFloat()
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
           color = Color.BLACK
           strokeWidth = thickness
@@ -875,7 +987,7 @@ class YxLabelPrinterModule : Module() {
       }
       "ellipse" -> {
         if (wPx <= 0 || hPx <= 0) return
-        val thickness = (finite(el["thickness"], 0.3) * fitY * dotsPerMm).toFloat().coerceAtLeast(1f)
+        val thickness = (finite(el["thickness"], 0.3) * fit * dotsPerMm).toFloat().coerceAtLeast(1f)
         val filled = (el["filled"] as? Boolean) == true
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
           color = Color.BLACK

@@ -1766,7 +1766,7 @@ export default function PrintersScreen() {
                       <TouchableOpacity
                         onPress={async () => {
                           try {
-                            const ok = await ThermalPrinterService.printAlignmentTest(4);
+                            const ok = await ThermalPrinterService.printAlignmentSelfTest(4);
                             Alert.alert(
                               ok ? 'Alignment Test Sent' : 'Alignment Test Incomplete',
                               ok

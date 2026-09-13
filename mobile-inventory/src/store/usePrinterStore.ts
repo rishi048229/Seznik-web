@@ -131,6 +131,9 @@ interface PrinterState {
   /** Active SEZNIK printer model: 'tej' | 'dev' | 'veer' | 'josh' | null */
   connectedPrinterModel: 'tej' | 'dev' | 'veer' | 'josh' | null;
   setConnectedPrinterModel: (model: 'tej' | 'dev' | 'veer' | 'josh' | null) => void;
+  /** User-selected default/preferred printer model: 'tej' | 'dev' | 'veer' | 'josh' | null */
+  preferredPrinterModel: 'tej' | 'dev' | 'veer' | 'josh' | null;
+  setPreferredPrinterModel: (model: 'tej' | 'dev' | 'veer' | 'josh' | null) => void;
   setPaperWidth: (width: '58mm' | '80mm') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setReceiptFont: (font: ReceiptFontId) => void;
@@ -221,6 +224,20 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   labelTemplates: [],
   activeLabelTemplateId: null,
   isHydrated: false,
+  connectedPrinterModel: null,
+  preferredPrinterModel: null,
+  setConnectedPrinterModel: (model) => {
+    set({ connectedPrinterModel: model });
+    getStoredPrinterCalibration().then((curr) => {
+      setStoredPrinterCalibration({ ...(curr || {}), connectedPrinterModel: model });
+    }).catch(() => {});
+  },
+  setPreferredPrinterModel: (model) => {
+    set({ preferredPrinterModel: model });
+    getStoredPrinterCalibration().then((curr) => {
+      setStoredPrinterCalibration({ ...(curr || {}), preferredPrinterModel: model });
+    }).catch(() => {});
+  },
 
   initListener: () => {
     // Mirrors PrinterService into store state. Must be mounted once at app root: every screen gates
@@ -464,8 +481,6 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     await get().connectDevice(device.id, device.name);
   },
 
-  connectedPrinterModel: null,
-  setConnectedPrinterModel: (connectedPrinterModel) => set({ connectedPrinterModel }),
   setPaperWidth: (paperWidth) => set({ paperWidth }),
   setFontSize: (fontSize) => set({ fontSize }),
   setReceiptFont: (receiptFont) => set({ receiptFont: resolveReceiptFontId(receiptFont) }),
@@ -793,6 +808,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
           labelHeightMm: typeof localCalibration.labelHeightMm === 'number' ? localCalibration.labelHeightMm : get().labelHeightMm,
           labelGapMm: typeof localCalibration.labelGapMm === 'number' ? localCalibration.labelGapMm : get().labelGapMm,
           labelOffsetMm: typeof localCalibration.labelOffsetMm === 'number' ? localCalibration.labelOffsetMm : get().labelOffsetMm,
+          preferredPrinterModel: localCalibration.preferredPrinterModel !== undefined ? localCalibration.preferredPrinterModel : get().preferredPrinterModel,
+          connectedPrinterModel: localCalibration.connectedPrinterModel !== undefined ? localCalibration.connectedPrinterModel : get().connectedPrinterModel,
         } : {}),
       });
 

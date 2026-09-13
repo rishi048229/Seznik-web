@@ -147,6 +147,9 @@ export default function DashboardScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    setConnectedPrinterModel,
+    preferredPrinterModel,
+    setPreferredPrinterModel,
   } = usePrinterStore();
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [permission, requestPermission] = useCameraPermissions();
@@ -158,9 +161,20 @@ export default function DashboardScreen() {
   // Modals & Action States
   const [showAiImportModal, setShowAiImportModal] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
-  const [selectedPrinterModalModel, setSelectedPrinterModalModel] = useState<SeznikPrinterModelId>('dev');
   const [joshConnected, setJoshConnected] = useState(false);
   const [tejConnected, setTejConnected] = useState(false);
+
+  const initialModel: SeznikPrinterModelId =
+    preferredPrinterModel ||
+    connectedPrinterModel ||
+    (tejConnected ? 'tej' : joshConnected ? 'josh' : 'tej');
+  const [selectedPrinterModalModel, setSelectedPrinterModalModel] = useState<SeznikPrinterModelId>(initialModel);
+
+  useEffect(() => {
+    if (preferredPrinterModel) {
+      setSelectedPrinterModalModel(preferredPrinterModel);
+    }
+  }, [preferredPrinterModel]);
 
   useEffect(() => {
     const refreshSdkStates = async () => {
@@ -169,6 +183,11 @@ export default function DashboardScreen() {
         setJoshConnected(joshOn);
         const tejOn = await ThermalPrinterService.yxIsConnected();
         setTejConnected(tejOn);
+        if (tejOn) {
+          setConnectedPrinterModel('tej');
+        } else if (joshOn) {
+          setConnectedPrinterModel('josh');
+        }
       } catch {}
     };
     refreshSdkStates();
@@ -809,6 +828,7 @@ export default function DashboardScreen() {
                         activeOpacity={0.8}
                         onPress={() => {
                           setSelectedPrinterModalModel(model.id);
+                          setPreferredPrinterModel(model.id);
                           setShowDirectPrinterModal(true);
                         }}
                         style={[

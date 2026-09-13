@@ -6,6 +6,13 @@ const ADDITIVE_COLUMNS = [
   `ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "kotConfig" JSONB`,
   `ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "trackStock" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "isAvailable" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "receiptNumber" TEXT`,
+  `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "kioskName" TEXT`,
+  `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "totalAmount" DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "customerPhone" TEXT`,
+  `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "operatorName" TEXT`,
+  `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "billDate" TEXT`,
+  `ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "paymentMode" TEXT DEFAULT 'CASH'`,
 ] as const
 
 const ADDITIVE_TABLES = [
@@ -54,6 +61,7 @@ const ADDITIVE_TABLES = [
   `CREATE INDEX IF NOT EXISTS "UtilityBill_userId_idx" ON "UtilityBill" ("userId")`,
   `CREATE INDEX IF NOT EXISTS "UtilityBill_userId_date_idx" ON "UtilityBill" ("userId", "date")`,
   `CREATE INDEX IF NOT EXISTS "UtilityBill_consumerNumber_idx" ON "UtilityBill" ("consumerNumber")`,
+  `CREATE INDEX IF NOT EXISTS "UtilityBill_receiptNumber_idx" ON "UtilityBill" ("receiptNumber")`,
 ] as const
 
 let ensured: Promise<void> | null = null

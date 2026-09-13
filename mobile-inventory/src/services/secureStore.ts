@@ -267,6 +267,10 @@ export interface StoredPrinterCalibration {
   labelGapMm?: number;
   /** Residual vertical alignment trim in mm for gap-sensor-less (blind raster) label printing. */
   labelOffsetMm?: number;
+  /** User's preferred SEZNIK printer model choice: 'tej' | 'dev' | 'veer' | 'josh' | null */
+  preferredPrinterModel?: 'tej' | 'dev' | 'veer' | 'josh' | null;
+  /** Last actively connected SEZNIK printer model: 'tej' | 'dev' | 'veer' | 'josh' | null */
+  connectedPrinterModel?: 'tej' | 'dev' | 'veer' | 'josh' | null;
 }
 
 export async function getStoredPrinterCalibration(): Promise<StoredPrinterCalibration | null> {

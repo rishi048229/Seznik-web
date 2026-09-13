@@ -44,7 +44,7 @@ declare class YxLabelPrinterNativeModule extends NativeModule<YxLabelPrinterEven
   isConnected(): Promise<boolean>;
   getPrinterInfo(): Promise<{ name: string; address: string } | null>;
   printLabel(spec: YxLabelSpec): Promise<boolean>;
-  calibrate(gapType?: number): Promise<boolean>;
+  calibrate(gapType?: number, widthMm?: number, heightMm?: number): Promise<boolean>;
   rasterizeLabelBase64(spec: YxLabelSpec & { headMm?: number }): Promise<string>;
 }
 
