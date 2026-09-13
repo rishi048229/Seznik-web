@@ -526,35 +526,43 @@ export const POSLitePage = () => {
       ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
+    // Snapshot current cart state for immediate printing before backend response
+    const provisionalInvoice = `INV-${Date.now().toString().slice(-8)}`
+    const snapshot = {
+      items: [...items],
+      subtotal,
+      tax: taxAmount,
+      orderDiscountAmount,
+      finalTotal,
+      method,
+      amountPaidNum,
+      selectedCustomer,
+    }
+    setLastSaleData(snapshot)
+    try {
+      localStorage.setItem(lastBillStorageKey, JSON.stringify(items))
+    } catch {
+      /* ignore quota */
+    }
+    setLastBill(items)
+    setCompletedSaleId('')
+    setCompletedInvoiceNumber(provisionalInvoice)
+
+    // Clear cart and open print modal immediately
+    clearCart()
+    setIsPaymentOpen(false)
+    setMethod('cash')
+    setAmountPaid('')
+    setIsPrintModalOpen(true)
+
+    // Persist sale to backend in the background
     createSale(saleData, {
       onSuccess: (result) => {
         const saleId = result.id
-        const invoiceNumber = result.invoiceNumber
-        const snapshot = {
-          items: [...items],
-          subtotal,
-          tax: taxAmount,
-          orderDiscountAmount,
-          finalTotal,
-          method,
-          amountPaidNum,
-          selectedCustomer,
-        }
-        setLastSaleData(snapshot)
-        try {
-          localStorage.setItem(lastBillStorageKey, JSON.stringify(items))
-        } catch {
-          /* ignore quota */
-        }
-        setLastBill(items)
+        const invoiceNumber = result.invoiceNumber || provisionalInvoice
         setCompletedSaleId(saleId)
         setCompletedInvoiceNumber(invoiceNumber)
-        clearCart()
-        setIsPaymentOpen(false)
-        setMethod('cash')
-        setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
-        setIsPrintModalOpen(true)
       },
       onError: (error) => {
         console.error('Sale creation failed:', error)

@@ -498,31 +498,39 @@ export const POSPage = () => {
       ;(saleData as Record<string, unknown>).locationId = selectedLocationId
     }
 
+    // Snapshot current cart state for immediate printing before backend response
+    const provisionalInvoice = `INV-${Date.now().toString().slice(-8)}`
+    const snapshot = {
+      items: [...items],
+      totals: { ...totals, subtotal: gstSummary.taxableValue, tax: taxAmount },
+      orderDiscountAmount,
+      finalTotal,
+      method,
+      amountPaidNum,
+      selectedCustomer,
+    }
+    setLastSaleData(snapshot)
+    setCompletedSaleId('')
+    setCompletedInvoiceNumber(provisionalInvoice)
+
+    // Clear cart and open print modal immediately
+    clearCart()
+    setOrderDiscount(0)
+    setSelectedCustomer('')
+    setIsPaymentOpen(false)
+    setMethod('cash')
+    setAmountPaid('')
+    setIsPrintModalOpen(true)
+
+    // Persist sale to backend in the background
     createSale(saleData, {
       onSuccess: (result) => {
         trackUserAction('pos_checkout_completed', { grandTotal: finalTotal, itemCount: items.length, paymentMethod: method })
         const saleId = result.id
-        const invoiceNumber = result.invoiceNumber
-        const snapshot = {
-          items: [...items],
-          totals: { ...totals, subtotal: gstSummary.taxableValue, tax: taxAmount },
-          orderDiscountAmount,
-          finalTotal,
-          method,
-          amountPaidNum,
-          selectedCustomer,
-        }
-        setLastSaleData(snapshot)
+        const invoiceNumber = result.invoiceNumber || provisionalInvoice
         setCompletedSaleId(saleId)
         setCompletedInvoiceNumber(invoiceNumber)
-        clearCart()
-        setOrderDiscount(0)
-        setSelectedCustomer('')
-        setIsPaymentOpen(false)
-        setMethod('cash')
-        setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
-        setIsPrintModalOpen(true)
       },
       onError: (error) => {
         console.error('Sale creation failed:', error)
