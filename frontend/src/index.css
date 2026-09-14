@@ -82,3 +82,43 @@
     opacity: 1;
   }
 }
+
+@keyframes cardSettle {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-shell > * {
+    animation: cardSettle 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .page-shell > *:nth-child(1) { animation-delay: 0.02s; }
+  .page-shell > *:nth-child(2) { animation-delay: 0.07s; }
+  .page-shell > *:nth-child(3) { animation-delay: 0.12s; }
+  .page-shell > *:nth-child(4) { animation-delay: 0.17s; }
+  .page-shell > *:nth-child(5) { animation-delay: 0.22s; }
+  .page-shell > *:nth-child(6) { animation-delay: 0.27s; }
+
+  .page-shell .ui-card {
+    animation: cardSettle 0.48s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .page-shell .ui-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 30px -16px rgba(15, 23, 42, 0.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-shell,
+  .ui-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}

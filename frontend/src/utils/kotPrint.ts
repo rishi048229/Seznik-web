@@ -83,7 +83,7 @@ export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = 
     ${data.notes ? `<div style="margin-top:8px;font-size:${smallFs};"><strong>Order note:</strong> ${escapeHtml(data.notes)}</div>` : ''}
     <div style="border-top:2px solid #000;margin:10px 0 4px;"></div>
     <div style="text-align:center;font-size:${smallFs};">${cancelled ? '-- Stop preparing --' : '-- Kitchen Copy --'}</div>
-    <div style="height:2mm;"></div>
+    <div style="height:14mm;"></div>
   </div>`
 }
 

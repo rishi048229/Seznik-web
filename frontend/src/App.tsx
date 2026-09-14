@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { MobileNav } from '@/components/layout/MobileNav'
+import { PageTransition } from '@/components/layout/PageTransition'
 import { Spinner } from '@/components/ui/Spinner'
 import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
@@ -104,7 +105,7 @@ const MainLayout = () => {
       topbar={<Topbar onMenuClick={() => setSidebarOpen(true)} />}
     >
       <Suspense fallback={LoadingFallback}>
-        <Outlet />
+        <PageTransition />
       </Suspense>
       <MobileNav />
       <HelpChatBot />

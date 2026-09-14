@@ -117,7 +117,7 @@ export const generateUtilitySlipHTML = (bill: UtilitySlipDraft, paperSize: '58mm
     </div>
     <div style="text-align:center;font-size:11px;color:#334155">Thank You</div>
     <div style="text-align:center;font-size:10px;color:#64748b">Powered by SEZNIK</div>
-    <div style="height:2mm"></div>
+    <div style="height:14mm"></div>
   </div>`
 }
 

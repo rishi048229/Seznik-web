@@ -239,12 +239,13 @@ export async function printEscPos(bytes: Uint8Array): Promise<void> {
         await characteristic.writeValueWithoutResponse(chunk)
         // Tail packets carry feed/cut — give the printer buffer time so the
         // slip actually ejects instead of stopping halfway out.
-        await new Promise(resolve => setTimeout(resolve, isTail ? 18 : 5))
+        await new Promise(resolve => setTimeout(resolve, isTail ? 28 : 5))
       } else {
         await characteristic.writeValueWithResponse(chunk)
       }
     }
-    await new Promise(resolve => setTimeout(resolve, 250))
+    // Let the printer finish the feed/cut instead of dropping the last QR rows.
+    await new Promise(resolve => setTimeout(resolve, 450))
   } finally {
     setState({ status: characteristic ? 'connected' : 'disconnected' })
   }

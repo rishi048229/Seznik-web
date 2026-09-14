@@ -32,7 +32,7 @@ export function Section({
 }) {
   return (
     <section
-      className={`rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${className}`}
+      className={`ui-card rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[transform,box-shadow] duration-300 ease-out ${className}`}
     >
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800">
         <div className="min-w-0">

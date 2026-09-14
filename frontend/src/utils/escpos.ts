@@ -115,12 +115,15 @@ export class EscPosBuilder {
   }
 
   /**
-   * Leave ~2mm after the last printed line, then partial-cut.
-   * Same tail on 58mm and 80mm — no extra blank lines.
+   * Advance the last printed dots (QR, footer, barcode) past the tear bar /
+   * cutter, then partial-cut. Portable 58mm printers keep the print head
+   * ~15–20mm before the cutter, so a 2mm tail left the QR stuck inside.
+   * ESC J is capped at 255 dots (~32mm at 8 dots/mm).
    */
   ejectAndCut(): this {
-    this.feedDots(16)
-    return this.push(GS, 0x56, 0x01)
+    this.feedDots(232)
+    this.push(GS, 0x56, 0x01)
+    return this.feedDots(48)
   }
 
   // 1D barcode via the standard GS k command. CODE128 uses the newer
