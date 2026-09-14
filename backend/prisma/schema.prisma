@@ -57,6 +57,7 @@ model User {
   kotOrders             KOTOrder[]
   kotOrderItems         KOTOrderItem[]
   kotPrintEvents        KOTPrintEvent[]
+  utilityBills          UtilityBill[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -533,4 +534,31 @@ model KOTPrintEvent {
 
   @@index([orderId])
   @@index([userId])
+}
+
+model UtilityBill {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  receiptNumber   String
+  kioskName       String   @default("")
+  billType        String   @default("UTILITY")
+  provider        String   @default("")
+  consumerNumber  String   @default("")
+  consumerName    String   @default("")
+  dueDate         String?
+  billDate        String?
+  unitsConsumed   String?
+  billAmount      Float    @default(0)
+  convenienceFee  Float    @default(0)
+  totalAmount     Float    @default(0)
+  status          String   @default("SUCCESS (PAID)")
+  paymentMode     String   @default("CASH")
+  customerPhone   String?
+  operatorName    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, createdAt])
 }

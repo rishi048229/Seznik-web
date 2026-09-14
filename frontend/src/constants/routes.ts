@@ -7,6 +7,7 @@ export const ROUTES = {
   POS: '/pos',
   POS_LITE: '/pos-lite',
   TOKENS: '/tokens',
+  UTILITY_KIOSK: '/utility-kiosk',
   PRODUCTS: '/products',
   CATEGORIES: '/categories',
   CUSTOMERS: '/customers',

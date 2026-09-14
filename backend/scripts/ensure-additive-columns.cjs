@@ -44,6 +44,31 @@ const STATEMENTS = [
   )`,
   'CREATE INDEX IF NOT EXISTS "KOTPrintEvent_orderId_idx" ON "KOTPrintEvent"("orderId")',
   'CREATE INDEX IF NOT EXISTS "KOTPrintEvent_userId_idx" ON "KOTPrintEvent"("userId")',
+  `CREATE TABLE IF NOT EXISTS "UtilityBill" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "receiptNumber" TEXT NOT NULL,
+    "kioskName" TEXT NOT NULL DEFAULT '',
+    "billType" TEXT NOT NULL DEFAULT 'UTILITY',
+    "provider" TEXT NOT NULL DEFAULT '',
+    "consumerNumber" TEXT NOT NULL DEFAULT '',
+    "consumerName" TEXT NOT NULL DEFAULT '',
+    "dueDate" TEXT,
+    "billDate" TEXT,
+    "unitsConsumed" TEXT,
+    "billAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "convenienceFee" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'SUCCESS (PAID)',
+    "paymentMode" TEXT NOT NULL DEFAULT 'CASH',
+    "customerPhone" TEXT,
+    "operatorName" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UtilityBill_pkey" PRIMARY KEY ("id")
+  )`,
+  'CREATE INDEX IF NOT EXISTS "UtilityBill_userId_idx" ON "UtilityBill"("userId")',
+  'CREATE INDEX IF NOT EXISTS "UtilityBill_userId_createdAt_idx" ON "UtilityBill"("userId", "createdAt")',
 ]
 
 async function main() {

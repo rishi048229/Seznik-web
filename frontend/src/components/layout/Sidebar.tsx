@@ -25,6 +25,7 @@ import {
   BookOpen,
   Ticket,
   UtensilsCrossed,
+  Zap,
 } from 'lucide-react'
 import { FeedbackModal } from '@/components/common/FeedbackModal'
 import { hasAnyPermission, hasPermission } from '@/utils/permissions'
@@ -51,6 +52,7 @@ const getAllNavItems = (): NavItem[] => [
   { path: ROUTES.POS, labelKey: 'nav.pos', icon: ShoppingCart, permission: 'canAccessSales', animClass: 'animate-nav-drive', clip: true },
   { path: ROUTES.POS_LITE, labelKey: 'nav.posLite', icon: MoveLeft, permission: 'canAccessSales', animClass: 'animate-nav-drive-back', clip: true },
   { path: ROUTES.TOKENS, labelKey: 'page.tokens', icon: Ticket, permission: 'canAccessSales', animClass: 'animate-nav-pop' },
+  { path: ROUTES.UTILITY_KIOSK, labelKey: 'nav.utilityKiosk', icon: Zap, permission: 'canAccessSales', animClass: 'animate-nav-pop' },
   { path: ROUTES.KOT, labelKey: 'nav.kot', icon: UtensilsCrossed, permission: 'canAccessSales', animClass: 'animate-nav-pop' },
   { path: ROUTES.PRODUCTS, labelKey: 'nav.products', icon: Package, permission: 'canAccessProducts', animClass: 'animate-nav-bounce' },
   { path: ROUTES.DAYBOOK, labelKey: 'page.daybook', icon: BookOpen, anyOf: ['canAccessSales', 'canAccessReports'], animClass: 'animate-nav-swing origin-top' },

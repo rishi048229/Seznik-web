@@ -48,6 +48,15 @@ import {
   snapLabelPreset,
 } from '@/utils/labelSizes'
 import {
+  PRINTER_FLEET,
+  fleetPatchForModel,
+  getConnectedPrinterModel,
+  getPreferredPrinterModel,
+  setConnectedPrinterModel,
+  setPreferredPrinterModel,
+  type PrinterFleetModel,
+} from '@/utils/printerFleet'
+import {
   Printer,
   QrCode,
   FileText,
@@ -184,6 +193,8 @@ export const PrintersPage = () => {
   const [connectingBle, setConnectingBle] = useState(false)
   const prevBleStatus = useRef(bleState.status)
   const [linkPulse, setLinkPulse] = useState<'connected' | 'disconnected' | null>(null)
+  const [fleetModel, setFleetModel] = useState<PrinterFleetModel | null>(() => getPreferredPrinterModel())
+  const [connectedFleetModel, setConnectedFleetModel] = useState<PrinterFleetModel | null>(() => getConnectedPrinterModel())
 
   useEffect(() => {
     if (prevBleStatus.current === bleState.status) return
@@ -206,6 +217,14 @@ export const PrintersPage = () => {
     tryReconnectKnownPrinter()
     return () => unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (bleState.status !== 'connected') return
+    const model = fleetModel || getPreferredPrinterModel()
+    if (!model) return
+    setConnectedPrinterModel(model)
+    setConnectedFleetModel(model)
+  }, [bleState.status, fleetModel])
 
   // Sync local editable drafts whenever the shared settings query has fresh
   // data — this is the SAME react-query cache the Settings page reads and
@@ -325,6 +344,11 @@ export const PrintersPage = () => {
     setConnectingBle(true)
     try {
       await requestAndConnectPrinter()
+      const model = fleetModel || getPreferredPrinterModel()
+      if (model) {
+        setConnectedPrinterModel(model)
+        setConnectedFleetModel(model)
+      }
       toast.success('Connected to Bluetooth Printer!')
     } catch (err) {
       toastError(err, 'Could not connect the printer. Please try again.')
@@ -336,7 +360,21 @@ export const PrintersPage = () => {
   // Disconnect Bluetooth Printer
   const handleDisconnectBluetooth = () => {
     disconnectPrinter()
+    setConnectedPrinterModel(null)
+    setConnectedFleetModel(null)
     toast.success('Bluetooth printer disconnected')
+  }
+
+  const handleSelectFleetModel = (model: PrinterFleetModel) => {
+    setFleetModel(model)
+    setPreferredPrinterModel(model)
+    const patch = fleetPatchForModel(model)
+    setConfig(prev => ({ ...prev, ...patch }))
+    if (bleState.status === 'connected') {
+      setConnectedPrinterModel(model)
+      setConnectedFleetModel(model)
+    }
+    toast.success(`${model} selected. Save printer settings to keep paper size and destination.`)
   }
 
   // Send hardware Gap Auto-Calibration command to Bluetooth Printer
@@ -606,6 +644,48 @@ export const PrintersPage = () => {
           Connect a printer, then set up receipts, barcode labels, or A4 invoices. Nothing here changes until you save.
         </p>
       </div>
+
+      <Section
+        eyebrow="Fleet"
+        title="Your Seznik thermal printers"
+        description="Pick TEJ, DEV, VEER, or JOSH. The last choice is remembered on this browser after reload."
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {PRINTER_FLEET.map(printer => {
+            const selected = fleetModel === printer.id
+            const linked = connectedFleetModel === printer.id && bleState.status === 'connected'
+            return (
+              <button
+                key={printer.id}
+                type="button"
+                onClick={() => handleSelectFleetModel(printer.id)}
+                className={`text-left rounded-2xl border p-4 transition-colors ${
+                  selected
+                    ? 'border-slate-900 dark:border-white bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 hover:border-slate-400'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold tracking-wide">{printer.name}</span>
+                  {linked ? (
+                    <span className={`text-[10px] font-semibold uppercase tracking-widest ${selected ? 'opacity-80' : 'text-emerald-600'}`}>
+                      Linked
+                    </span>
+                  ) : selected ? (
+                    <span className="text-[10px] font-semibold uppercase tracking-widest opacity-80">Selected</span>
+                  ) : null}
+                </div>
+                <p className={`text-xs mt-1 leading-relaxed ${selected ? 'opacity-80' : 'text-slate-500 dark:text-slate-400'}`}>
+                  {printer.tagline}
+                </p>
+                <p className={`text-[11px] mt-2 ${selected ? 'opacity-70' : 'text-slate-400'}`}>
+                  {printer.kind} · {printer.paper}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+      </Section>
 
       <div data-tour="printers-status" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div

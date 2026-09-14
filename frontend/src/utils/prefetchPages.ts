@@ -5,6 +5,7 @@ const PAGE_IMPORTS: Record<string, () => Promise<unknown>> = {
   [ROUTES.POS]: () => import('@/pages/pos/POSPage'),
   [ROUTES.POS_LITE]: () => import('@/pages/pos/POSLitePage'),
   [ROUTES.TOKENS]: () => import('@/pages/tokens/QuickTokensPage'),
+  [ROUTES.UTILITY_KIOSK]: () => import('@/pages/utility/UtilityKioskPage'),
   [ROUTES.PRODUCTS]: () => import('@/pages/products/ProductsPage'),
   [ROUTES.CATEGORIES]: () => import('@/pages/categories/CategoriesPage'),
   [ROUTES.CUSTOMERS]: () => import('@/pages/customers/CustomersPage'),

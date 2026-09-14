@@ -36,6 +36,7 @@ const en = {
   'nav.settings': 'Settings',
   'nav.printers': 'Printers',
   'nav.kot': 'Tables / KOT',
+  'nav.utilityKiosk': 'Utility Kiosk',
 
   // Common actions
   'action.save': 'Save',

@@ -59,6 +59,7 @@ const DashboardPage = lazyPage(() => import('@/pages/dashboard/DashboardPage'), 
 const POSPage = lazyPage(() => import('@/pages/pos/POSPage'), 'POSPage')
 const POSLitePage = lazyPage(() => import('@/pages/pos/POSLitePage'), 'POSLitePage')
 const QuickTokensPage = lazyPage(() => import('@/pages/tokens/QuickTokensPage'), 'QuickTokensPage')
+const UtilityKioskPage = lazyPage(() => import('@/pages/utility/UtilityKioskPage'), 'UtilityKioskPage')
 const ProductsPage = lazyPage(() => import('@/pages/products/ProductsPage'), 'ProductsPage')
 const CategoriesPage = lazyPage(() => import('@/pages/categories/CategoriesPage'), 'CategoriesPage')
 const CustomersPage = lazyPage(() => import('@/pages/customers/CustomersPage'), 'CustomersPage')
@@ -262,6 +263,7 @@ function App() {
                 <Route path={ROUTES.POS} element={<PermissionRoute permission="canAccessSales"><POSPage /></PermissionRoute>} />
                 <Route path={ROUTES.POS_LITE} element={<PermissionRoute permission="canAccessSales"><POSLitePage /></PermissionRoute>} />
                 <Route path={ROUTES.TOKENS} element={<PermissionRoute permission="canAccessSales"><QuickTokensPage /></PermissionRoute>} />
+                <Route path={ROUTES.UTILITY_KIOSK} element={<PermissionRoute permission="canAccessSales"><UtilityKioskPage /></PermissionRoute>} />
                 <Route path={ROUTES.PRODUCTS} element={<PermissionRoute permission="canAccessProducts"><ProductsPage /></PermissionRoute>} />
                 <Route path={ROUTES.CATEGORIES} element={<PermissionRoute permission="canAccessProducts"><CategoriesPage /></PermissionRoute>} />
                 <Route path={ROUTES.LOCATIONS} element={<Navigate to={ROUTES.DASHBOARD} replace />} />

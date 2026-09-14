@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, UtensilsCrossed } from 'lucide-react'
+import { Home, ShoppingCart, Package, Settings, MoreHorizontal, X, FileText, Users, BarChart3, Wallet, CreditCard, Truck, TrendingUp, Tag, MoveLeft, UtensilsCrossed, Zap } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
@@ -17,6 +17,7 @@ const getPrimaryItems = (permissions: UserPermissions | null) => [
 
 const getMoreItems = (permissions: UserPermissions | null) => [
   ...(hasPermission(permissions, 'canAccessSales') ? [{ path: ROUTES.POS_LITE, label: 'QUICK BILL', icon: <MoveLeft size={20} /> }] : []),
+  ...(hasPermission(permissions, 'canAccessSales') ? [{ path: ROUTES.UTILITY_KIOSK, label: 'Utility Kiosk', icon: <Zap size={20} /> }] : []),
   ...(hasPermission(permissions, 'canAccessSales') ? [{ path: ROUTES.KOT, label: 'Tables / KOT', icon: <UtensilsCrossed size={20} /> }] : []),
   ...(hasPermission(permissions, 'canAccessProducts') ? [{ path: ROUTES.CATEGORIES, label: 'Categories', icon: <Tag size={20} /> }] : []),
   ...(hasPermission(permissions, 'canAccessCustomers') ? [{ path: ROUTES.CUSTOMERS, label: 'Customers', icon: <Users size={20} /> }] : []),

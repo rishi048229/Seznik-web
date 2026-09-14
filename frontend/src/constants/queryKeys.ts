@@ -24,4 +24,6 @@ export const QUERY_KEYS = {
   STOCK_TRANSFERS: 'stock-transfers',
   RESTAURANT_TABLES: 'restaurant-tables',
   KOT_ORDERS: 'kot-orders',
+  UTILITY_BILLS: 'utility-bills',
+  UTILITY_BILL_STATS: 'utility-bill-stats',
 } as const
