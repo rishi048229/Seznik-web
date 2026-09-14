@@ -648,9 +648,9 @@ export const PrintersPage = () => {
       <Section
         eyebrow="Fleet"
         title="Your Seznik thermal printers"
-        description="Pick TEJ, DEV, VEER, or JOSH. The last choice is remembered on this browser after reload."
+        description="Choose VEER or DEV. The last choice is remembered on this browser after reload."
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {PRINTER_FLEET.map(printer => {
             const selected = fleetModel === printer.id
             const linked = connectedFleetModel === printer.id && bleState.status === 'connected'
@@ -659,28 +659,42 @@ export const PrintersPage = () => {
                 key={printer.id}
                 type="button"
                 onClick={() => handleSelectFleetModel(printer.id)}
-                className={`text-left rounded-2xl border p-4 transition-colors ${
-                  selected
-                    ? 'border-slate-900 dark:border-white bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/40 hover:border-slate-400'
+                className={`group relative text-left overflow-hidden rounded-2xl border transition-all duration-300 ${
+                  linked
+                    ? 'border-emerald-400 dark:border-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]'
+                    : selected
+                      ? 'border-slate-900 dark:border-white shadow-sm'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-400'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-bold tracking-wide">{printer.name}</span>
-                  {linked ? (
-                    <span className={`text-[10px] font-semibold uppercase tracking-widest ${selected ? 'opacity-80' : 'text-emerald-600'}`}>
-                      Linked
+                {linked && <span className="fleet-shimmer" aria-hidden="true" />}
+                <div className="relative bg-black aspect-[5/4] overflow-hidden">
+                  <img
+                    src={printer.photo}
+                    alt={`Seznik ${printer.name}`}
+                    className="w-full h-full object-contain p-4 drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)] transition-transform duration-500 group-hover:scale-[1.04]"
+                    draggable={false}
+                  />
+                  {linked && (
+                    <span className="absolute top-3 right-3 z-30 text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-500 text-white">
+                      Connected
                     </span>
-                  ) : selected ? (
-                    <span className="text-[10px] font-semibold uppercase tracking-widest opacity-80">Selected</span>
-                  ) : null}
+                  )}
+                  {!linked && selected && (
+                    <span className="absolute top-3 right-3 z-30 text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-full bg-white/90 text-slate-900">
+                      Selected
+                    </span>
+                  )}
                 </div>
-                <p className={`text-xs mt-1 leading-relaxed ${selected ? 'opacity-80' : 'text-slate-500 dark:text-slate-400'}`}>
-                  {printer.tagline}
-                </p>
-                <p className={`text-[11px] mt-2 ${selected ? 'opacity-70' : 'text-slate-400'}`}>
-                  {printer.kind} · {printer.paper}
-                </p>
+                <div className="relative z-10 p-4 bg-white dark:bg-slate-950">
+                  <span className="text-sm font-bold tracking-wide text-slate-900 dark:text-slate-100">{printer.name}</span>
+                  <p className="text-xs mt-1 leading-relaxed text-slate-500 dark:text-slate-400">
+                    {printer.tagline}
+                  </p>
+                  <p className="text-[11px] mt-2 text-slate-400">
+                    {printer.kind} · {printer.paper}
+                  </p>
+                </div>
               </button>
             )
           })}

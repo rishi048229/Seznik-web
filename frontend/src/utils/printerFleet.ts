@@ -1,4 +1,7 @@
-export type PrinterFleetModel = 'TEJ' | 'DEV' | 'VEER' | 'JOSH'
+import veerPhoto from '@/assets/veer.jpg'
+import devPhoto from '@/assets/Dev.jpg'
+
+export type PrinterFleetModel = 'VEER' | 'DEV'
 
 export const PREFERRED_PRINTER_KEY = 'seznik.preferredPrinterModel'
 export const CONNECTED_PRINTER_KEY = 'seznik.connectedPrinterModel'
@@ -9,6 +12,7 @@ export interface PrinterFleetInfo {
   tagline: string
   paper: string
   kind: string
+  photo: string
   receiptWidth: '58mm' | '80mm'
   connectionType: 'bluetooth' | 'system_driver'
   labelPrinterMode: 'tspl' | 'escpos'
@@ -18,35 +22,12 @@ export interface PrinterFleetInfo {
 
 export const PRINTER_FLEET: PrinterFleetInfo[] = [
   {
-    id: 'TEJ',
-    name: 'TEJ',
-    tagline: '2-in-1 thermal POS receipt & die-cut label printer',
-    paper: '50mm / 2-inch',
-    kind: 'Receipt + labels',
-    receiptWidth: '58mm',
-    connectionType: 'bluetooth',
-    labelPrinterMode: 'tspl',
-    labelWidth: 50,
-    labelHeight: 30,
-  },
-  {
-    id: 'DEV',
-    name: 'DEV',
-    tagline: '2-in-1 Bluetooth POS & label printer',
-    paper: '58mm',
-    kind: 'Receipt + labels',
-    receiptWidth: '58mm',
-    connectionType: 'bluetooth',
-    labelPrinterMode: 'tspl',
-    labelWidth: 50,
-    labelHeight: 30,
-  },
-  {
     id: 'VEER',
     name: 'VEER',
     tagline: 'Portable 58mm thermal POS receipt printer',
     paper: '58mm',
     kind: 'Receipts',
+    photo: veerPhoto,
     receiptWidth: '58mm',
     connectionType: 'bluetooth',
     labelPrinterMode: 'escpos',
@@ -54,11 +35,12 @@ export const PRINTER_FLEET: PrinterFleetInfo[] = [
     labelHeight: 30,
   },
   {
-    id: 'JOSH',
-    name: 'JOSH',
-    tagline: 'Dedicated barcode & QR label printer',
-    paper: 'Labels',
-    kind: 'Labels',
+    id: 'DEV',
+    name: 'DEV',
+    tagline: 'Bluetooth POS receipt & label printer',
+    paper: '58mm',
+    kind: 'Receipt + labels',
+    photo: devPhoto,
     receiptWidth: '58mm',
     connectionType: 'bluetooth',
     labelPrinterMode: 'tspl',
@@ -68,7 +50,7 @@ export const PRINTER_FLEET: PrinterFleetInfo[] = [
 ]
 
 const isFleetModel = (value: string | null): value is PrinterFleetModel =>
-  value === 'TEJ' || value === 'DEV' || value === 'VEER' || value === 'JOSH'
+  value === 'VEER' || value === 'DEV'
 
 export const getPreferredPrinterModel = (): PrinterFleetModel | null => {
   try {
