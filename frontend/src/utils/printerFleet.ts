@@ -24,7 +24,7 @@ export const PRINTER_FLEET: PrinterFleetInfo[] = [
   {
     id: 'VEER',
     name: 'VEER',
-    tagline: 'Portable 58mm thermal POS receipt printer',
+    tagline: '58mm portable receipt printer',
     paper: '58mm',
     kind: 'Receipts',
     photo: veerPhoto,
@@ -37,7 +37,7 @@ export const PRINTER_FLEET: PrinterFleetInfo[] = [
   {
     id: 'DEV',
     name: 'DEV',
-    tagline: 'Bluetooth POS receipt & label printer',
+    tagline: '58mm Bluetooth receipt & labels',
     paper: '58mm',
     kind: 'Receipt + labels',
     photo: devPhoto,
