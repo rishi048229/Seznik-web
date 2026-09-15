@@ -20,13 +20,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5000/api"
+        "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5001/api"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5000/api"
+        "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5001/api"
       },
       "android": {
         "buildType": "apk"
