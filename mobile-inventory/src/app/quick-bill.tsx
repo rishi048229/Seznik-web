@@ -9,7 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Zap, Plus, Trash2 } from 'lucide-react-native';
 import { useSettings } from '@/hooks/useSettings';
@@ -39,6 +39,7 @@ interface QuickBillRow {
 
 export default function QuickBillScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -384,7 +385,16 @@ export default function QuickBillScreen() {
             </TouchableOpacity>
           </ScrollView>
 
-          <View style={[styles.footerBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
+          <View
+            style={[
+              styles.footerBar,
+              {
+                backgroundColor: theme.cardBg,
+                borderTopColor: theme.borderColor,
+                paddingBottom: Math.max(16, insets.bottom + 8),
+              },
+            ]}
+          >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 6 }}>
                 {(['cash', 'upi', 'card'] as const).map((mode) => (

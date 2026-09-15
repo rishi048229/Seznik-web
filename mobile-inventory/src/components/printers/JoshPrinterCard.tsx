@@ -47,6 +47,10 @@ export function JoshPrinterCard() {
   const [connected, setConnected] = useState<{ address: string; name: string } | null>(null);
   const [showTipModal, setShowTipModal] = useState(false);
 
+  const pairedPrinters = usePrinterStore((s) => s.pairedPrinters);
+  const scannedDevices = usePrinterStore((s) => s.scannedDevices);
+  const scanForDevices = usePrinterStore((s) => s.scanForDevices);
+
   const refreshConnection = useCallback(async () => {
     if (!JoshLabelPrinter) return;
     try {
@@ -61,38 +65,6 @@ export function JoshPrinterCard() {
       setConnected(null);
     }
   }, []);
-
-  useEffect(() => {
-    if (!supported || !JoshLabelPrinter) return;
-
-    Promise.resolve()
-      .then(() => ThermalPrinterService.joshEnsureConnected())
-      .catch(() => {})
-      .then(refreshConnection);
-
-    getStoredJoshPrinter()
-      .then((saved) => {
-        if (saved) setDevices((prev) => mergeDevices(prev, [{ address: saved.address, name: saved.name }]));
-      })
-      .catch(() => {});
-
-    JoshLabelPrinter.getPairedPrinters()
-      .then((paired) => setDevices((prev) => mergeDevices(prev, paired)))
-      .catch(() => {});
-
-    const foundSub = JoshLabelPrinter.addListener('onPrinterFound', (device) => {
-      setDevices((prev) => mergeDevices(prev, [device]));
-    });
-    const stateSub = JoshLabelPrinter.addListener('onPrinterStateChange', () => {
-      refreshConnection();
-    });
-
-    return () => {
-      foundSub.remove();
-      stateSub.remove();
-      JoshLabelPrinter?.stopDiscovery().catch(() => {});
-    };
-  }, [supported, refreshConnection]);
 
   const ensureBluetoothPermissions = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
@@ -112,8 +84,69 @@ export function JoshPrinterCard() {
     }
   };
 
+  useEffect(() => {
+    if (!supported || !JoshLabelPrinter) return;
+
+    Promise.resolve()
+      .then(() => ThermalPrinterService.joshEnsureConnected())
+      .catch(() => {})
+      .then(refreshConnection);
+
+    // Seed saved printer
+    getStoredJoshPrinter()
+      .then((saved) => {
+        if (saved) setDevices((prev) => mergeDevices(prev, [{ address: saved.address, name: saved.name }]));
+      })
+      .catch(() => {});
+
+    // Seed paired & scanned Bluetooth devices from store
+    const storeDevices = [...(pairedPrinters || []), ...(scannedDevices || [])];
+    if (storeDevices.length > 0) {
+      const initial = storeDevices.map((d) => ({ address: d.id, name: d.name }));
+      setDevices((prev) => mergeDevices(prev, initial));
+    }
+
+    // Ensure permissions and load paired printers
+    ensureBluetoothPermissions().then((ok) => {
+      if (ok && JoshLabelPrinter) {
+        JoshLabelPrinter.getPairedPrinters()
+          .then((paired) => {
+            if (paired && paired.length > 0) {
+              setDevices((prev) => mergeDevices(prev, paired));
+            }
+          })
+          .catch(() => {});
+      }
+    });
+
+    const foundSub = JoshLabelPrinter.addListener('onPrinterFound', (device) => {
+      setDevices((prev) => mergeDevices(prev, [device]));
+    });
+    const stateSub = JoshLabelPrinter.addListener('onPrinterStateChange', () => {
+      refreshConnection();
+    });
+
+    return () => {
+      foundSub.remove();
+      stateSub.remove();
+      JoshLabelPrinter?.stopDiscovery().catch(() => {});
+    };
+  }, [supported, refreshConnection, pairedPrinters, scannedDevices]);
+
   const handleScan = async () => {
     if (!JoshLabelPrinter) return;
+
+    // 1. Immediately seed paired & scanned Bluetooth devices
+    const storeDevices = [...(pairedPrinters || []), ...(scannedDevices || [])];
+    if (storeDevices.length > 0) {
+      const initial = storeDevices.map((d) => ({ address: d.id, name: d.name }));
+      setDevices((prev) => mergeDevices(prev, initial));
+    }
+
+    if (scanForDevices) {
+      scanForDevices().catch(() => {});
+    }
+
     const ok = await ensureBluetoothPermissions();
     if (!ok) {
       Alert.alert('Permission Needed', 'Allow Bluetooth access so the app can find your label printer.');
@@ -121,14 +154,20 @@ export function JoshPrinterCard() {
     }
     setIsScanning(true);
     try {
+      const paired = await JoshLabelPrinter.getPairedPrinters();
+      if (paired && paired.length > 0) {
+        setDevices((prev) => mergeDevices(prev, paired));
+      }
       await JoshLabelPrinter.startDiscovery();
       setTimeout(() => {
-        JoshLabelPrinter?.stopDiscovery().catch(() => {});
+        try {
+          JoshLabelPrinter?.stopDiscovery().catch(() => {});
+        } catch {}
         setIsScanning(false);
       }, 8000);
     } catch (e: any) {
       setIsScanning(false);
-      Alert.alert('Scan Failed', e?.message || 'Could not search for label printers.');
+      console.log('[Josh] Scan error:', e);
     }
   };
 

@@ -175,19 +175,49 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   };
 
   const scanJoshDevices = async () => {
+    // 1. Immediately seed paired & scanned Bluetooth devices from store
+    const storeDevices = [...(pairedPrinters || []), ...(scannedDevices || [])];
+    const initialList: JoshPrinterDevice[] = storeDevices.map((d) => ({ address: d.id, name: d.name }));
+    setJoshDevices((prev) => {
+      const combined = [...prev];
+      for (const d of initialList) {
+        if (d.address && !combined.some((x) => x.address === d.address)) {
+          combined.push(d);
+        }
+      }
+      return combined;
+    });
+
+    if (scanForDevices) {
+      scanForDevices().catch(() => {});
+    }
+
     if (!ThermalPrinterService.isJoshSupported() || !JoshLabelPrinter) return;
     const ok = await ensureAndroidPermissions();
     if (!ok) return;
     setIsJoshScanning(true);
     try {
       const paired = await JoshLabelPrinter.getPairedPrinters();
-      setJoshDevices(paired || []);
+      if (paired && paired.length > 0) {
+        setJoshDevices((prev) => {
+          const combined = [...prev];
+          for (const d of paired) {
+            if (d.address && !combined.some((x) => x.address === d.address)) {
+              combined.push(d);
+            }
+          }
+          return combined;
+        });
+      }
       await JoshLabelPrinter.startDiscovery();
       setTimeout(() => {
-        JoshLabelPrinter?.stopDiscovery().catch(() => {});
+        try {
+          JoshLabelPrinter?.stopDiscovery().catch(() => {});
+        } catch {}
         setIsJoshScanning(false);
       }, 8000);
-    } catch {
+    } catch (e) {
+      console.log('[Josh] scan failed:', e);
       setIsJoshScanning(false);
     }
   };

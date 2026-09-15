@@ -1,15 +1,9 @@
-# EAS runs its own prebuild, so the generated native projects are rebuilt from
-# app.json on the server. Uploading them made the project archive 610 MB, which
-# is slow and risks shipping stale native output that disagrees with the config.
-/android
-/ios
-
-# Local build output and caches — never needed by the builder.
-**/build/
+node_modules/
+android/
+ios/
 .expo/
 .gradle/
-node_modules/.cache/
-
-# Vendored SDK reference material. The JAR the label printer needs lives in
-# modules/josh-label-printer/android/libs and is NOT excluded.
-../backend/src/Android SDK*
+dist/
+build/
+web-build/
+*.log

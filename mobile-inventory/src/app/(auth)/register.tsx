@@ -79,8 +79,8 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Phone OTP Verification State (default 000000)
-  const [phoneOtp, setPhoneOtp] = useState('000000');
+  // Phone OTP Verification State
+  const [phoneOtp, setPhoneOtp] = useState('');
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [phoneResendCooldown, setPhoneResendCooldown] = useState(0);
@@ -178,8 +178,8 @@ export default function RegisterScreen() {
       const res = await sendPhoneOtp(cleanPhone);
       setPhoneOtpSent(true);
       setPhoneResendCooldown(60);
-      setPhoneOtp(res?.devOtp || '000000');
-      setPhoneOtpMessage(res?.message || 'Verification code sent (Default code: 000000)');
+      if (res?.devOtp) setPhoneOtp(res.devOtp);
+      setPhoneOtpMessage(res?.message || 'Verification code sent to your phone');
     } catch (err: any) {
       setErrorMessage(sanitizeErrorMessage(err, 'Failed to send phone OTP. Please try again.'));
     }

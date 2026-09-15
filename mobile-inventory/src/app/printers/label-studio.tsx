@@ -1936,7 +1936,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  quickAddBar: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
+  quickAddBar: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 6, marginTop: 12 },
   quickAddBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, gap: 4 },
   quickAddText: { fontSize: 11, fontWeight: '800' },
   inspectorCard: { borderRadius: 16, padding: 12, borderWidth: 1.5, marginBottom: 10 },

@@ -127,15 +127,24 @@ export default function OnboardingScreen() {
     : '';
 
   useEffect(() => {
-    const profile = resolveStoreProfile(settings, user);
-    if (!businessName.trim() && profile.storeName && profile.storeName !== 'Your Store Name') {
-      setBusinessName(profile.storeName);
+    if (user?.businessName?.trim() && !businessName.trim()) {
+      setBusinessName(user.businessName.trim());
+    } else if (settings?.businessName?.trim() && !businessName.trim()) {
+      setBusinessName(settings.businessName.trim());
     }
-    if (!phone.trim() && profile.storePhone) setPhone(profile.storePhone);
-    if (!businessAddress.trim() && profile.storeAddress) setBusinessAddress(profile.storeAddress);
-    if (!upiId.trim() && (profile.upiId || settings?.upiId)) setUpiId(profile.upiId || settings?.upiId || '');
-    if (!logoUri && (profile.storeLogoUrl || settings?.businessLogoURL)) {
-      setLogoUri(profile.storeLogoUrl || settings?.businessLogoURL || null);
+    if (user?.phone?.trim() && !phone.trim()) {
+      setPhone(user.phone.trim());
+    } else if (settings?.businessPhone?.trim() && !phone.trim()) {
+      setPhone(settings.businessPhone.trim());
+    }
+    if (settings?.businessAddress?.trim() && !businessAddress.trim()) {
+      setBusinessAddress(settings.businessAddress.trim());
+    }
+    if (settings?.upiId?.trim() && !upiId.trim()) {
+      setUpiId(settings.upiId.trim());
+    }
+    if (settings?.businessLogoURL && !logoUri) {
+      setLogoUri(settings.businessLogoURL);
     }
   }, [settings, user]);
 
