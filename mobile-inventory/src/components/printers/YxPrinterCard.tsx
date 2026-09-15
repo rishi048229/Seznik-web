@@ -26,6 +26,7 @@ import ThermalPrinterService from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { PrinterGlowCard } from '@/components/printers/PrinterGlowCard';
 
 /**
  * Connect/disconnect UI for SEZNIK TEJ (TEJ Native SDK) smart label & receipt printers.
@@ -259,6 +260,7 @@ export function YxPrinterCard() {
   if (!supported) return null;
 
   return (
+    <PrinterGlowCard active={!!connected} borderRadius={16}>
     <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: connected ? '#10B981' : theme.borderColor }]}>
       <View style={styles.headerRow}>
         <View style={styles.printerImageWrap}>
@@ -395,6 +397,7 @@ export function YxPrinterCard() {
         </View>
       ) : null}
     </View>
+    </PrinterGlowCard>
   );
 }
 

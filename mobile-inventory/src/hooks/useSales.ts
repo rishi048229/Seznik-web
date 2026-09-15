@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi } from '@/api/sales';
 import { refreshApiBaseUrl } from '@/api/client';
 import { CreateSalePayload, Sale } from '@/types/sale';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export function useSales() {
   const queryClient = useQueryClient();
@@ -14,18 +15,24 @@ export function useSales() {
 
   const createSaleMutation = useMutation({
     mutationFn: (payload: CreateSalePayload) => salesApi.createSale(payload),
-    onSuccess: () => {
+    onSuccess: (createdSale, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['reports', 'dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['reports', 'trend'] });
-      // A sale can create/grow a customer's credit (paymentMethod: 'credit') and always affects
-      // today's cashflow — without these, a fresh credit bill wouldn't show up on the Daybook or
-      // that customer's account page until something else happened to trigger a refetch.
       queryClient.invalidateQueries({ queryKey: ['daybook'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['customerLedger'] });
       queryClient.invalidateQueries({ queryKey: ['remindersDue'] });
+
+      // Trigger credit reminder if sale was made on credit
+      if (variables?.paymentMethod === 'credit' && variables.customerId) {
+        useNotificationStore.getState().triggerCreditReminder({
+          id: variables.customerId,
+          name: createdSale?.customerName || 'Customer',
+          amountDue: createdSale?.grandTotal || variables.grandTotal || 0,
+        }).catch(() => {});
+      }
     },
   });
 

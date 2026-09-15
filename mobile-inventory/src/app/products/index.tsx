@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -185,17 +185,33 @@ export default function ProductsScreen() {
   ];
 
   const outOfStockCount = products.filter((p) => p.currentStock <= 0).length;
-  const lowStockCount = products.filter((p) => p.currentStock > 0 && p.currentStock <= p.lowStockThreshold).length;
-  const totalStockValue = products.reduce((sum, p) => sum + (p.costPrice || p.sellingPrice) * Math.max(0, p.currentStock), 0);
-  const unavailableCount = products.filter((p) => !isProductAvailable(p)).length;
+  // These three ran unmemoized on every render — cheap at a few dozen products, but a real,
+  // avoidable cost at a few thousand, and one that fired on every single search keystroke
+  // too (a state update re-renders the whole component regardless of what changed). None of
+  // the three actually depend on searchQuery, so useMemo(products) is a pure win, not just a
+  // micro-optimization piled on top of the deferred-search fix below.
+  const lowStockCount = useMemo(
+    () => products.filter((p) => p.currentStock > 0 && p.currentStock <= p.lowStockThreshold).length,
+    [products]
+  );
+  const totalStockValue = useMemo(
+    () => products.reduce((sum, p) => sum + (p.costPrice || p.sellingPrice) * Math.max(0, p.currentStock), 0),
+    [products]
+  );
+  const unavailableCount = useMemo(() => products.filter((p) => !isProductAvailable(p)).length, [products]);
+
+  // Deferred, not the raw keystroke value — see the identical fix (and full reasoning) in
+  // (tabs)/pos.tsx's filteredProducts. Same cost shape at this product-count scale, same fix.
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const filteredProducts = useMemo(() => products.filter((p) => {
+    const q = deferredSearchQuery.toLowerCase();
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.barcode && p.barcode.includes(searchQuery));
+      p.name.toLowerCase().includes(q) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q));
     const matchesCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
     return matchesSearch && matchesCategory;
-  }), [products, searchQuery, selectedCategoryId]);
+  }), [products, deferredSearchQuery, selectedCategoryId]);
 
   const enrichProductDetails = async (p: Product): Promise<Product> => {
     if (p.imageUrl) return p;

@@ -684,7 +684,7 @@ class JoshLabelPrinterModule : Module() {
         }
 
         val fontMetrics = paint.fontMetrics
-        val baseline = yPx - fontMetrics.top
+        val baseline = yPx - fontMetrics.ascent
         canvas.drawText(value, drawX, baseline, paint)
       }
       "barcode" -> {
@@ -694,9 +694,7 @@ class JoshLabelPrinterModule : Module() {
         val barcodeH = if (hPx > 0) hPx.toInt() else 80
         val type = finiteInt(el["barcodeType"], 60)
         val requestedTextHeight = (finite(el["textHeight"], 3.0) * fit * dotsPerMm).toFloat()
-        // The human-readable digits have to fit inside this element's own box. The old
-        // floor of 30 dots on the bar height let the digit strip run past the bottom
-        // edge on short barcodes, printing on top of the price/MRP text underneath.
+        // The human-readable digits have to fit inside this element's own box.
         val textHeight = if (requestedTextHeight > 0f) requestedTextHeight.coerceAtMost(barcodeH * 0.4f) else 0f
         val showText = textHeight >= 10f
         val barOnlyHeight = (if (showText) barcodeH - textHeight.toInt() else barcodeH).coerceAtLeast(1)
@@ -713,8 +711,7 @@ class JoshLabelPrinterModule : Module() {
               typeface = Typeface.DEFAULT
               textAlign = Paint.Align.CENTER
             }
-            // Baseline sits on the box's bottom edge less the descent, so no glyph
-            // can ever spill below yPx + barcodeH.
+            // Baseline sits on the box's bottom edge less the descent
             val textY = yPx + barcodeH - textPaint.fontMetrics.descent
             canvas.drawText(value, xPx + barcodeW / 2f, textY, textPaint)
           }
@@ -803,11 +800,14 @@ class JoshLabelPrinterModule : Module() {
       val hints = mapOf(EncodeHintType.MARGIN to 0)
       val matrix = MultiFormatWriter().encode(content, format, widthPx, heightPx, hints)
       val bmp = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
-      for (x in 0 until widthPx) {
-        for (y in 0 until heightPx) {
-          bmp.setPixel(x, y, if (matrix.get(x, y)) Color.BLACK else Color.WHITE)
+      val pixels = IntArray(widthPx * heightPx)
+      for (y in 0 until heightPx) {
+        val offset = y * widthPx
+        for (x in 0 until widthPx) {
+          pixels[offset + x] = if (matrix.get(x, y)) Color.BLACK else Color.WHITE
         }
       }
+      bmp.setPixels(pixels, 0, widthPx, 0, 0, widthPx, heightPx)
       bmp
     } catch (e: Throwable) {
       android.util.Log.w("JoshLabel", "Barcode generation failed: ${e.message}")
@@ -823,11 +823,14 @@ class JoshLabelPrinterModule : Module() {
       val hints = mapOf(EncodeHintType.MARGIN to 0)
       val matrix = MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
       val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-      for (x in 0 until sizePx) {
-        for (y in 0 until sizePx) {
-          bmp.setPixel(x, y, if (matrix.get(x, y)) Color.BLACK else Color.WHITE)
+      val pixels = IntArray(sizePx * sizePx)
+      for (y in 0 until sizePx) {
+        val offset = y * sizePx
+        for (x in 0 until sizePx) {
+          pixels[offset + x] = if (matrix.get(x, y)) Color.BLACK else Color.WHITE
         }
       }
+      bmp.setPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
       bmp
     } catch (e: Throwable) {
       android.util.Log.w("JoshLabel", "QR generation failed: ${e.message}")

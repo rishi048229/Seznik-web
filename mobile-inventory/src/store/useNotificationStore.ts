@@ -100,6 +100,8 @@ interface NotificationState {
       unit?: string;
     }[]
   ) => Promise<void>;
+  triggerDayBookSummary: (totalSales: number, ordersCount: number) => Promise<void>;
+  triggerCreditReminder: (customer: { id?: string; name: string; amountDue: number; phone?: string }) => Promise<void>;
   sendTestNotification: (type?: NotificationType) => Promise<void>;
 }
 
@@ -399,6 +401,41 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set({ lastNotifiedMap: updatedMap });
   },
 
+  triggerDayBookSummary: async (totalSales: number, ordersCount: number) => {
+    const { preferences } = get();
+    if (!preferences.dailySummaryEnabled) return;
+
+    const formattedSales = `₹${(totalSales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    await get().addNotification({
+      id: `daybook_${new Date().toISOString().split('T')[0]}`,
+      title: `📊 Day Book: ${formattedSales} Collected Today`,
+      message: `Total collection today: ${formattedSales} across ${ordersCount} bills. Tap to review day book report.`,
+      type: 'daily_sales_summary',
+      severity: 'info',
+      totalSales,
+      ordersCount,
+      actionUrl: '/reports',
+    });
+  },
+
+  triggerCreditReminder: async (customer: { id?: string; name: string; amountDue: number; phone?: string }) => {
+    const { preferences } = get();
+    if (!preferences.creditDueAlertsEnabled) return;
+
+    const formattedAmount = `₹${(customer.amountDue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    await get().addNotification({
+      id: `credit_${customer.id || customer.name}_${Date.now()}`,
+      title: `💳 Credit Reminder: ${customer.name}`,
+      message: `${customer.name} has ${formattedAmount} pending payment. Tap to view customer ledger.`,
+      type: 'credit_due',
+      severity: 'warning',
+      customerId: customer.id,
+      customerName: customer.name,
+      amount: customer.amountDue,
+      actionUrl: '/credits',
+    });
+  },
+
   sendTestNotification: async (type: NotificationType = 'low_stock') => {
     if (type === 'credit_due') {
       await get().addNotification({
@@ -409,6 +446,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         severity: 'warning',
         customerName: 'Rajesh Verma',
         amount: 2450,
+        actionUrl: '/credits',
       });
     } else if (type === 'daily_sales_summary') {
       await get().addNotification({
@@ -419,6 +457,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         severity: 'info',
         totalSales: 14850,
         ordersCount: 28,
+        actionUrl: '/reports',
       });
     } else if (type === 'announcement') {
       await get().addNotification({
@@ -440,6 +479,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         currentStock: 0,
         lowStockThreshold: 10,
         unit: 'rolls',
+        actionUrl: '/products',
       });
     }
   },

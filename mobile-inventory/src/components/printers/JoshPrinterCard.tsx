@@ -31,6 +31,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useJoshDualModeTip } from '@/hooks/useJoshDualModeTip';
 import { JoshDualModeModal } from '@/components/printers/JoshDualModeModal';
+import { PrinterGlowCard } from '@/components/printers/PrinterGlowCard';
 
 /**
  * Connect/disconnect UI for SEZNIK JOSH (LPAPI) label & receipt printers.
@@ -150,10 +151,9 @@ export function JoshPrinterCard() {
       const success = await ThermalPrinterService.joshConnect(device.address, device.name);
       if (success) {
         await refreshConnection();
+        try { Vibration.vibrate(50); } catch (e) {}
         if (shouldShowTip) {
           setShowTipModal(true);
-        } else {
-          Alert.alert('SEZNIK JOSH Linked', `${device.name} is ready for bills and labels.`);
         }
       } else {
         Alert.alert('Could Not Connect', 'Connection was refused. Ensure printer is on and in range.');
@@ -240,6 +240,7 @@ export function JoshPrinterCard() {
   if (!supported) return null;
 
   return (
+    <PrinterGlowCard active={!!connected} borderRadius={16}>
     <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: connected ? '#10B981' : theme.borderColor }]}>
       <View style={styles.headerRow}>
         <View style={styles.printerImageWrap}>
@@ -374,6 +375,7 @@ export function JoshPrinterCard() {
         }}
       />
     </View>
+    </PrinterGlowCard>
   );
 }
 

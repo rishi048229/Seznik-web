@@ -246,6 +246,170 @@ export async function dispatchLocalStockNotification(params: {
 }
 
 /**
+ * Dispatches an instant or scheduled system notification.
+ */
+export async function dispatchSystemNotification(params: {
+  title: string;
+  body: string;
+  type: string;
+  severity?: StockAlertSeverity | 'info';
+  channelId?: string;
+  delaySeconds?: number;
+  data?: Record<string, any>;
+}): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
+  const Notifications = getSafeNotificationsModule();
+  if (!Notifications || typeof Notifications.scheduleNotificationAsync !== 'function') {
+    return null;
+  }
+
+  try {
+    await initializeNotificationChannel();
+
+    const priority = Notifications.AndroidNotificationPriority?.HIGH ?? 2;
+
+    const trigger =
+      typeof params.delaySeconds === 'number' && params.delaySeconds > 0
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes?.TIME_INTERVAL || 'timeInterval',
+            seconds: params.delaySeconds,
+            channelId: params.channelId || 'inventory-alerts',
+          }
+        : null;
+
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: params.title,
+        body: params.body,
+        sound: true,
+        priority,
+        vibrate: [0, 250, 250, 250],
+        data: {
+          type: params.type,
+          severity: params.severity || 'info',
+          ...(params.data || {}),
+        },
+      },
+      trigger: trigger as any,
+    });
+
+    return notificationId;
+  } catch (err) {
+    console.warn('[NotificationService] Failed to schedule system notification:', err);
+    return null;
+  }
+}
+
+/**
+ * Formats and dispatches a Day Book / Total daily collection summary notification.
+ */
+export async function dispatchDayBookNotification(summary: {
+  totalSales: number;
+  ordersCount: number;
+  dateStr?: string;
+}): Promise<string | null> {
+  const formattedSales = `₹${(summary.totalSales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const title = `📊 Day Book: ${formattedSales} Collected Today`;
+  const body = `Total collection: ${formattedSales} across ${summary.ordersCount || 0} bills. Tap to open full Day Book report.`;
+
+  return dispatchSystemNotification({
+    title,
+    body,
+    type: 'daily_sales_summary',
+    severity: 'info',
+    data: {
+      type: 'daily_sales_summary',
+      screen: '/reports',
+      totalSales: summary.totalSales,
+      ordersCount: summary.ordersCount,
+    },
+  });
+}
+
+/**
+ * Formats and dispatches a Customer Credit balance reminder notification.
+ */
+export async function dispatchCreditReminderNotification(customer: {
+  id?: string;
+  name: string;
+  amountDue: number;
+  phone?: string;
+}): Promise<string | null> {
+  const formattedAmount = `₹${(customer.amountDue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const title = `💳 Credit Reminder: ${customer.name}`;
+  const body = `${customer.name} has ${formattedAmount} pending payment. Tap to view customer ledger and send WhatsApp reminder.`;
+
+  return dispatchSystemNotification({
+    title,
+    body,
+    type: 'credit_due',
+    severity: 'urgent',
+    data: {
+      type: 'credit_due',
+      screen: '/credits',
+      customerId: customer.id,
+      customerName: customer.name,
+      amount: customer.amountDue,
+    },
+  });
+}
+
+/**
+ * Handles deep-link routing when any system notification is tapped by the user.
+ */
+export function handleNotificationNavigation(data: any, router: any): void {
+  if (!data || !router) return;
+
+  try {
+    // 1. Direct explicit screen link
+    if (data.screen) {
+      router.push(data.screen);
+      return;
+    }
+
+    // 2. Action URL
+    if (data.actionUrl) {
+      router.push(data.actionUrl);
+      return;
+    }
+
+    // 3. Low stock / Out of stock -> Navigate to products catalog
+    if (
+      data.type === 'low_stock' ||
+      data.type === 'out_of_stock' ||
+      data.type === 'critical_stock' ||
+      data.productId
+    ) {
+      router.push('/products');
+      return;
+    }
+
+    // 4. Day Book / Daily sales summary -> Navigate to reports
+    if (data.type === 'daily_sales_summary' || data.type === 'daybook') {
+      router.push('/reports');
+      return;
+    }
+
+    // 5. Credit / Payment Due -> Navigate to credits ledger
+    if (data.type === 'credit_due' || data.type === 'payment_due' || data.customerId) {
+      router.push('/credits');
+      return;
+    }
+
+    // 6. Invoices / Sales
+    if (data.type === 'invoice' || data.invoiceId) {
+      router.push('/(tabs)/invoices');
+      return;
+    }
+  } catch (err) {
+    console.warn('[NotificationService] Deep link navigation failed:', err);
+  }
+}
+
+/**
  * Subscribes safely to notification tap/response events for deep linking.
  */
 export function subscribeToNotificationResponses(onResponse: (data: any) => void): () => void {

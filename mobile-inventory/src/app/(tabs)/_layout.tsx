@@ -41,9 +41,12 @@ export default function TabsLayout() {
       // makes the first interaction compete with several data-heavy screens.
       lazy: true,
       freezeOnBlur: true,
-      // POS navigation should acknowledge a tap immediately; reserve motion
-      // for modal/task feedback rather than making screen changes wait.
-      animation: 'none' as const,
+      // 'shift' (not 'fade'/'default') deliberately keeps the "a tap must feel instant"
+      // property the previous 'none' was protecting: it's a GPU-composited translateX on
+      // already-mounted scene content — the tab bar's active state and the new screen are
+      // both live the instant you tap, the animation is purely how the outgoing/incoming
+      // content visually slides past each other, not a transition the tap waits on.
+      animation: 'shift' as const,
       sceneStyle: { backgroundColor: isDark ? '#000000' : '#F8FAFC' },
       tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
       tabBarInactiveTintColor: isDark ? BRAND_COLORS.slate400 : '#64748B',

@@ -28,6 +28,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import { getCachedSettings } from '@/hooks/useSettings';
+import { PrinterGlowCard } from '@/components/printers/PrinterGlowCard';
 
 interface SeznikPrinterGridProps {
   onSelectModel?: (model: SeznikPrinterModel) => void;
@@ -207,8 +208,14 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
         const isSelected = selectedModelId === model.id || (connectedPrinterModel === model.id && isConnected);
 
         return (
-          <View
+          <PrinterGlowCard
             key={model.id}
+            active={isConnected}
+            highlighted={isSelected && !isConnected}
+            glowColor={isConnected ? '#10B981' : BRAND_COLORS.blue600}
+            borderRadius={16}
+          >
+          <View
             style={[
               styles.modelCard,
               {
@@ -385,6 +392,7 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
               </View>
             ) : null}
           </View>
+          </PrinterGlowCard>
         );
       })}
     </View>

@@ -53,6 +53,22 @@ import {
 import ThermalPrinterService from '@/services/PrinterService';
 import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import {
+  isOfflineOcrSupported,
+  recognizeBillFromImage,
+  recognizeBillFromPdf,
+} from '../../../modules/offline-bill-ocr';
+import { parseUtilityBillText } from '@/services/UtilityBillParser';
+
+/** Cheap keyword classifier for the screen's billType filter/badge — the deterministic
+ *  parser itself only needs to name the provider, not bucket it, so this stays local. */
+function detectUtilityBillType(providerName: string, rawText: string): string {
+  const probe = `${providerName} ${rawText.slice(0, 400)}`;
+  if (/water|jal\s*board|sewerage|bwssb|djb\b/i.test(probe)) return 'WATER';
+  if (/\bgas\b|indraprastha|igl\b|mahanagar\s*gas|\bmgl\b|adani\s*(total\s*)?gas/i.test(probe)) return 'GAS';
+  if (/broadband|telecom|airtel|jio\b|bsnl|vodafone|\bvi\b/i.test(probe)) return 'BROADBAND';
+  return 'ELECTRICITY';
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -140,12 +156,43 @@ export default function A4ToReceiptScreen() {
     setConverterModalVisible(true);
   };
 
-  // Convert image/file to base64 and call backend AI extraction
+  // Extract bill fields from a photographed/picked page. Offline, on-device ML Kit OCR
+  // (modules/offline-bill-ocr, already built into this app but never wired up here) plus
+  // a deterministic regex parser (UtilityBillParser) — no cloud round-trip, no per-scan AI
+  // cost, and no dependency on a model name / API key / network call ever succeeding. The
+  // previous version of this function called the backend's Gemini-based /extract endpoint,
+  // which is why the "click the image and it fills out" step wasn't working: that endpoint
+  // chains up to 4 Gemini model attempts at up to 35s each, but the request here only waited
+  // 40s total — a slow or failing model made the whole call time out client-side before the
+  // backend could ever finish or fall back on its own. The offline path runs entirely on the
+  // phone and typically finishes in well under a second. Gemini is kept as a fallback only
+  // for platforms where the native OCR module isn't available (iOS, web).
   const processImageOrPdf = async (uri: string, mimeType: string) => {
     try {
       setScannerStep('processing');
-      setExtractingMsg('Analyzing A4 bill structure...');
+      const isPdf = mimeType.toLowerCase().includes('pdf');
 
+      if (isOfflineOcrSupported()) {
+        setExtractingMsg('Scanning bill offline (on-device OCR)...');
+        const ocrResult = isPdf ? await recognizeBillFromPdf(uri) : await recognizeBillFromImage(uri);
+
+        setExtractingMsg('Reading consumer & billing fields...');
+        const parsed = parseUtilityBillText(ocrResult.fullText);
+
+        setBillType(detectUtilityBillType(parsed.providerName, ocrResult.fullText));
+        setProvider(parsed.providerName || '');
+        setConsumerNumber(parsed.consumerNo || '');
+        setConsumerName(parsed.consumerName || '');
+        setDueDate(parsed.dueDate || '');
+        setUnitsConsumed(parsed.unitsConsumed || '');
+        setBillAmount(parsed.billAmount > 0 ? parsed.billAmount.toString() : '');
+
+        setScannerStep('edit');
+        return;
+      }
+
+      // Fallback for platforms without the native OCR module (iOS / web dev builds).
+      setExtractingMsg('Analyzing A4 bill structure...');
       const base64Data = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -457,7 +504,7 @@ export default function A4ToReceiptScreen() {
           <View style={styles.heroTextWrap}>
             <Text style={styles.heroTitle}>⚡ Convert A4 Bill to Thermal Slip</Text>
             <Text style={styles.heroSub}>
-              Camera • Photo • PDF OCR AI Extraction
+              Camera • Photo • PDF • 100% Offline OCR
             </Text>
           </View>
           <View style={styles.heroBtnPill}>
@@ -650,7 +697,7 @@ export default function A4ToReceiptScreen() {
             </TouchableOpacity>
             <Text style={[styles.modalHeaderTitle, { color: theme.textPrimary }]}>
               {scannerStep === 'source' && 'Select A4 Bill'}
-              {scannerStep === 'processing' && 'AI Extraction'}
+              {scannerStep === 'processing' && 'Scanning Bill'}
               {scannerStep === 'edit' && 'Review & Print Slip'}
               {scannerStep === 'success' && 'Bill Printed!'}
             </Text>
@@ -666,7 +713,7 @@ export default function A4ToReceiptScreen() {
                   Scan or Upload A4 Utility Bill
                 </Text>
                 <Text style={[styles.sourceSub, { color: theme.textSecondary }]}>
-                  Gemini AI extracts CA number, consumer name, units, due date, and amount strictly with zero fake data.
+                  On-device OCR extracts CA number, consumer name, units, due date, and amount — 100% offline, zero fake data.
                 </Text>
               </View>
 

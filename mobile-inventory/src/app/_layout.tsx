@@ -81,6 +81,11 @@ const queryClient = new QueryClient({
 
 import { AppSplashScreen } from '@/components/ui/AppSplashScreen';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import {
+  subscribeToNotificationResponses,
+  handleNotificationNavigation,
+} from '@/services/notificationService';
 
 
 function AppDataPrefetcher() {
@@ -118,6 +123,12 @@ function RootLayoutNav() {
   useEffect(() => {
     initializeAuth();
     usePrinterStore.getState().hydrateFromSettings().catch(() => {});
+    useNotificationStore.getState().hydrate().catch(() => {});
+
+    // Listen to notification clicks and route user directly to the target screen
+    const unsubNotifs = subscribeToNotificationResponses((data) => {
+      handleNotificationNavigation(data, router);
+    });
 
     // Guarantee splash dismiss within 600ms on all devices
     const timer = setTimeout(() => {
@@ -125,8 +136,9 @@ function RootLayoutNav() {
     }, 600);
     return () => {
       clearTimeout(timer);
+      unsubNotifs();
     };
-  }, []);
+  }, [router]);
 
   // Mounted at the root, for the whole app lifetime, because every screen gates printing on
   // connectionState. Subscribing from a screen instead means printer drops go unnoticed whenever
@@ -181,7 +193,7 @@ function RootLayoutNav() {
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
-          animationDuration: 220,
+          animationDuration: 280,
           gestureEnabled: true,
         }}
       >

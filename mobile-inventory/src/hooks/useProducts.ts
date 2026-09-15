@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { writeCatalogCache } from '@/services/catalogCache';
 import { productsQueryKey } from '@/services/prefetchAppData';
 import { CreateProductPayload, Product, StockAdjustmentPayload } from '@/types/product';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export function useProducts(options?: { includeLowStock?: boolean }) {
   const queryClient = useQueryClient();
@@ -18,6 +19,9 @@ export function useProducts(options?: { includeLowStock?: boolean }) {
       if (userId) {
         await writeCatalogCache(userId, list);
       }
+      if (Array.isArray(list) && list.length > 0) {
+        useNotificationStore.getState().evaluateStockConditions(list).catch(() => {});
+      }
       return list;
     },
     enabled: !!userId,
@@ -26,7 +30,13 @@ export function useProducts(options?: { includeLowStock?: boolean }) {
 
   const lowStockQuery = useQuery({
     queryKey: ['products', 'low-stock', userId],
-    queryFn: () => productsApi.getLowStockProducts(),
+    queryFn: async () => {
+      const lowStockList = await productsApi.getLowStockProducts();
+      if (Array.isArray(lowStockList) && lowStockList.length > 0) {
+        useNotificationStore.getState().evaluateStockConditions(lowStockList).catch(() => {});
+      }
+      return lowStockList;
+    },
     enabled: !!userId && includeLowStock,
     staleTime: 1000 * 60 * 5,
   });

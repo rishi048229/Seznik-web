@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -233,17 +233,26 @@ function PosScreen() {
   // Kept as a local alias — this screen references bare `isDark` in several inline styles below.
   const isDark = theme.isDark;
 
+  // Deferred, not the raw keystroke value: at a few thousand products this filter is a
+  // real, measurable cost (three .includes() checks per item), and re-running it inside
+  // every keystroke's own render — the previous behavior — was blocking the same JS thread
+  // the TextInput needs to show the character you just typed, which is exactly what read
+  // as "lag" while searching. useDeferredValue keeps the input itself always immediately
+  // responsive and lets React drop a still-in-flight filter pass for a newer keystroke
+  // instead of finishing stale work, rather than a fixed debounce delay which cannot.
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const filteredProducts = useMemo(() => products.filter((p) => {
     if (!p.isActive) return false;
     const matchesCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
-    const q = searchQuery.trim().toLowerCase();
+    const q = deferredSearchQuery.trim().toLowerCase();
     const matchesQuery = !q
       ? true
       : p.name.toLowerCase().includes(q) ||
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
         (p.sku && p.sku.toLowerCase().includes(q));
     return matchesCategory && matchesQuery;
-  }), [products, selectedCategoryId, searchQuery]);
+  }), [products, selectedCategoryId, deferredSearchQuery]);
 
   const categoryProductCounts = useMemo(() => {
     const byCategory = new Map<string, number>();
