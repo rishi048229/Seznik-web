@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export const UNIT_OPTIONS: Array<{
   id: number;
@@ -198,6 +199,6 @@ export async function downloadBulkUploadTemplate(format: 'xlsx' | 'csv' = 'xlsx'
     }
   } catch (error: any) {
     console.error('Failed to generate template:', error);
-    Alert.alert('Error', error?.message || 'Failed to download bulk upload template');
+    Alert.alert('Error', sanitizeErrorMessage(error, 'Failed to download bulk upload template. Please try again.'));
   }
 }

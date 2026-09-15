@@ -29,6 +29,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import { getCachedSettings } from '@/hooks/useSettings';
 import { PrinterGlowCard } from '@/components/printers/PrinterGlowCard';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface SeznikPrinterGridProps {
   onSelectModel?: (model: SeznikPrinterModel) => void;
@@ -186,11 +187,10 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
               copies: 1,
             })
           );
-          Alert.alert('Test Receipt Sent!', 'Diagnostic print job sent to your thermal printer.');
         }
       }
     } catch (err: any) {
-      Alert.alert('Print Error', err?.message || 'Failed to print test receipt.');
+      Alert.alert('Print Error', sanitizeErrorMessage(err, 'Failed to print test receipt. Please verify printer connection and paper roll.'));
     } finally {
       setIsPrintingTest(false);
     }

@@ -8,6 +8,7 @@ import { useRecordSupplierPayment } from '@/hooks/useSuppliers'
 import { formatINR } from '@/utils/currency'
 import { IndianRupee, CreditCard, Calendar, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import type { Purchase } from '@/types/purchase.types'
 import type { Supplier } from '@/types/supplier.types'
 
@@ -67,7 +68,7 @@ export const RecordPurchasePaymentModal = ({
             onClose()
           },
           onError: (err) => {
-            toast.error(err instanceof Error ? err.message : 'Failed to record payment')
+            toastError(err, 'Failed to record purchase payment')
           },
         }
       )
@@ -88,7 +89,7 @@ export const RecordPurchasePaymentModal = ({
             onClose()
           },
           onError: (err) => {
-            toast.error(err instanceof Error ? err.message : 'Failed to record supplier payment')
+            toastError(err, 'Failed to record supplier payment')
           },
         }
       )

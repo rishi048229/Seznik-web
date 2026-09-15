@@ -38,6 +38,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import ThermalPrinterService from '@/services/PrinterService';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { useLabelPrinterStatus } from '@/hooks/useLabelPrinterStatus';
 import {
   isOfflineOcrSupported,
@@ -92,7 +93,7 @@ export const A4BillConverterModal: React.FC<A4BillConverterModalProps> = ({
 
       await processFile(asset.uri, isPdf);
     } catch (e: any) {
-      Alert.alert('File Picker Error', e?.message || 'Could not select document');
+      Alert.alert('File Picker Error', sanitizeErrorMessage(e, 'Could not select document. Please try again.'));
     }
   };
 
@@ -106,7 +107,7 @@ export const A4BillConverterModal: React.FC<A4BillConverterModalProps> = ({
       if (result.canceled || !result.assets || result.assets.length === 0) return;
       await processFile(result.assets[0].uri, false);
     } catch (e: any) {
-      Alert.alert('Gallery Error', e?.message || 'Could not pick image');
+      Alert.alert('Gallery Error', sanitizeErrorMessage(e, 'Could not pick image. Please check permissions.'));
     }
   };
 
@@ -125,7 +126,7 @@ export const A4BillConverterModal: React.FC<A4BillConverterModalProps> = ({
       if (result.canceled || !result.assets || result.assets.length === 0) return;
       await processFile(result.assets[0].uri, false);
     } catch (e: any) {
-      Alert.alert('Camera Error', e?.message || 'Could not capture photo');
+      Alert.alert('Camera Error', sanitizeErrorMessage(e, 'Could not capture photo. Please try again.'));
     }
   };
 
@@ -184,7 +185,7 @@ export const A4BillConverterModal: React.FC<A4BillConverterModalProps> = ({
       setParsedBill(parsed);
       setPreviewUri(displayUri);
     } catch (e: any) {
-      Alert.alert('OCR Processing Error', e?.message || 'Could not extract text from document. You can still fill details manually.');
+      Alert.alert('OCR Processing Error', sanitizeErrorMessage(e, 'Could not extract text from document. You can still fill details manually.'));
       // Provide an empty editable template so the user is never blocked
       setParsedBill({
         providerName: 'Electricity Utility Bill',
@@ -228,7 +229,7 @@ export const A4BillConverterModal: React.FC<A4BillConverterModalProps> = ({
         Alert.alert('Print Failed', 'Could not send receipt to printer. Please verify printer connection.');
       }
     } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Failed to print receipt.');
+      Alert.alert('Print Error', sanitizeErrorMessage(e, 'Failed to print receipt. Please check printer connection.'));
     } finally {
       setIsPrinting(false);
     }

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 export const getCustomers = async (req: Request, res: Response) => {
   try {
@@ -16,7 +17,7 @@ export const getCustomers = async (req: Request, res: Response) => {
     });
     res.json(customers);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch customers' });
+    handleApiError(res, error, 'Failed to fetch customers');
   }
 };
 
@@ -32,7 +33,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
     }
     res.json(customer);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch customer' });
+    handleApiError(res, error, 'Failed to fetch customer details');
   }
 };
 
@@ -46,7 +47,7 @@ export const createCustomer = async (req: Request, res: Response) => {
     });
     res.status(201).json(customer);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create customer' });
+    handleApiError(res, error, 'Failed to create customer');
   }
 };
 
@@ -117,9 +118,7 @@ export const bulkCreateCustomers = async (req: Request, res: Response) => {
       skipped: candidates.length - result.count,
     });
   } catch (error) {
-    console.error('bulkCreateCustomers error:', error);
-    const detail = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: `Failed to import customers: ${detail}` });
+    handleApiError(res, error, 'Failed to import customers');
   }
 };
 
@@ -135,7 +134,7 @@ export const updateCustomer = async (req: Request, res: Response) => {
     });
     res.json({ success: true, count: customer.count });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update customer' });
+    handleApiError(res, error, 'Failed to update customer');
   }
 };
 
@@ -149,6 +148,6 @@ export const deleteCustomer = async (req: Request, res: Response) => {
     });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete customer' });
+    handleApiError(res, error, 'Failed to delete customer — please check for linked sales or credit ledgers');
   }
 };

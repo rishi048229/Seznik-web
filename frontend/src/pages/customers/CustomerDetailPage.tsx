@@ -16,6 +16,7 @@ import { formatINR } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import type { Customer, CreditTransaction } from '@/types/customer.types'
 
 
@@ -97,7 +98,7 @@ export const CustomerDetailPage = () => {
           setPaymentNotes('')
         },
         onError: (err: unknown) => {
-          toast.error(err instanceof Error ? err.message : t('customers.errFailedRecordPayment'))
+          toastError(err, t('customers.errFailedRecordPayment'))
         }
       }
     )

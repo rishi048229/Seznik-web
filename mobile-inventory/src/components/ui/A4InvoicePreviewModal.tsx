@@ -21,6 +21,7 @@ import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { saleToPrintSaleData, shareInvoicePdf } from '@/utils/invoiceActions';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface A4InvoicePreviewModalProps {
   visible: boolean;
@@ -103,7 +104,7 @@ export function A4InvoicePreviewModal({ visible, sale, onClose }: A4InvoicePrevi
     try {
       await shareInvoicePdf(sale, storeProfile);
     } catch (err: any) {
-      Alert.alert('Share Failed', err?.message || 'Could not share the A4 invoice PDF.');
+      Alert.alert('Share Failed', sanitizeErrorMessage(err, 'Could not share the A4 invoice PDF.'));
     } finally {
       setSharing(false);
     }

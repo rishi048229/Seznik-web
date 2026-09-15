@@ -4,6 +4,7 @@ import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
 import { calculateReturnSummary, ReturnItemRequest, round2 } from '../utils/saleReturnCalculator';
 import { calculateGstBill } from '../utils/gstTaxEngine';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 export const createSaleExchange = async (req: Request, res: Response) => {
   try {
@@ -461,8 +462,7 @@ export const createSaleExchange = async (req: Request, res: Response) => {
       settlementMethod,
     });
   } catch (error: any) {
-    console.error('createSaleExchange error:', error);
-    return res.status(500).json({ error: error?.message || 'Failed to process exchange' });
+    return handleApiError(res, error, 'Failed to process exchange. Please check return items and replacement items.');
   }
 };
 

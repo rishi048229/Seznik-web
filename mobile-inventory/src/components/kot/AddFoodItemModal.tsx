@@ -26,6 +26,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface AddFoodItemModalProps {
   visible: boolean;
@@ -125,7 +126,7 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
 
       Alert.alert('Food Item Added!', `"${trimmedName}" is now live on your food menu.`);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create food item');
+      Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to create food item. Please check item details and try again.'));
     }
   };
 

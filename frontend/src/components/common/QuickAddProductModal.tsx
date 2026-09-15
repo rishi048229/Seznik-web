@@ -11,6 +11,7 @@ import { buildCategoryOptions } from '@/utils/categoryTree'
 import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
 import { Plus, Wand2, Sparkles, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 type BarcodeType = 'CODE128' | 'EAN13' | 'QR'
@@ -116,7 +117,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
           setShowInlineCategory(false)
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to create category')
+          toastError(err, 'Failed to create category')
         },
       }
     )
@@ -181,7 +182,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
         onClose()
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to create product')
+        toastError(err, 'Failed to create product. A product with this barcode or name may already exist.')
       },
     })
   }

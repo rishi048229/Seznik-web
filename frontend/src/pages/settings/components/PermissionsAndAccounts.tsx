@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { getAllUsers, saveManagedUser, saveManagedUsers, updateManagedUserPasswordDirectly } from '@/services/authService'
 import { validatePassword } from '@/utils/password'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 interface ManagedUser extends UserProfile {
@@ -150,7 +151,7 @@ export const PermissionsAndAccounts = () => {
       setPasswordForm({ newPassword: '', confirmPassword: '' })
     } catch (err: any) {
       console.error('Password update failed:', err)
-      toast.error(err.message || 'Failed to update agent password')
+      toastError(err, 'Failed to update agent password')
     }
   }
 
@@ -165,7 +166,7 @@ export const PermissionsAndAccounts = () => {
       toast.success(t('permissions.passwordResetDefault'))
     } catch (err: any) {
       console.error('Password reset failed:', err)
-      toast.error(err.message || 'Failed to reset agent password')
+      toastError(err, 'Failed to reset agent password')
     }
   }
 

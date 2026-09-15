@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
 import { Save, Printer, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
@@ -239,7 +240,7 @@ export const ReceiptBuilderTab = forwardRef<ReceiptBuilderTabHandle, ReceiptBuil
       })
       toast.success('Test print sent')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Test print failed')
+      toastError(e, 'Test print failed. Please check printer connection.')
     }
   }, [
     working,

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 export const getPurchases = async (req: Request, res: Response) => {
   try {
@@ -156,8 +157,7 @@ export const createPurchase = async (req: Request, res: Response) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    console.error('Error creating purchase:', error);
-    res.status(500).json({ error: error?.message || 'Failed to create purchase' });
+    handleApiError(res, error, 'Failed to record purchase. Please verify supplier and items.');
   }
 };
 
@@ -222,8 +222,7 @@ export const recordPurchasePayment = async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (error: any) {
-    console.error('Error recording purchase payment:', error);
-    res.status(500).json({ error: error?.message || 'Failed to record payment' });
+    handleApiError(res, error, 'Failed to record purchase payment');
   }
 };
 
@@ -249,6 +248,6 @@ export const deletePurchase = async (req: Request, res: Response) => {
     await prisma.purchase.deleteMany({ where: { id: String(id), userId } });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete purchase' });
+    handleApiError(res, error, 'Failed to delete purchase');
   }
 };

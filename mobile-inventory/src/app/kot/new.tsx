@@ -51,6 +51,7 @@ import { isProductAvailable } from '@/utils/businessFeatures';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import type { Sale } from '@/types/sale';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface SelectedItemLine {
   productId?: string;
@@ -306,7 +307,7 @@ export default function NewKotOrderScreen() {
                   setSelectedItems((prev) => prev.filter((it) => it.productId !== product.id));
                 }
               } catch (err: any) {
-                Alert.alert('Update failed', err?.message || 'Could not update menu item');
+                Alert.alert('Update failed', sanitizeErrorMessage(err, 'Could not update menu item availability.'));
               }
             },
           },
@@ -427,7 +428,7 @@ export default function NewKotOrderScreen() {
         },
       ]);
     } catch (err: any) {
-      Alert.alert('Order Error', err?.message || 'Failed to create KOT order');
+      Alert.alert('Order Error', sanitizeErrorMessage(err, 'Failed to create KOT order. Please try again.'));
     }
   };
 
@@ -538,7 +539,7 @@ export default function NewKotOrderScreen() {
         },
       ]);
     } catch (err: any) {
-      Alert.alert('Billing Error', err?.message || 'Failed to settle bill');
+      Alert.alert('Billing Error', sanitizeErrorMessage(err, 'Failed to settle bill. Please try again.'));
     }
   };
 

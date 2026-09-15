@@ -6,6 +6,7 @@ import compression from 'compression';
 import path from 'path';
 import dotenv from 'dotenv';
 import prisma from './config/db';
+import { formatErrorMessage } from './utils/apiErrorHandler';
 
 // Ensure .env is loaded reliably from all potential root and parent paths
 dotenv.config();
@@ -161,7 +162,7 @@ app.get(['/health', '/api/health'], async (req, res) => {
       timestamp: new Date().toISOString(),
       database: {
         status: 'disconnected',
-        error: error instanceof Error ? error.message : 'Database ping failed',
+        error: 'Database connection failed. Please check server configuration.',
       },
     });
   }
@@ -175,8 +176,8 @@ app.use((req, res) => {
 // 7. Global Central Error Handler Middleware
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled Server Error:', err);
-  const message = err instanceof Error ? err.message : 'Internal Server Error';
-  res.status(500).json({ error: message });
+  const { message, statusCode } = formatErrorMessage(err, 'Internal server error. Please try again later.');
+  res.status(statusCode).json({ error: message });
 });
 
 export default app;

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 const GEMINI_MODEL_FALLBACK_LIST = [
   'gemini-flash-latest',
@@ -579,11 +580,7 @@ export const createUtilityBill = async (req: Request, res: Response) => {
       data: bill,
     });
   } catch (error: any) {
-    console.error('Error in createUtilityBill:', error);
-    return res.status(500).json({
-      success: false,
-      message: error?.message || 'Failed to save utility bill receipt',
-    });
+    return handleApiError(res, error, 'Failed to save utility bill receipt');
   }
 };
 
@@ -844,10 +841,6 @@ export const deleteUtilityBill = async (req: Request, res: Response) => {
       message: 'Utility bill receipt deleted successfully',
     });
   } catch (error: any) {
-    console.error('Error in deleteUtilityBill:', error);
-    return res.status(500).json({
-      success: false,
-      message: error?.message || 'Failed to delete utility bill',
-    });
+    return handleApiError(res, error, 'Failed to delete utility bill');
   }
 };

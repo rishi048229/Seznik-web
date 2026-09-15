@@ -78,6 +78,7 @@ import { Product } from '@/types/product';
 import { PosProductSheet } from '@/components/pos/PosProductSheet';
 import { CustomerPickerModal } from '@/components/ui/CustomerPickerModal';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { PosGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
@@ -618,11 +619,13 @@ function PosScreen() {
         directSaveRequestedRef.current = false;
         Alert.alert(
           t('saleFailed', 'Sale Not Saved'),
-          err.message ||
+          sanitizeErrorMessage(
+            err,
             t(
               'saleFailedHint',
               'Receipt may have printed, but this sale was not saved. Dashboard and stock will not update until it is recorded.'
             )
+          )
         );
       },
     });

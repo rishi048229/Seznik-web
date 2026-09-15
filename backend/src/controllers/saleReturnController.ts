@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
 import { calculateReturnSummary, ReturnItemRequest, round2 } from '../utils/saleReturnCalculator';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 export const createSaleReturn = async (req: Request, res: Response) => {
   try {
@@ -226,8 +227,7 @@ export const createSaleReturn = async (req: Request, res: Response) => {
       totalRefunded: newTotalRefunded,
     });
   } catch (error: any) {
-    console.error('createSaleReturn error:', error);
-    return res.status(500).json({ error: error?.message || 'Failed to process return' });
+    return handleApiError(res, error, 'Failed to process sales return');
   }
 };
 

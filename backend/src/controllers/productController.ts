@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 const PRODUCT_LIST_SELECT = {
   id: true,
@@ -750,8 +751,7 @@ RULES:
       products: sanitizedProducts,
     });
   } catch (error) {
-    console.error('aiExtractFromDocument error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error during AI extraction' });
+    handleApiError(res, error, 'Failed to extract product details from document. Please verify the document is clear.');
   }
 };
 
@@ -813,8 +813,7 @@ Return ONLY valid raw JSON with no markdown.`;
       saleData,
     });
   } catch (error: any) {
-    console.error('aiConvertInvoice error:', error?.message || error);
-    res.status(500).json({ error: `Failed to convert invoice with AI: ${error?.message || 'unknown error'}` });
+    handleApiError(res, error, 'Failed to convert invoice with AI. Please check the image quality and retry.');
   }
 };
 

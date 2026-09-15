@@ -19,6 +19,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { usesStockTracking } from '@/utils/businessFeatures';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface PosProductSheetProps {
   visible: boolean;
@@ -131,7 +132,7 @@ export function PosProductSheet({
       }
       onClose();
     } catch (e: any) {
-      Alert.alert('Could Not Save', e?.message || 'Please try again.');
+      Alert.alert('Could Not Save', sanitizeErrorMessage(e, 'Failed to save product. Please check product details and try again.'));
     } finally {
       setIsSaving(false);
     }

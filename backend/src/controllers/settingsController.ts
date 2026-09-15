@@ -5,6 +5,7 @@ import { mergeReceiptConfig, type ReceiptConfigLike } from '../utils/mergeReceip
 import { mergePrinterConfig, type PrinterConfigLike } from '../utils/mergePrinterConfig';
 import { enrichSettingsWithUserProfile } from '../utils/enrichSettingsProfile';
 import { ensureAdditiveSchema, resetAdditiveSchemaCache } from '../utils/ensureAdditiveSchema';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 const USER_PROFILE_SELECT = {
   businessName: true,
@@ -262,9 +263,7 @@ export const updateReceiptConfig = async (req: Request, res: Response) => {
     });
     res.json((await loadEnrichedSettings(userId)) ?? settings);
   } catch (error) {
-    console.error('Failed to update receipt config:', error);
-    const detail = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: `Failed to update receipt config: ${detail}` });
+    handleApiError(res, error, 'Failed to update receipt config');
   }
 };
 

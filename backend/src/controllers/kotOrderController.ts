@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
 
@@ -641,9 +642,6 @@ export const generateBill = async (req: Request, res: Response) => {
 
     res.json({ order: updatedOrder, sale });
   } catch (error: any) {
-    console.error('generateBill error:', error);
-    res.status(500).json({
-      error: error?.message || 'Failed to generate bill from KOT order',
-    });
+    handleApiError(res, error, 'Failed to generate bill from KOT order');
   }
 };

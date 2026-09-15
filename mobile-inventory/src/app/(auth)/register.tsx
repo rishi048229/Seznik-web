@@ -44,6 +44,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES } from '@/constants/translations';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9][0-9\s-]{6,14}$/;
@@ -137,7 +138,7 @@ export default function RegisterScreen() {
       setOtp('');
       setStep(2);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to send verification code. Please try again.');
+      setErrorMessage(sanitizeErrorMessage(err, 'Failed to send verification code. Please try again.'));
     } finally {
       setIsSendingOtp(false);
     }
@@ -157,7 +158,7 @@ export default function RegisterScreen() {
       await verifyEmailOtp({ email: email.trim().toLowerCase(), otp: cleanOtp });
       setStep(3);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Incorrect verification code. Please check and try again.');
+      setErrorMessage(sanitizeErrorMessage(err, 'Incorrect verification code. Please check and try again.'));
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -180,7 +181,7 @@ export default function RegisterScreen() {
       setPhoneOtp(res?.devOtp || '000000');
       setPhoneOtpMessage(res?.message || 'Verification code sent (Default code: 000000)');
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to send phone OTP. Please try again.');
+      setErrorMessage(sanitizeErrorMessage(err, 'Failed to send phone OTP. Please try again.'));
     }
   };
 
@@ -202,7 +203,7 @@ export default function RegisterScreen() {
       setIsPhoneVerified(true);
       setPhoneOtpMessage(null);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Incorrect phone verification code.');
+      setErrorMessage(sanitizeErrorMessage(err, 'Incorrect phone verification code.'));
     }
   };
 
@@ -310,7 +311,7 @@ export default function RegisterScreen() {
         accessCode: hasSeznikPrinter ? cleanCode : undefined,
       });
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Registration failed. Please check your information and try again.');
+      setErrorMessage(sanitizeErrorMessage(err, 'Registration failed. Please check your information and try again.'));
     }
   };
 

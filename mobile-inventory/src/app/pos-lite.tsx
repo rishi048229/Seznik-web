@@ -54,6 +54,8 @@ import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown';
 import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown';
 import { PaymentMethod } from '@/types/sale';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useTranslation } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
@@ -311,7 +313,7 @@ export default function PosLiteScreen() {
           setIsSavingSalePreview(false);
           Alert.alert(
             'Sale Not Saved',
-            err.message || 'Receipt may have printed, but this sale was not saved to the server.'
+            sanitizeErrorMessage(err, 'Receipt may have printed, but this sale was not saved to the server. Please check your connection.')
           );
         },
       }

@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
 import { calculatePurchaseReturnSummary, PurchaseReturnItemRequest, round2 } from '../utils/purchaseReturnCalculator';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 export const createPurchaseReturn = async (req: Request, res: Response) => {
   try {
@@ -201,8 +202,7 @@ export const createPurchaseReturn = async (req: Request, res: Response) => {
       totalReturned: result.newTotalReturned,
     });
   } catch (error: any) {
-    console.error('createPurchaseReturn error:', error);
-    return res.status(500).json({ error: error?.message || 'Failed to process purchase return' });
+    return handleApiError(res, error, 'Failed to process purchase return. Please verify items and returned quantities.');
   }
 };
 

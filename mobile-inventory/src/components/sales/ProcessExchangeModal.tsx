@@ -20,6 +20,7 @@ import { calculateReturnSummary, ReturnItemRequest } from '@shared/saleReturnCal
 import { calculateGstBill, round2 } from '@shared/gstTaxEngine';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface ProcessExchangeModalProps {
   visible: boolean;
@@ -316,7 +317,7 @@ export function ProcessExchangeModal({
         [{ text: 'OK', onPress: () => onSuccess(res) }]
       );
     } catch (err: any) {
-      Alert.alert('Exchange Failed', err?.message || 'Could not process exchange.');
+      Alert.alert('Exchange Failed', sanitizeErrorMessage(err, 'Unable to process exchange. Please review exchange items and try again.'));
     } finally {
       setIsSubmitting(false);
     }

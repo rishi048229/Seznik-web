@@ -21,6 +21,7 @@ import {
 } from '../services/authService';
 import type { AccessCodeRecord, SupportAgentRecord } from '../types/support';
 import { SUPPORT_PRINTERS } from '../utils/printers';
+import { toUserMessage } from '../utils/userMessage';
 
 interface HomePageProps {
   agent: SupportAgentRecord;
@@ -91,7 +92,7 @@ export const HomePage: React.FC<HomePageProps> = ({ agent, onLogout }) => {
       setEntries(res.items);
       setTotal(res.total);
     } catch (err: unknown) {
-      setListError(err instanceof Error ? err.message : 'Failed to load entries');
+      setListError(toUserMessage(err, 'Failed to load access code entries. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -154,7 +155,7 @@ export const HomePage: React.FC<HomePageProps> = ({ agent, onLogout }) => {
       setDetailsSaved(false);
       await loadEntries();
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Failed to generate code');
+      setFormError(toUserMessage(err, 'Failed to generate access code. Please try again.'));
     } finally {
       setSubmitting(false);
     }

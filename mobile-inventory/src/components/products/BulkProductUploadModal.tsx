@@ -48,6 +48,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { BRAND_COLORS } from '@/constants/theme';
 import { generateEAN13Barcode } from '@/utils/barcodeGenerator';
 import { useTranslation } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import {
   downloadBulkUploadTemplate,
   normalizeUnit,
@@ -421,7 +422,7 @@ export function BulkProductUploadModal({
       }
     } catch (err: any) {
       console.error('File parsing error:', err);
-      Alert.alert('Upload Error', err?.message || 'Failed to process document', [
+      Alert.alert('Upload Error', sanitizeErrorMessage(err, 'Failed to process document. Please check file format and try again.'), [
         { text: 'OK', onPress: () => setStep('select') },
       ]);
     }
@@ -520,7 +521,7 @@ export function BulkProductUploadModal({
       }
     } catch (err: any) {
       console.error('Image upload error:', err);
-      Alert.alert('Upload Error', err?.message || 'Failed to process document', [
+      Alert.alert('Upload Error', sanitizeErrorMessage(err, 'Failed to process document image. Please try a clearer picture.'), [
         { text: 'OK', onPress: () => setStep('select') },
       ]);
     }
@@ -623,7 +624,7 @@ export function BulkProductUploadModal({
         },
       ]);
     } catch (err: any) {
-      Alert.alert('Import Failed', err?.message || 'Failed to save imported products to database.');
+      Alert.alert('Import Failed', sanitizeErrorMessage(err, 'Failed to save imported products. Please verify row details and try again.'));
     } finally {
       setSubmitting(false);
     }

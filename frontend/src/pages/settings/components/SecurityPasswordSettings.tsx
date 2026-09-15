@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { sendForgotPasswordOtp, verifyForgotPasswordOtp, resetPasswordWithOtp } from '@/services/authService'
 import { Shield, KeyRound, Mail, CheckCircle2, Lock, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 type Step = 'initial' | 'otp' | 'password' | 'success'
@@ -45,7 +46,7 @@ export const SecurityPasswordSettings = () => {
       toast.success(`${t('security.codeSentPrefix')} ${userEmail}`)
     } catch (err: unknown) {
       console.error('Error sending reset code:', err)
-      toast.error(err instanceof Error ? err.message : t('security.errSendCodeFailed'))
+      toastError(err, t('security.errSendCodeFailed'))
     } finally {
       setLoading(false)
     }
@@ -64,7 +65,7 @@ export const SecurityPasswordSettings = () => {
       toast.success(t('security.codeVerifiedSuccess'))
     } catch (err: unknown) {
       console.error('Error verifying code:', err)
-      toast.error(err instanceof Error ? err.message : t('security.errIncorrectCode'))
+      toastError(err, t('security.errIncorrectCode'))
     } finally {
       setLoading(false)
     }
@@ -90,7 +91,7 @@ export const SecurityPasswordSettings = () => {
       toast.success(t('security.passwordUpdatedSuccess'))
     } catch (err: unknown) {
       console.error('Error resetting password:', err)
-      toast.error(err instanceof Error ? err.message : t('security.errUpdatePasswordFailed'))
+      toastError(err, t('security.errUpdatePasswordFailed'))
     } finally {
       setLoading(false)
     }

@@ -47,6 +47,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { ExpensesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 type Period = 'today' | 'week' | 'month' | 'all';
 type OutflowTypeFilter = 'all' | 'purchases' | 'expenses';
@@ -335,7 +336,7 @@ export default function ExpensesScreen() {
       setShowModal(false);
       resetForm();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save record.');
+      Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to save record. Please check the entered details and try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -351,7 +352,7 @@ export default function ExpensesScreen() {
           try {
             await deleteExpense(e.id);
           } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to delete record.');
+            Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to delete record. Please try again.'));
           }
         },
       },

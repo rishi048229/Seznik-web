@@ -28,6 +28,7 @@ import { sampleSaleForTemplate } from '@/utils/a4InvoiceTemplates'
 import { ReceiptBuilderTab, type ReceiptBuilderTabHandle } from '@/pages/printers/receipt-builder/ReceiptBuilderTab'
 import { useReceiptBuilderSync } from '@/hooks/useReceiptBuilderSync'
 import { resolveActiveFromTemplates, ensureTemplateHasLogoBlock } from '@/utils/ensureReceiptTemplates'
+import { toastError } from '@/utils/userMessage'
 import { applyQrSection } from '@/pages/printers/receipt-builder/receiptSimpleSections'
 import { withSyncedPaperKeys } from '@/utils/printerThermal'
 import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
@@ -658,7 +659,7 @@ export const PrintersPage = () => {
           if (bleState.status !== 'connected') {
             toast.error('Connect the Bluetooth printer first. Thermal test print does not open the system print dialog.')
           } else {
-            toast.error(err?.message || 'Failed to print test receipt to Bluetooth printer.')
+            toastError(err, 'Failed to print test receipt to Bluetooth printer. Please verify connection.')
           }
           return
         }
@@ -707,7 +708,7 @@ export const PrintersPage = () => {
           if (bleState.status !== 'connected') {
             toast.error('Connect the Bluetooth printer first. Label test print does not open the system print dialog.')
           } else {
-            toast.error(err?.message || 'Failed to print label to Bluetooth printer.')
+            toastError(err, 'Failed to print label to Bluetooth printer. Please verify printer status.')
           }
           return
         }

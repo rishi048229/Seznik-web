@@ -43,6 +43,7 @@ import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { useAuth } from '@/hooks/useAuth';
 import { isNavFeatureVisible } from '@/utils/businessFeatures';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function QuickTokensScreen() {
   const router = useRouter();
@@ -112,7 +113,7 @@ export default function QuickTokensScreen() {
       });
       Alert.alert('Token Printed!', `Token #${seq} slip printed successfully.`);
     } catch (err: any) {
-      Alert.alert('Print Error', err?.message || 'Failed to print token');
+      Alert.alert('Print Error', sanitizeErrorMessage(err, 'Failed to print token. Please check printer connection.'));
     }
   };
 
@@ -162,7 +163,7 @@ export default function QuickTokensScreen() {
       setNote('');
       Alert.alert('Ticket Issued!', `Token #${nextSeq} issued successfully for ${selectedType.name}.`);
     } catch (err: any) {
-      Alert.alert('Issue Error', err?.message || 'Failed to issue token');
+      Alert.alert('Issue Error', sanitizeErrorMessage(err, 'Failed to issue token. Please try again.'));
     } finally {
       setIsIssuing(false);
     }
@@ -196,7 +197,7 @@ export default function QuickTokensScreen() {
       }
       handleCancelEditType();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || `Failed to ${editingType ? 'update' : 'create'} token type`);
+      Alert.alert('Error', sanitizeErrorMessage(err, `Failed to ${editingType ? 'update' : 'create'} token type`));
     }
   };
 
@@ -211,7 +212,7 @@ export default function QuickTokensScreen() {
             await deleteTokenType(type.id);
             if (editingType?.id === type.id) handleCancelEditType();
           } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Failed to delete token type');
+            Alert.alert('Error', sanitizeErrorMessage(e, 'Failed to delete token type. Active tokens may be linked.'));
           }
         },
       },

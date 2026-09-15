@@ -37,6 +37,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { ReportsSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useTranslation } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function ReportsScreen() {
   const router = useRouter();
@@ -149,7 +150,7 @@ export default function ReportsScreen() {
       }
     } catch (err: any) {
       console.error('Excel Export error:', err);
-      Alert.alert('Export Failed', err?.message || 'Unable to export Excel report.');
+      Alert.alert('Export Failed', sanitizeErrorMessage(err, 'Unable to export Excel report. Please try again.'));
     } finally {
       setExportingType(null);
     }
@@ -264,7 +265,7 @@ export default function ReportsScreen() {
       }
     } catch (err: any) {
       console.error('PDF Export error:', err);
-      Alert.alert('Export Failed', err?.message || 'Unable to generate PDF report.');
+      Alert.alert('Export Failed', sanitizeErrorMessage(err, 'Unable to generate PDF report. Please try again.'));
     } finally {
       setExportingType(null);
     }

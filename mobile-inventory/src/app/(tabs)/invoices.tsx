@@ -63,6 +63,7 @@ import {
   parseDateTimeInput,
   saleInDateRange,
 } from '@/utils/invoiceDateFilters';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 type SortOption = 'newest' | 'oldest' | 'amount_high' | 'amount_low';
 
@@ -224,7 +225,7 @@ export default function InvoicesTabScreen() {
         Alert.alert(t('printSent', 'Print Sent'), t('printSentHint', 'Receipt sent to your thermal printer.'));
       }
     } catch (err: any) {
-      Alert.alert(t('printError', 'Print Error'), err?.message || 'Failed to print invoice');
+      Alert.alert(t('printError', 'Print Error'), sanitizeErrorMessage(err, 'Failed to print invoice. Please check printer connection.'));
     } finally {
       setBusySaleId(null);
       setBusyAction(null);
@@ -246,7 +247,7 @@ export default function InvoicesTabScreen() {
     } catch (err: any) {
       Alert.alert(
         t('shareFailed', 'Share Failed'),
-        err?.message || t('shareFailedHint', 'Could not share the A4 invoice PDF.')
+        sanitizeErrorMessage(err, t('shareFailedHint', 'Could not share the A4 invoice PDF.'))
       );
     } finally {
       setBusySaleId(null);

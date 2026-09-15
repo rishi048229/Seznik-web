@@ -47,6 +47,7 @@ import { ListScreenSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { RefreshControl } from 'react-native';
 import { useTranslation } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function SuppliersScreen() {
   const router = useRouter();
@@ -152,7 +153,7 @@ export default function SuppliersScreen() {
       }
       setShowModal(false);
     } catch (err: any) {
-      Alert.alert('Save Failed', err?.message || 'Unable to save supplier. Please check connection.');
+      Alert.alert('Save Failed', sanitizeErrorMessage(err, 'Unable to save supplier. Please check details and connection.'));
     } finally {
       setSubmitting(false);
     }
@@ -171,7 +172,7 @@ export default function SuppliersScreen() {
             try {
               await deleteSupplier(s.id);
             } catch (e: any) {
-              Alert.alert('Delete Failed', e?.message || 'Could not delete supplier.');
+              Alert.alert('Delete Failed', sanitizeErrorMessage(e, 'Could not delete supplier. Products or purchases may be linked.'));
             }
           },
         },

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useCreateCustomer } from '@/hooks/useCustomers'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 
 interface QuickAddCustomerModalProps {
   isOpen: boolean
@@ -47,7 +48,7 @@ export const QuickAddCustomerModal = ({ isOpen, onClose, onCreated, initialName 
           onCreated(customerId)
           reset()
         },
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add customer'),
+        onError: (err) => toastError(err, 'Failed to add customer. A customer with this phone number may already exist.'),
       }
     )
   }

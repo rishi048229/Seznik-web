@@ -18,6 +18,7 @@ import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Store, Plus, Pencil, Trash2, ArrowRightLeft, Package, Search, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import type { Location } from '@/types/location.types'
 
 // "Store" is the user-facing word throughout this page — internally this is
@@ -93,8 +94,7 @@ export const LocationsPage = () => {
       return
     }
     const onError = (err: unknown) => {
-      const msg = err instanceof Error ? err.message : ''
-      toast.error(msg ? `Failed to save setting: ${msg}` : 'Failed to save setting')
+      toastError(err, 'Failed to update store inventory settings')
       console.error('locationConfig save failed:', err)
     }
     if (settings?.id) {
@@ -205,7 +205,7 @@ export const LocationsPage = () => {
           setTransferQty('')
           setTransferSearch('')
         },
-        onError: (err: any) => toast.error(err?.message || 'Transfer failed'),
+        onError: (err: any) => toastError(err, 'Stock transfer failed. Please verify source store stock.'),
       }
     )
   }

@@ -46,7 +46,9 @@ export const NotificationCenterPopover = () => {
       updated.add(id)
       try {
         localStorage.setItem('seznik_read_notifications', JSON.stringify(Array.from(updated)))
-      } catch {}
+      } catch (err) {
+        console.debug('Failed to cache read notifications:', err)
+      }
       return updated
     })
   }
@@ -57,7 +59,9 @@ export const NotificationCenterPopover = () => {
     setReadIds(updated)
     try {
       localStorage.setItem('seznik_read_notifications', JSON.stringify(Array.from(updated)))
-    } catch {}
+    } catch (err) {
+      console.debug('Failed to cache read notifications:', err)
+    }
   }
 
   // Close when clicking outside

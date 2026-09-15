@@ -15,6 +15,7 @@ import { X } from 'lucide-react-native';
 import { GstBillingSettingsPanel } from '@/components/billing/GstBillingSettingsPanel';
 import { useGstBillingSettings } from '@/hooks/useGstBillingSettings';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface GstBillingSettingsModalProps {
   visible: boolean;
@@ -42,7 +43,7 @@ export function GstBillingSettingsModal({ visible, onClose }: GstBillingSettings
         },
       });
     } catch (e: any) {
-      Alert.alert('Could Not Save', e?.message || 'Please check your connection and try again.');
+      Alert.alert('Could Not Save', sanitizeErrorMessage(e, 'Failed to save tax and billing settings. Please try again.'));
     }
   };
 

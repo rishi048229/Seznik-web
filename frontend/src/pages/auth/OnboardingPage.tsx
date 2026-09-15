@@ -15,6 +15,7 @@ import {
 } from '@/constants/businessTypes'
 import { LANGUAGES, type LanguageCode } from '@/i18n/translations'
 import { buildUpiPayLink, isValidUpiVpa, extractUpiFromQrImageFile, parseUpiIdFromQrString } from '@/utils/upiQr'
+import { toUserMessage } from '@/utils/userMessage'
 
 
 const BANNER_GRADIENT = 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 45%, #0a0a2e 100%)'
@@ -125,7 +126,7 @@ export const OnboardingPage = () => {
         await updateBusinessType(selectedBusinessType)
         navigate(ROUTES.ACCESS_SELECTION)
       } catch (err) {
-        setError(err instanceof Error ? err.message : t('onboarding.setupFailed'))
+        setError(toUserMessage(err, t('onboarding.setupFailed')))
       } finally {
         setIsSaving(false)
       }
@@ -171,7 +172,7 @@ export const OnboardingPage = () => {
       })
       navigate(ROUTES.ACCESS_SELECTION)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('onboarding.setupFailed'))
+      setError(toUserMessage(err, t('onboarding.setupFailed')))
     } finally {
       setIsSaving(false)
     }

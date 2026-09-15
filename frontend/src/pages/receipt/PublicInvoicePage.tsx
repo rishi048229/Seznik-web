@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { fetchApi } from '@/services/api'
+import { toUserMessage } from '@/utils/userMessage'
 import { Printer, Share2, FileText, CheckCircle, AlertCircle, Phone, MapPin, Building2, Download } from 'lucide-react'
 
 interface SaleItem {
@@ -75,7 +76,7 @@ export function PublicInvoicePage() {
         }
       } catch (err: any) {
         if (isMounted) {
-          setError(err.message || 'Invoice could not be loaded.')
+          setError(toUserMessage(err, 'Invoice could not be loaded. Please verify the link or try again later.'))
         }
       } finally {
         if (isMounted) {

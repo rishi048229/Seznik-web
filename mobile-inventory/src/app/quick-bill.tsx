@@ -27,6 +27,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface QuickBillRow {
   id: string;
@@ -203,11 +204,12 @@ export default function QuickBillScreen() {
           );
         },
         onError: (err) => {
+          const friendly = sanitizeErrorMessage(err, 'Failed to save this quick bill. Please check your connection and retry.');
           Alert.alert(
             'Bill Not Saved',
             connectionState === 'connected'
-              ? `${err.message}\n\nThe receipt may have printed, but this sale was not saved.`
-              : err.message || 'Failed to save this quick bill.'
+              ? `${friendly}\n\nThe receipt may have printed, but this sale was not saved to the server.`
+              : friendly
           );
         },
       }

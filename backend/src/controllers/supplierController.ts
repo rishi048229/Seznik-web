@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 export const getSuppliers = async (req: Request, res: Response) => {
   try {
@@ -251,8 +252,7 @@ export const recordSupplierPayment = async (req: Request, res: Response) => {
 
     res.status(201).json(result);
   } catch (error: any) {
-    console.error('recordSupplierPayment error:', error);
-    res.status(500).json({ error: error?.message || 'Failed to record supplier payment' });
+    handleApiError(res, error, 'Failed to record supplier payment');
   }
 };
 
@@ -308,8 +308,7 @@ export const getSupplierRemindersDue = async (req: Request, res: Response) => {
       totalActionItems: overdue.length + upcoming.length,
     });
   } catch (error) {
-    console.error('getSupplierRemindersDue error:', error);
-    res.status(500).json({ error: 'Failed to fetch supplier reminders' });
+    handleApiError(res, error, 'Failed to fetch supplier reminders');
   }
 };
 
@@ -343,8 +342,7 @@ export const createSupplier = async (req: Request, res: Response) => {
       lastPurchaseAt: null,
     });
   } catch (error: any) {
-    console.error('Error creating supplier:', error);
-    res.status(500).json({ error: error?.message || 'Failed to create supplier' });
+    handleApiError(res, error, 'Failed to create supplier. A supplier with this name or details may already exist.');
   }
 };
 
@@ -385,8 +383,7 @@ export const updateSupplier = async (req: Request, res: Response) => {
       lastPurchaseAt: updated.purchases?.[0]?.createdAt || null,
     });
   } catch (error: any) {
-    console.error('Error updating supplier:', error);
-    res.status(500).json({ error: error?.message || 'Failed to update supplier' });
+    handleApiError(res, error, 'Failed to update supplier');
   }
 };
 
@@ -400,7 +397,6 @@ export const deleteSupplier = async (req: Request, res: Response) => {
     });
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting supplier:', error);
-    res.status(500).json({ error: 'Failed to delete supplier' });
+    handleApiError(res, error, 'Failed to delete supplier — please verify if linked to purchases or products');
   }
 };

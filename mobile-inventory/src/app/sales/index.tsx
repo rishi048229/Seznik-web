@@ -51,6 +51,7 @@ import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
 import { printInvoiceA4, downloadInvoicePdf, shareInvoicePdf } from '@/utils/invoiceActions';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function SalesHistoryScreen() {
   const router = useRouter();
@@ -133,7 +134,7 @@ export default function SalesHistoryScreen() {
 
       Alert.alert('Reprint Success!', `Receipt #${sale.invoiceNumber} reprinted successfully.`);
     } catch (err: any) {
-      Alert.alert('Printer Error', err?.message || 'Failed to reprint receipt');
+      Alert.alert('Printer Error', sanitizeErrorMessage(err, 'Failed to reprint receipt. Please check printer connection.'));
     } finally {
       setIsPrintingThermal(false);
     }
@@ -148,7 +149,7 @@ export default function SalesHistoryScreen() {
     try {
       await printInvoiceA4(sale, storeProfile);
     } catch (err: any) {
-      Alert.alert('A4 Print Error', err?.message || 'Failed to open A4 print dialog');
+      Alert.alert('A4 Print Error', sanitizeErrorMessage(err, 'Failed to open A4 print dialog.'));
     }
   };
 
@@ -156,7 +157,7 @@ export default function SalesHistoryScreen() {
     try {
       await shareInvoicePdf(sale, storeProfile);
     } catch (err: any) {
-      Alert.alert('Share Failed', err?.message || 'Could not share the A4 invoice PDF.');
+      Alert.alert('Share Failed', sanitizeErrorMessage(err, 'Could not share the A4 invoice PDF.'));
     }
   };
 
@@ -171,7 +172,7 @@ export default function SalesHistoryScreen() {
             await deleteSale(sale.id);
             if (selectedSale?.id === sale.id) setSelectedSale(null);
           } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to delete sale');
+            Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to delete sale. Please try again.'));
           }
         },
       },

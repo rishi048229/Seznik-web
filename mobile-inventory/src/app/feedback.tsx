@@ -24,6 +24,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SEZNIK_WEBSITE_PRODUCTS } from '@/data/seznikWebsiteProducts';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 // Mirrors VALID_AREAS in backend/src/controllers/feedbackController.ts exactly — anything outside
 // this list gets silently normalized to "general" server-side, so keep these in sync.
@@ -97,7 +98,7 @@ export default function FeedbackScreen() {
       setRating(null);
       Alert.alert(t('thankYou', 'Thank You!'), t('feedbackSubmitted', 'Your feedback has been submitted to the team.'));
     } catch (err: any) {
-      Alert.alert(t('error', 'Error'), err?.message || t('feedbackSubmitFailed', 'Failed to submit feedback.'));
+      Alert.alert(t('error', 'Error'), sanitizeErrorMessage(err, t('feedbackSubmitFailed', 'Failed to submit feedback. Please try again.')));
     }
   };
 

@@ -38,6 +38,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { usePrinterStore } from '@/store/usePrinterStore';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { RECEIPT_TEMPLATES, getTemplateById } from '@/constants/receiptTemplates';
 import { BRAND_COLORS } from '@/constants/theme';
 
@@ -105,7 +106,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
       console.error('AI bill conversion error:', err);
       Alert.alert(
         'AI Conversion Failed',
-        err?.message || 'Failed to convert bill with Gemini AI.',
+        sanitizeErrorMessage(err, 'Failed to convert bill with Gemini AI. Please check image clarity and try again.'),
         [{ text: 'Try Again', onPress: () => setStep('select') }]
       );
     }
@@ -159,7 +160,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
         await processFileForAi(doc.uri, doc.mimeType || 'application/pdf');
       }
     } catch (err: any) {
-      Alert.alert('File Picker Error', err?.message || 'Failed to select document');
+      Alert.alert('File Picker Error', sanitizeErrorMessage(err, 'Failed to select document. Please try again.'));
     }
   };
 
@@ -290,7 +291,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
         );
       }
     } catch (err: any) {
-      Alert.alert('Print Error', err?.message || 'Failed to print receipt.');
+      Alert.alert('Print Error', sanitizeErrorMessage(err, 'Failed to print receipt. Please verify printer connection.'));
     } finally {
       setIsPrinting(false);
     }
@@ -315,7 +316,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
     try {
       await ThermalPrinterService.printA4Invoice(dataToPrint, { template: activeTemplate });
     } catch (err: any) {
-      Alert.alert('Print Error', err?.message || 'Failed to open system print dialog.');
+      Alert.alert('Print Error', sanitizeErrorMessage(err, 'Failed to open system print dialog.'));
     } finally {
       setIsPrinting(false);
     }

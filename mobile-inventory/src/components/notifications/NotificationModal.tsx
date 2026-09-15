@@ -36,6 +36,7 @@ import {
 } from '@/store/useNotificationStore';
 import { useProducts } from '@/hooks/useProducts';
 import { BRAND_COLORS } from '@/constants/theme';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface NotificationModalProps {
   visible: boolean;
@@ -156,7 +157,7 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
         `Successfully added +${qty} ${restockQtyModal.unit} to "${restockQtyModal.productName}".`
       );
     } catch (err: any) {
-      Alert.alert('Restock Failed', err?.message || 'Failed to update stock.');
+      Alert.alert('Restock Failed', sanitizeErrorMessage(err, 'Failed to update stock. Please try again.'));
     } finally {
       setIsRestocking(false);
     }

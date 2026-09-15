@@ -27,6 +27,7 @@ import {
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { CreateCustomerPayload } from '@/types/customer';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 let Contacts: any = null;
 try {
@@ -126,7 +127,7 @@ export function ContactImportModal({ visible, onClose, onImportSuccess, bulkCrea
       setContacts(parsedList);
     } catch (err: any) {
       console.error('Failed to load phone contacts:', err);
-      Alert.alert('Contacts Error', err?.message || 'Could not fetch device contacts.');
+      Alert.alert('Contacts Error', sanitizeErrorMessage(err, 'Could not fetch device contacts. Please check permissions.'));
     } finally {
       setLoading(false);
     }
@@ -198,7 +199,7 @@ export function ContactImportModal({ visible, onClose, onImportSuccess, bulkCrea
       onImportSuccess(count, skipped);
       handleClose();
     } catch (err: any) {
-      Alert.alert('Import Failed', err?.message || 'Failed to import contacts as customers.');
+      Alert.alert('Import Failed', sanitizeErrorMessage(err, 'Failed to import contacts as customers. Please try again.'));
     } finally {
       setImporting(false);
     }

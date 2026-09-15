@@ -3,6 +3,7 @@ import { Lock, UserRound, LogIn, AlertTriangle, Eye, EyeOff, Headphones, Shield 
 import { AnimatedThemeToggler } from '../components/AnimatedThemeToggler';
 import { loginSupport } from '../services/authService';
 import type { SupportAgentRecord } from '../types/support';
+import { toUserMessage } from '../utils/userMessage';
 
 interface LoginPageProps {
   onSuccess: (agent: SupportAgentRecord) => void;
@@ -23,8 +24,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       const result = await loginSupport(username.trim(), password);
       onSuccess(result.agent);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Invalid username or password';
-      setError(message);
+      setError(toUserMessage(err, 'Invalid username or password. Please try again.'));
     } finally {
       setSubmitting(false);
     }

@@ -23,7 +23,8 @@ import {
   buildCategoriesHtmlReport,
   triggerPrintReport,
   exportCategoriesToImage,
-} from '@/utils/exportEngine'
+} from '@/utils/exportReports'
+import { toastError } from '@/utils/userMessage'
 import type { Category } from '@/services/categoryService'
 import {
   Plus, Pencil, Trash2, Search, Download, ChevronLeft, ChevronRight, ChevronDown,
@@ -133,7 +134,7 @@ export const CategoriesPage = () => {
         { categoryId: editId, name: formName.trim(), parentId: editingHasChildren ? null : (formParentId || null) },
         {
           onSuccess: () => { toast.success('Category updated'); closeModal() },
-          onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update category'),
+          onError: (err) => toastError(err, 'Failed to update category'),
         }
       )
     } else {
@@ -141,7 +142,7 @@ export const CategoriesPage = () => {
         { name: formName.trim(), parentId: formParentId || undefined },
         {
           onSuccess: () => { toast.success(formParentId ? 'Subcategory created' : 'Category created'); closeModal() },
-          onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+          onError: (err) => toastError(err, 'Failed to create category'),
         }
       )
     }
@@ -154,7 +155,7 @@ export const CategoriesPage = () => {
         toast.success('Category created')
         setQuickAddName('')
       },
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+      onError: (err) => toastError(err, 'Failed to create category'),
     })
   }
 

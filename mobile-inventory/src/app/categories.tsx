@@ -44,6 +44,7 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { ListScreenSkeleton, CategoriesTreeSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function CategoriesScreen() {
   const router = useRouter();
@@ -115,7 +116,7 @@ export default function CategoriesScreen() {
       }
       setShowModal(false);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save category');
+      Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to save category. Please check details and try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -125,7 +126,7 @@ export default function CategoriesScreen() {
     try {
       await updateCategory({ id: c.id, payload: { isActive: !c.isActive } });
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update category state');
+      Alert.alert('Error', sanitizeErrorMessage(e, 'Failed to update category status.'));
     }
   };
 
@@ -139,7 +140,7 @@ export default function CategoriesScreen() {
           try {
             await deleteCategory(c.id);
           } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Failed to delete category');
+            Alert.alert('Error', sanitizeErrorMessage(e, 'Failed to delete category. Products may still be assigned to it.'));
           }
         },
       },

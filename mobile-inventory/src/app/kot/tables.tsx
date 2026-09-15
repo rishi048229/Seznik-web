@@ -28,6 +28,7 @@ import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { RestaurantTable } from '@/types/kot';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { KotTablesGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -63,7 +64,7 @@ export default function RestaurantTablesScreen() {
       setNewTableName('');
       setShowAddModal(false);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create table');
+      Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to create table. Please check if table name already exists.'));
     }
   };
 
@@ -77,7 +78,7 @@ export default function RestaurantTablesScreen() {
           try {
             await deleteTable(table.id);
           } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to delete table');
+            Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to delete table. Active orders may be attached.'));
           }
         },
       },

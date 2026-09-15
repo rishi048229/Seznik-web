@@ -27,6 +27,7 @@ import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { AutoTranslatedText } from '@/components/common/AutoTranslatedText'
+import { toastError } from '@/utils/userMessage'
 import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Sparkles, Wand2, X, Bluetooth } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
@@ -272,7 +273,7 @@ export const ProductsPage = () => {
         setInlineCategoryName('')
         setShowInlineCategory(false)
       },
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+      onError: (err) => toastError(err, 'Failed to create category'),
     })
   }
 
@@ -286,7 +287,7 @@ export const ProductsPage = () => {
         setInlineSupplierPhone('')
         setShowInlineSupplier(false)
       },
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create supplier'),
+      onError: (err) => toastError(err, 'Failed to create supplier'),
     })
   }
 

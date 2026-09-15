@@ -36,6 +36,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES } from '@/constants/translations';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -90,7 +91,7 @@ export default function ForgotPasswordScreen() {
       setOtp('');
       setStep(2);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to send verification code. Please check email address.');
+      setErrorMsg(sanitizeErrorMessage(err, 'Failed to send verification code. Please check your email address.'));
     } finally {
       setLoading(false);
     }
@@ -108,7 +109,7 @@ export default function ForgotPasswordScreen() {
       await verifyForgotPasswordOtp({ email: email.trim().toLowerCase(), otp: cleanOtp });
       setStep(3);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Verification failed. Incorrect code.');
+      setErrorMsg(sanitizeErrorMessage(err, 'Verification failed. Incorrect code.'));
     } finally {
       setLoading(false);
     }
@@ -135,7 +136,7 @@ export default function ForgotPasswordScreen() {
         { text: t('signIn', 'Sign In'), onPress: () => router.replace('/(auth)/login' as any) },
       ]);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to reset password');
+      setErrorMsg(sanitizeErrorMessage(err, 'Failed to reset password. Please try again.'));
     } finally {
       setLoading(false);
     }

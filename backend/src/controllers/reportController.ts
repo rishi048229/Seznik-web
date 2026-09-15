@@ -4,6 +4,7 @@ import prisma from '../config/db';
 import { subDays, startOfDay, endOfDay, format, startOfWeek, startOfMonth, addDays, differenceInCalendarDays, subMonths } from 'date-fns';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { computeSaleGrossProfit, computeSaleCost } from '../utils/saleMetrics';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 const parseDate = (d: any, defaultDate: Date) => {
   if (!d || d === 'undefined' || d === 'null') return defaultDate;
@@ -960,7 +961,6 @@ export const closeDayRegister = async (req: Request, res: Response) => {
 
     res.status(201).json(record);
   } catch (error: any) {
-    console.error('Failed to close day register:', error);
-    res.status(500).json({ error: error?.message || 'Failed to close day register' });
+    handleApiError(res, error, 'Failed to close day register');
   }
 };

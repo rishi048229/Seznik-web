@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import type { AccessCodeLookupResult, AccessCodeRecord } from '../types/support';
+import { toUserMessage } from '../utils/userMessage';
 
 interface CodeSearchModalProps {
   isOpen: boolean;
@@ -86,7 +87,7 @@ export const CodeSearchModal: React.FC<CodeSearchModalProps> = ({
           setError(res.message || `No access code found matching "${q}"`);
         }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to lookup access code');
+        setError(toUserMessage(err, 'Failed to lookup access code. Please try again.'));
         setResult(null);
       } finally {
         setLoading(false);

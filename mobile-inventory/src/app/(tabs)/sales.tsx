@@ -36,6 +36,7 @@ import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function SalesHistoryTabScreen() {
   const { sales, isLoading, isRefetching, isError, refetch, deleteSale } = useSales();
@@ -74,7 +75,7 @@ export default function SalesHistoryTabScreen() {
             await deleteSale(sale.id);
             if (selectedSale?.id === sale.id) setSelectedSale(null);
           } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to delete sale');
+            Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to delete sale. Please try again.'));
           }
         },
       },

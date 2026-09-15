@@ -28,6 +28,7 @@ import { LABEL_PRESETS, LabelPresetId, buildLabelPreset } from '@/constants/labe
 import { BRAND_COLORS } from '@/constants/theme';
 import { generateCode128Barcode, generateEAN13Barcode } from '@/utils/barcodeGenerator';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface BarcodePrintModalProps {
   visible: boolean;
@@ -146,7 +147,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         Alert.alert('Test Print Failed', 'Please check that your printer is powered on and connected.');
       }
     } catch (err: any) {
-      Alert.alert('Test Print Error', err?.message || 'Could not print test label.');
+      Alert.alert('Test Print Error', sanitizeErrorMessage(err, 'Could not print test label. Please verify printer status.'));
     } finally {
       setIsTestPrinting(false);
     }
@@ -207,7 +208,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         Alert.alert('Print Error', 'Could not send label to printer.');
       }
     } catch (e: any) {
-      Alert.alert('Print Error', e?.message || 'Failed to print label.');
+      Alert.alert('Print Error', sanitizeErrorMessage(e, 'Failed to print label. Please verify printer connection.'));
     } finally {
       setIsPrinting(false);
     }
@@ -233,7 +234,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         Alert.alert('Print Failed', `Stopped after ${result.printedCount} labels — could not reach the printer.`);
       }
     } catch (e: any) {
-      Alert.alert('Print Failed', e?.message || 'Could not print the sequence.');
+      Alert.alert('Print Failed', sanitizeErrorMessage(e, 'Could not print the sequence. Please try again.'));
     } finally {
       setIsPrinting(false);
       setSeqProgress(0);

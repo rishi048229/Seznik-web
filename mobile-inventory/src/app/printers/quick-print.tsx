@@ -55,6 +55,7 @@ import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterCo
 import { BRAND_COLORS } from '@/constants/theme';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface ReceiptBlockOption {
   id: string;
@@ -376,7 +377,7 @@ export default function TextToThermalPrintScreen() {
       if (Platform.OS !== 'web' && connectionState !== 'connected') {
         setShowConnectModal(true);
       } else {
-        Alert.alert('Printing Error', err?.message || 'Failed to print. Check printer connection.');
+        Alert.alert('Printing Error', sanitizeErrorMessage(err, 'Failed to print. Check printer connection.'));
       }
     } finally {
       setIsPrinting(false);

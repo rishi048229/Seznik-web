@@ -23,6 +23,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import {
   subscribeBlePrinter,
   requestAndConnectPrinter,
@@ -385,7 +386,7 @@ export function TextToThermalPrintTab({
       toast.success('Sent directly to Bluetooth thermal printer!')
     } catch (err: any) {
       console.error('BLE Print error:', err)
-      toast.error(err?.message || 'Failed to print via Bluetooth')
+      toastError(err, 'Failed to print via Bluetooth. Please ensure printer is paired and on.')
     } finally {
       setConnectingBle(false)
     }

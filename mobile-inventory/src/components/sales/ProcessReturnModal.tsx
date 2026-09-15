@@ -17,6 +17,7 @@ import type { Sale, ReturnedItemLine, CreateSaleReturnPayload } from '@/types/sa
 import { calculateReturnSummary, ReturnItemRequest } from '@shared/saleReturnCalculator';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 interface ProcessReturnModalProps {
   visible: boolean;
@@ -192,7 +193,7 @@ export function ProcessReturnModal({
       onSuccess(res.saleReturn);
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to process sales return.');
+      Alert.alert('Error', sanitizeErrorMessage(err, 'Unable to process sales return. Please verify item quantities and retry.'));
     } finally {
       setIsSubmitting(false);
     }

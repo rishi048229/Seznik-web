@@ -11,6 +11,7 @@ import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { useCreatePurchase } from '@/hooks/usePurchases'
 import { formatINR } from '@/utils/currency'
 import { round2 } from '@shared/gstTaxEngine'
+import { toastError } from '@/utils/userMessage'
 import {
   Plus,
   PlusCircle,
@@ -318,7 +319,7 @@ export const RecordPurchaseModal = ({
         onSuccess?.()
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to record purchase')
+        toastError(err, 'Failed to record purchase. Please verify supplier and items.')
       },
     })
   }

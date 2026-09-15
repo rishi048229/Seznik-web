@@ -116,3 +116,18 @@ export function sanitizeErrorMessage(rawError: unknown, fallbackMessage = 'An un
 
   return msg;
 }
+
+import { Alert } from 'react-native';
+
+/**
+ * Standardized Alert.alert that sanitizes technical errors and ensures
+ * clear, friendly user notifications.
+ */
+export function showUserError(
+  title: string,
+  error: unknown,
+  fallbackMessage = 'An unexpected error occurred. Please try again.'
+) {
+  const sanitized = sanitizeErrorMessage(error, fallbackMessage);
+  Alert.alert(title, sanitized);
+}

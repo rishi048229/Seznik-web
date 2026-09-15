@@ -55,6 +55,7 @@ import { getTemplateById } from '@/constants/receiptTemplates';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import { printInvoiceReceipt } from '@/utils/invoiceActions';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 const VOID_REASONS = [
   'Guest cancelled',
@@ -161,7 +162,7 @@ export default function KotOrderDetailScreen() {
       await updateStatus({ id: order.id, payload: { status: newStatus } });
       refetch();
     } catch (err: any) {
-      Alert.alert('Status Error', err?.message || 'Failed to update status');
+      Alert.alert('Status Error', sanitizeErrorMessage(err, 'Failed to update status. Please try again.'));
     }
   };
 
@@ -201,7 +202,7 @@ export default function KotOrderDetailScreen() {
       );
       Alert.alert('Printed!', `Full kitchen slip for KOT #${order.orderNumber} printed.`);
     } catch (err: any) {
-      Alert.alert('Printer Error', err?.message || 'Failed to print kitchen slip');
+      Alert.alert('Printer Error', sanitizeErrorMessage(err, 'Failed to print kitchen slip. Check printer connection.'));
     }
   };
 
@@ -328,7 +329,7 @@ export default function KotOrderDetailScreen() {
 
       Alert.alert('Updated!', autoPrintDelta ? `Changes sent to kitchen and Delta KOT printed.` : `Order items saved.`);
     } catch (err: any) {
-      Alert.alert('Edit Error', err?.message || 'Failed to update KOT order');
+      Alert.alert('Edit Error', sanitizeErrorMessage(err, 'Failed to update KOT order. Please try again.'));
     }
   };
 
@@ -410,7 +411,7 @@ export default function KotOrderDetailScreen() {
         },
       ]);
     } catch (err: any) {
-      Alert.alert('Billing Error', err?.message || 'Failed to generate bill');
+      Alert.alert('Billing Error', sanitizeErrorMessage(err, 'Failed to generate bill. Please try again.'));
     }
   };
 

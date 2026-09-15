@@ -6,6 +6,7 @@ import { Star, Search, ChevronDown } from 'lucide-react'
 import { submitFeedback } from '@/services/feedbackService'
 import { SEZNIK_WEBSITE_PRODUCTS } from '@/data/seznikWebsiteProducts'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 
 const AREA_OPTIONS = [
   { value: 'general', label: 'General / Overall' },
@@ -104,7 +105,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
       toast.success('Thank you! Your feedback helps us improve.')
       handleClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to submit feedback')
+      toastError(err, 'Failed to submit feedback. Please check your connection.')
     } finally {
       setSubmitting(false)
     }

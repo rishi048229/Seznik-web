@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
+import { handleApiError } from '../utils/apiErrorHandler';
 
 export const getSales = async (req: Request, res: Response) => {
   try {
@@ -223,10 +224,7 @@ export const createSale = async (req: Request, res: Response) => {
 
     res.status(201).json(sale);
   } catch (error: any) {
-    console.error('createSale error:', error);
-    res.status(500).json({
-      error: error?.message || 'Failed to create sale',
-    });
+    handleApiError(res, error, 'Failed to complete sale transaction');
   }
 };
 
@@ -364,8 +362,7 @@ export const updateSaleDeliveryStatus = async (req: Request, res: Response) => {
 
     res.json(updated);
   } catch (error: any) {
-    console.error('updateSaleDeliveryStatus error:', error);
-    res.status(500).json({ error: error?.message || 'Failed to update delivery status' });
+    handleApiError(res, error, 'Failed to update delivery status');
   }
 };
 
@@ -404,8 +401,7 @@ export const getDeliveryReminders = async (req: Request, res: Response) => {
       pendingPayments,
     });
   } catch (error: any) {
-    console.error('getDeliveryReminders error:', error);
-    res.status(500).json({ error: error?.message || 'Failed to fetch delivery reminders' });
+    handleApiError(res, error, 'Failed to fetch delivery reminders');
   }
 };
 
