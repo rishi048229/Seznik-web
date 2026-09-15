@@ -51,6 +51,7 @@ import { useSales } from '@/hooks/useSales';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { useCartStore } from '@/store/useCartStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { PaymentMethod } from '@/types/sale';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -143,6 +144,12 @@ function PosScreen() {
   const { categories } = useCategories();
   const { persistSaleInBackground, isCreating } = useSales();
   const storeProfile = useStoreProfile();
+  // usePrinterStore() with no selector re-renders this whole screen (cart, product grid,
+  // payment sheet, everything below) on ANY printer-store field changing — including ones
+  // this screen never reads, like the live list of scanned Bluetooth devices while a scan
+  // is running elsewhere. On the busiest screen in the app that reads as exactly the "tap
+  // and wait" lag reported. useShallow re-renders only when one of these 13 fields itself
+  // changes value, not on every store update.
   const {
     activeDevice,
     connectionState,
@@ -157,7 +164,23 @@ function PosScreen() {
     enableBillQrCode,
     receiptLogoSize,
     receiptQrSize,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+      activeDevice: s.activeDevice,
+      connectionState: s.connectionState,
+      paperWidth: s.paperWidth,
+      topMargin: s.topMargin,
+      autoCut: s.autoCut,
+      fontSize: s.fontSize,
+      printCopies: s.printCopies,
+      activeTemplateId: s.activeTemplateId,
+      customTemplates: s.customTemplates,
+      activeCustomTemplateId: s.activeCustomTemplateId,
+      enableBillQrCode: s.enableBillQrCode,
+      receiptLogoSize: s.receiptLogoSize,
+      receiptQrSize: s.receiptQrSize,
+    }))
+  );
   const [permission, requestPermission] = useCameraPermissions();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);

@@ -45,6 +45,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettings } from '@/hooks/useSettings';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { isProductAvailable } from '@/utils/businessFeatures';
@@ -202,7 +203,20 @@ export default function NewKotOrderScreen() {
     autoCut,
     fontSize,
     printCopies,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    connectionState: s.connectionState,
+    paperWidth: s.paperWidth,
+    activeTemplateId: s.activeTemplateId,
+    customTemplates: s.customTemplates,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    enableBillQrCode: s.enableBillQrCode,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    printCopies: s.printCopies,
+    }))
+  );
   const { settings } = useSettings();
   const storeProfile = useStoreProfile();
 

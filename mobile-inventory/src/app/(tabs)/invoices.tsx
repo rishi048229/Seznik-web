@@ -46,6 +46,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
@@ -91,7 +92,21 @@ export default function InvoicesTabScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeDevice: s.activeDevice,
+    connectionState: s.connectionState,
+    paperWidth: s.paperWidth,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    printCopies: s.printCopies,
+    activeTemplateId: s.activeTemplateId,
+    customTemplates: s.customTemplates,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    enableBillQrCode: s.enableBillQrCode,
+    }))
+  );
   const { sales, isLoading, isRefetching, isError, refetch } = useSales();
 
   const [searchQuery, setSearchQuery] = useState('');

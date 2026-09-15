@@ -35,6 +35,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
@@ -68,7 +69,23 @@ export default function ReceiptBuilderHubScreen() {
     topMargin,
     autoCut,
     fontSize,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    customTemplates: s.customTemplates,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    activeTemplateId: s.activeTemplateId,
+    setActiveCustomTemplate: s.setActiveCustomTemplate,
+    deleteCustomTemplate: s.deleteCustomTemplate,
+    duplicateCustomTemplate: s.duplicateCustomTemplate,
+    saveCustomTemplate: s.saveCustomTemplate,
+    enableBillQrCode: s.enableBillQrCode,
+    setEnableBillQrCode: s.setEnableBillQrCode,
+    paperWidth: s.paperWidth,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    }))
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'active' | '58mm' | '80mm'>('all');

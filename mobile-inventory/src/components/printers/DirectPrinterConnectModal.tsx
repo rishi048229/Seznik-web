@@ -31,6 +31,7 @@ import {
   FileText,
 } from 'lucide-react-native';
 import { usePrinterStore, PhoneBluetoothDevice } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -83,7 +84,21 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     connectedPrinterModel,
     setConnectedPrinterModel,
     warningText,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+      connectionState: s.connectionState,
+      activeDevice: s.activeDevice,
+      pairedPrinters: s.pairedPrinters,
+      scannedDevices: s.scannedDevices,
+      isScanning: s.isScanning,
+      scanForDevices: s.scanForDevices,
+      connectDevice: s.connectDevice,
+      disconnectDevice: s.disconnectDevice,
+      connectedPrinterModel: s.connectedPrinterModel,
+      setConnectedPrinterModel: s.setConnectedPrinterModel,
+      warningText: s.warningText,
+    }))
+  );
 
   const [selectedModel, setSelectedModel] = useState<SeznikPrinterModelId>(
     connectedPrinterModel || initialModelId

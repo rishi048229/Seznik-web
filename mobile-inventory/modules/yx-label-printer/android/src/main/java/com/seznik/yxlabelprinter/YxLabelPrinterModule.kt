@@ -572,9 +572,9 @@ class YxLabelPrinterModule : Module() {
         // time, i.e. exactly a fixed-offset symptom like the one still being seen.
         // Matching the vendor's verified command sequence removes that as a variable.
         build.enable()
-        // Same reasoning as nextPrint(): the printer needs to know the real label size
-        // (CreatePage) before it can be asked to position against it.
-        build.CreatePage(calWidthMm.toInt(), calHeightMm.toInt())
+        // CreatePage removed — see nextPrint()'s comment; matching the vendor's plain,
+        // verified paperType + fixedPoint flow is what a third-party app printing
+        // correctly on this same hardware with zero calibration is actually doing.
         build.paperType(paperType)
         if (paperType == PrinterConstantPool.PaperType.GAP) {
           build.fixedPoint()
@@ -689,37 +689,28 @@ class YxLabelPrinterModule : Module() {
     jobSendIndex++
     val isGap = jobPaperType != PrinterConstantPool.PaperType.CONTINUOUS
 
+    // Restored to match the vendor's own verified reference exactly (Printer_Y50.java,
+    // backend/src/Demo_small) — enable, backoffPaper on the first label of a run,
+    // paperType, printImg, fixedPoint, forwardPaper on the last label of a run, disenable.
+    // Everything this module had layered on top of that — CreatePage (an unverified guess
+    // at an SDK call the vendor's own demo never uses), dropping backoffPaper/forwardPaper
+    // entirely (a theory about per-label bias that a third-party app using this same
+    // printer disproves: it prints correctly-aligned labels with zero calibration using
+    // what is presumably this same underlying SDK) — is removed. The simplest, most
+    // faithful port of the verified reference is the version to trust here, not five
+    // rounds of this module's own accumulated guesses on top of it.
     val build = h.build(printCall(h))
     build.enable()
-    // Tell the firmware the actual physical label size before asking it to position
-    // against it. This is documented in the vendor's own SDK JavaDoc as CreatePage(width,
-    // height) — "Create label page size", parameters in mm — but is used by NEITHER our
-    // prior implementation NOR the vendor's own demo app, which is exactly why it was
-    // missing: there was no working reference to copy it from, only the class signature.
-    // Without it, fixedPoint() has no confirmed page length to position against and may
-    // fall back to a stale or factory-default length, which matches the fixed (not
-    // growing) split seen in testing — the same wrong boundary on every label rather than
-    // a drifting one.
-    build.CreatePage(jobWidthMm.toInt(), jobHeightMm.toInt())
+    if (jobSendIndex == 1 && isGap) {
+      build.backoffPaper()
+    }
     build.paperType(jobPaperType)
     build.printImg(jobImgNames.removeAt(0))
     if (isGap) {
-      // fixedPoint() alone positions the paper: it seeks the sensed gap, i.e. the label
-      // boundary, which is precisely where the next label must start.
-      //
-      // forwardPaper()/backoffPaper() are deliberately NOT used here, even though the
-      // vendor demo pairs them. The demo prints an entire run as ONE job, so it advances
-      // to the tear bar once at the end and retracts once at the start of the next run —
-      // the pair cancels out across a run. This app issues one job per label, so that
-      // pair would run on EVERY label, and any imbalance between how far the printer
-      // advances versus how far it can reverse becomes a per-label bias in the forward
-      // direction. Measured on real stock, that bias was ~10mm: every label printed
-      // about 10mm low and spilled its tail across the die-cut onto the next one.
-      //
-      // Dropping both leaves the paper parked at the label boundary where fixedPoint put
-      // it. The trade-off is that the final label is not pushed out to the tear bar, so
-      // it needs a feed press to tear — a fair price for every label landing square.
       build.fixedPoint()
+      if (jobSendIndex == jobAllCount) {
+        build.forwardPaper()
+      }
     } else {
       build.printLinedots((if (jobSendIndex == jobAllCount) 20 else 5) * 8)
     }

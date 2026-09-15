@@ -47,6 +47,7 @@ import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown'
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
@@ -57,7 +58,13 @@ export default function SalesHistoryScreen() {
   const router = useRouter();
   const { t } = useLanguageStore();
   const storeProfile = useStoreProfile();
-  const { connectionState } = usePrinterStore();
+  const {
+    connectionState,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    connectionState: s.connectionState,
+    }))
+  );
   const { sales, isLoading, isRefetching, isError, refetch, deleteSale } = useSales();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);

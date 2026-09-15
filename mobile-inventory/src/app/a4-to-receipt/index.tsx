@@ -53,6 +53,7 @@ import {
 import ThermalPrinterService from '@/services/PrinterService';
 import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import {
   isOfflineOcrSupported,
   recognizeBillFromImage,
@@ -76,7 +77,13 @@ export default function A4ToReceiptScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const { storeName: defaultStoreName } = useStoreProfile();
-  const { paperWidth } = usePrinterStore();
+  const {
+    paperWidth,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    paperWidth: s.paperWidth,
+    }))
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');

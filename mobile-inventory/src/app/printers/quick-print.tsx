@@ -46,6 +46,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
@@ -83,7 +84,18 @@ export default function TextToThermalPrintScreen() {
     setPrintCopies,
     autoCut,
     receiptFont,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeDevice: s.activeDevice,
+    connectionState: s.connectionState,
+    paperWidth: s.paperWidth,
+    setPaperWidth: s.setPaperWidth,
+    printCopies: s.printCopies,
+    setPrintCopies: s.setPrintCopies,
+    autoCut: s.autoCut,
+    receiptFont: s.receiptFont,
+    }))
+  );
 
   const [paperWidth, setLocalPaperWidth] = useState<'58mm' | '80mm'>(storePaperWidth || '58mm');
   const [copies, setCopies] = useState<number>(printCopies || 1);

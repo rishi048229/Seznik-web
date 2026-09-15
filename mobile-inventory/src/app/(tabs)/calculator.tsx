@@ -36,6 +36,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useCartStore } from '@/store/useCartStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettings } from '@/hooks/useSettings';
 import { Product } from '@/types/product';
 import { Customer } from '@/types/customer';
@@ -389,7 +390,15 @@ export default function DedicatedCalculatorTabScreen() {
     setCustomer: setCartCustomer,
     getGrandTotal,
   } = useCartStore();
-  const { activeDevice, connectionState } = usePrinterStore();
+  const {
+    activeDevice,
+    connectionState,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeDevice: s.activeDevice,
+    connectionState: s.connectionState,
+    }))
+  );
   const { settings } = useSettings();
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);

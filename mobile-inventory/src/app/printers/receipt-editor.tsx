@@ -65,6 +65,7 @@ import { LogoBackgroundModal } from '@/components/common/LogoBackgroundModal';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { buildSampleTestSale, buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -265,7 +266,20 @@ export default function ReceiptEditorScreen() {
     topMargin,
     autoCut,
     fontSize,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    customTemplates: s.customTemplates,
+    saveCustomTemplate: s.saveCustomTemplate,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    setActiveCustomTemplate: s.setActiveCustomTemplate,
+    paperWidth: s.paperWidth,
+    enableBillQrCode: s.enableBillQrCode,
+    activeTemplateId: s.activeTemplateId,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    }))
+  );
 
   const [template, setTemplate] = useState<CustomReceiptTemplate>(() => {
     if (id) {

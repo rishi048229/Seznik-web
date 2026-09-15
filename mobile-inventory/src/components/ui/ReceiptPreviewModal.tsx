@@ -36,6 +36,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions, numberToIndianWords } from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -96,7 +97,23 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     enableBillQrCode,
     receiptLogoSize,
     receiptQrSize,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeDevice: s.activeDevice,
+    connectionState: s.connectionState,
+    paperWidth: s.paperWidth,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    printCopies: s.printCopies,
+    activeTemplateId: s.activeTemplateId,
+    customTemplates: s.customTemplates,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    enableBillQrCode: s.enableBillQrCode,
+    receiptLogoSize: s.receiptLogoSize,
+    receiptQrSize: s.receiptQrSize,
+    }))
+  );
   const { t } = useTranslation();
   const storeProfile = useStoreProfile();
   const [isPrinting, setIsPrinting] = useState(false);

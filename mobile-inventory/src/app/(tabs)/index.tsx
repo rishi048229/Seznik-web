@@ -72,6 +72,7 @@ import { useDashboard, useRevenueTrend } from '@/hooks/useDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService from '@/services/PrinterService';
 import { buildTestReceiptPrintOptions } from '@/utils/fastSaleCheckout';
 import { useCartStore } from '@/store/useCartStore';
@@ -132,6 +133,10 @@ export default function DashboardScreen() {
     }
   };
 
+  // See the identical fix (and reasoning) on (tabs)/pos.tsx — a no-selector usePrinterStore()
+  // re-renders this whole dashboard on every printer-store change, not just the ones it
+  // actually reads. Action functions (setPaperWidth etc.) are stable references from the
+  // store, so including them here costs nothing extra.
   const {
     connectionState,
     connectedPrinterModel,
@@ -150,7 +155,27 @@ export default function DashboardScreen() {
     setConnectedPrinterModel,
     preferredPrinterModel,
     setPreferredPrinterModel,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+      connectionState: s.connectionState,
+      connectedPrinterModel: s.connectedPrinterModel,
+      activeDevice: s.activeDevice,
+      paperWidth: s.paperWidth,
+      setPaperWidth: s.setPaperWidth,
+      disconnectDevice: s.disconnectDevice,
+      topMargin: s.topMargin,
+      autoCut: s.autoCut,
+      fontSize: s.fontSize,
+      printCopies: s.printCopies,
+      activeTemplateId: s.activeTemplateId,
+      customTemplates: s.customTemplates,
+      activeCustomTemplateId: s.activeCustomTemplateId,
+      enableBillQrCode: s.enableBillQrCode,
+      setConnectedPrinterModel: s.setConnectedPrinterModel,
+      preferredPrinterModel: s.preferredPrinterModel,
+      setPreferredPrinterModel: s.setPreferredPrinterModel,
+    }))
+  );
   const { customers, refetch: refetchCustomers } = useCustomers();
   const [permission, requestPermission] = useCameraPermissions();
 

@@ -37,6 +37,7 @@ import { ListScreenSkeleton, QuickTokensListSkeleton } from '@/components/ui/Scr
 import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettings } from '@/hooks/useSettings';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import ThermalPrinterService from '@/services/PrinterService';
@@ -51,7 +52,13 @@ export default function QuickTokensScreen() {
   const { t } = useLanguageStore();
   const { settings } = useSettings();
   const storeProfile = useStoreProfile();
-  const { connectionState } = usePrinterStore();
+  const {
+    connectionState,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    connectionState: s.connectionState,
+    }))
+  );
 
   const {
     tokenTypes,

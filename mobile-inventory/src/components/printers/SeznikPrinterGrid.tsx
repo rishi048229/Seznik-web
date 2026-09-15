@@ -23,6 +23,7 @@ import {
   SeznikPrinterModelId,
 } from '@/constants/printerModels';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -54,7 +55,15 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
     connectedPrinterModel,
     setConnectedPrinterModel,
     disconnectDevice,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeDevice: s.activeDevice,
+    connectionState: s.connectionState,
+    connectedPrinterModel: s.connectedPrinterModel,
+    setConnectedPrinterModel: s.setConnectedPrinterModel,
+    disconnectDevice: s.disconnectDevice,
+    }))
+  );
 
   const [joshConnected, setJoshConnected] = useState(false);
   const [tejConnected, setTejConnected] = useState(false);

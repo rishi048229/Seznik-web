@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Zap, Plus, Trash2 } from 'lucide-react-native';
 import { useSettings } from '@/hooks/useSettings';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { useSales } from '@/hooks/useSales';
 import { useDashboard } from '@/hooks/useDashboard';
@@ -60,7 +61,24 @@ export default function QuickBillScreen() {
     printCopies,
     receiptLogoSize,
     receiptQrSize,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    connectionState: s.connectionState,
+    paperWidth: s.paperWidth,
+    activeTemplateId: s.activeTemplateId,
+    customTemplates: s.customTemplates,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    enableBillQrCode: s.enableBillQrCode,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    receiptFont: s.receiptFont,
+    compactMode: s.compactMode,
+    printCopies: s.printCopies,
+    receiptLogoSize: s.receiptLogoSize,
+    receiptQrSize: s.receiptQrSize,
+    }))
+  );
 
   const [quickBillItems, setQuickBillItems] = useState<QuickBillRow[]>([
     { id: '1', name: '', price: '', qty: '1' },

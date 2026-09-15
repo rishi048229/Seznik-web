@@ -64,6 +64,7 @@ import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { generateProvisionalInvoice } from '@/utils/fastSaleCheckout';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { matchProductByCode } from '@/utils/productBarcodeMatch';
 import { DynamicUpiPaymentModal } from '@/components/ui/DynamicUpiPaymentModal';
 
@@ -73,7 +74,23 @@ export default function PosLiteScreen() {
   const { t } = useLanguageStore();
   const { products, getByBarcode } = useProducts();
   const { persistSaleInBackground, isCreating } = useSales();
-  const { connectionState, paperWidth, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
+  const {
+    connectionState,
+    paperWidth,
+    topMargin,
+    autoCut,
+    fontSize,
+    printCopies,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    connectionState: s.connectionState,
+    paperWidth: s.paperWidth,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    printCopies: s.printCopies,
+    }))
+  );
   const [permission, requestPermission] = useCameraPermissions();
 
   const {

@@ -48,6 +48,7 @@ import { KotOrderDetailSkeleton } from '@/components/ui/ScreenSkeleton';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { BRAND_COLORS } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService, { PrintKotDeltaData } from '@/services/PrinterService';
 import { useSettings } from '@/hooks/useSettings';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
@@ -90,7 +91,31 @@ export default function KotOrderDetailScreen() {
     { enabled: false }
   );
   const { products } = useProducts();
-  const { paperWidth, connectionState, activeTemplateId, customTemplates, activeCustomTemplateId, enableBillQrCode, topMargin, autoCut, fontSize, printCopies } = usePrinterStore();
+  const {
+    paperWidth,
+    connectionState,
+    activeTemplateId,
+    customTemplates,
+    activeCustomTemplateId,
+    enableBillQrCode,
+    topMargin,
+    autoCut,
+    fontSize,
+    printCopies,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    paperWidth: s.paperWidth,
+    connectionState: s.connectionState,
+    activeTemplateId: s.activeTemplateId,
+    customTemplates: s.customTemplates,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    enableBillQrCode: s.enableBillQrCode,
+    topMargin: s.topMargin,
+    autoCut: s.autoCut,
+    fontSize: s.fontSize,
+    printCopies: s.printCopies,
+    }))
+  );
   const { settings } = useSettings();
   const storeProfile = useStoreProfile();
 

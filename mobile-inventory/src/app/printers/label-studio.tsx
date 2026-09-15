@@ -49,6 +49,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { BarcodeView } from '@/components/ui/barcode-view';
 import { DraggableElement, ElementBox } from '@/components/label-studio/DraggableElement';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useProducts } from '@/hooks/useProducts';
 import { Product } from '@/types/product';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -186,7 +187,22 @@ export default function LabelStudioScreen() {
     setLabelPaperMode,
     paperWidth,
     connectedPrinterModel,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    labelTemplates: s.labelTemplates,
+    activeLabelTemplateId: s.activeLabelTemplateId,
+    saveLabelTemplate: s.saveLabelTemplate,
+    deleteLabelTemplate: s.deleteLabelTemplate,
+    setActiveLabelTemplate: s.setActiveLabelTemplate,
+    labelWidthMm: s.labelWidthMm,
+    labelHeightMm: s.labelHeightMm,
+    labelGapMm: s.labelGapMm,
+    labelPaperMode: s.labelPaperMode,
+    setLabelPaperMode: s.setLabelPaperMode,
+    paperWidth: s.paperWidth,
+    connectedPrinterModel: s.connectedPrinterModel,
+    }))
+  );
   const labelPrinter = useLabelPrinterStatus();
   const [showConnectModal, setShowConnectModal] = useState(false);
 

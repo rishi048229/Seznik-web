@@ -15,7 +15,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { usePrinterStore } from '@/store/usePrinterStore';
-
+import { useShallow } from 'zustand/react/shallow';
 export function StatusPill() {
   const router = useRouter();
   const scheme = useColorScheme();
@@ -23,7 +23,17 @@ export function StatusPill() {
 
   // The store subscription lives in the root layout, not here — printer drops have to be noticed
   // whether or not this pill happens to be mounted.
-  const { connectionState, warningText, isAutoReconnecting } = usePrinterStore();
+  const {
+    connectionState,
+    warningText,
+    isAutoReconnecting,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    connectionState: s.connectionState,
+    warningText: s.warningText,
+    isAutoReconnecting: s.isAutoReconnecting,
+    }))
+  );
 
   const [pulseAnim] = useState(() => new Animated.Value(1));
 

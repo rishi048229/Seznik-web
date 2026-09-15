@@ -36,6 +36,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService, { PrintSaleData } from '@/services/PrinterService';
 import { ReceiptTemplateMockup } from '@/components/ui/ReceiptTemplateMockup';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
@@ -51,7 +52,15 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
   const theme = useAppTheme();
   const { aiConvertInvoice } = useProducts();
   const { storeName: defaultStoreName, storeAddress: defaultStoreAddress, storePhone: defaultStorePhone, storeGstin: defaultStoreGstin } = useStoreProfile();
-  const { activeTemplateId, paperWidth } = usePrinterStore();
+  const {
+    activeTemplateId,
+    paperWidth,
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeTemplateId: s.activeTemplateId,
+    paperWidth: s.paperWidth,
+    }))
+  );
 
   const [step, setStep] = useState<'select' | 'analyzing' | 'review'>('select');
   const [selectedTemplateId, setSelectedTemplateId] = useState(activeTemplateId || 'standard');

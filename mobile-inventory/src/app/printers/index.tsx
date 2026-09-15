@@ -47,6 +47,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions } from '@/services/PrinterService';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
@@ -137,7 +138,47 @@ export default function PrintersScreen() {
     setCompactMode,
     setReceiptLogoSize,
     setReceiptQrSize,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeDevice: s.activeDevice,
+    connectionState: s.connectionState,
+    scanForDevices: s.scanForDevices,
+    connectDevice: s.connectDevice,
+    disconnectDevice: s.disconnectDevice,
+    addPairedPrinter: s.addPairedPrinter,
+    forgetPrinter: s.forgetPrinter,
+    pairedPrinters: s.pairedPrinters,
+    scannedDevices: s.scannedDevices,
+    isScanning: s.isScanning,
+    warningText: s.warningText,
+    nativeModuleAvailable: s.nativeModuleAvailable,
+    activeTemplateId: s.activeTemplateId,
+    savePrinterCalibration: s.savePrinterCalibration,
+    setActiveTemplate: s.setActiveTemplate,
+    hydrateFromSettings: s.hydrateFromSettings,
+    labelPaperMode: s.labelPaperMode,
+    setLabelPaperMode: s.setLabelPaperMode,
+    labelWidthMm: s.labelWidthMm,
+    labelHeightMm: s.labelHeightMm,
+    labelGapMm: s.labelGapMm,
+    labelOffsetMm: s.labelOffsetMm,
+    setLabelOffsetMm: s.setLabelOffsetMm,
+    setLabelWidthMm: s.setLabelWidthMm,
+    setLabelHeightMm: s.setLabelHeightMm,
+    setLabelGapMm: s.setLabelGapMm,
+    labelTemplates: s.labelTemplates,
+    activeLabelTemplateId: s.activeLabelTemplateId,
+    customTemplates: s.customTemplates,
+    activeCustomTemplateId: s.activeCustomTemplateId,
+    setActiveCustomTemplate: s.setActiveCustomTemplate,
+    enableBillQrCode: s.enableBillQrCode,
+    setEnableBillQrCode: s.setEnableBillQrCode,
+    compactMode: s.compactMode,
+    setCompactMode: s.setCompactMode,
+    setReceiptLogoSize: s.setReceiptLogoSize,
+    setReceiptQrSize: s.setReceiptQrSize,
+    }))
+  );
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
   const activeCustomTemplate = customTemplates.find((t) => t.id === activeCustomTemplateId) || null;
   const hasSequenceElement =

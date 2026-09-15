@@ -3528,29 +3528,16 @@ class ThermalPrinterServiceManager {
   private async printSpecOnLabelPrinter(spec: JoshLabelSpec): Promise<boolean> {
     const kind = await this.getConnectedLabelPrinterKind();
     if (kind === 'yx' && YxLabelPrinter) {
-      // TEJ no longer prints labels through the YX vendor SDK's own printLabel at all.
-      // Two separate, unrelated things about that SDK path have never been resolved
-      // across many attempts on this specific unit:
-      //  1. Positioning: five different command sequences (CreatePage, LEARN_LABEL+
-      //     calibration(), removing the per-label forwardPaper/backoffPaper bias, a
-      //     vertical-trim translation, and the connection-polling fix) never moved the
-      //     physical result at all.
-      //  2. Connection reliability: connect() has been observed timing out even at a
-      //     40s ceiling while the printer becomes usable moments later regardless —
-      //     onConneted() has never been seen to fire on this hardware.
-      // TSPL was tried as an alternative and is now a confirmed dead end (this printer
-      // echoes TSPL commands as literal printed text rather than executing them).
-      // What IS proven reliable on this exact hardware: receipts, which go through the
-      // plain ESC/POS bridge via ensureConnected() — the same one DEV's labels use, with
-      // a confirmed-correct 50x30mm bitmap (device logs) and the same feed-distance fix
-      // already verified working on DEV. That bridge doesn't depend on the YX SDK's
-      // connection state at all, so it also sidesteps problem #2 above entirely.
-      return await this.printSpecViaEscposGraphic(
-        spec,
-        this.getEscPosPaperWidth(),
-        Math.max(1, Math.round(spec.copies ?? 1)),
-        this.safeMm(spec.gapMm, 2)
-      );
+      // Restored to the actual YX vendor SDK. A third-party app (Flashlabel Pro, Play
+      // Store) was tested directly against this same physical printer and prints
+      // correctly-aligned labels with zero calibration — decisive proof the hardware and
+      // this SDK family are fine, and that the ESC/POS-raster bypass this line used to
+      // route through (a guessed feed distance, no real positioning at all) was solving
+      // the wrong problem. The native module's own build sequence (nextPrint in
+      // YxLabelPrinterModule.kt) has been stripped back to a plain, faithful port of the
+      // vendor's verified reference flow — see its comment for what was removed and why.
+      const adaptedSpec = this.adaptSpecForYxPrinter(spec);
+      return await YxLabelPrinter.printLabel(adaptedSpec);
     }
     if (!JoshLabelPrinter) return false;
     return await JoshLabelPrinter.printLabel(spec);

@@ -19,6 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Product } from '@/types/product';
 import ThermalPrinterService from '@/services/PrinterService';
 import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useLabelPrinterStatus } from '@/hooks/useLabelPrinterStatus';
 import { useJoshDualModeTip } from '@/hooks/useJoshDualModeTip';
 import { JoshDualModeModal } from '@/components/printers/JoshDualModeModal';
@@ -59,7 +60,21 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     labelTemplates,
     activeLabelTemplateId,
     connectedPrinterModel,
-  } = usePrinterStore();
+  } = usePrinterStore(
+    useShallow((s) => ({
+    activeDevice: s.activeDevice,
+    connectionState: s.connectionState,
+    paperWidth: s.paperWidth,
+    labelPaperMode: s.labelPaperMode,
+    setLabelPaperMode: s.setLabelPaperMode,
+    labelWidthMm: s.labelWidthMm,
+    labelHeightMm: s.labelHeightMm,
+    labelGapMm: s.labelGapMm,
+    labelTemplates: s.labelTemplates,
+    activeLabelTemplateId: s.activeLabelTemplateId,
+    connectedPrinterModel: s.connectedPrinterModel,
+    }))
+  );
   const labelPrinter = useLabelPrinterStatus();
   const activeLabelTemplate = labelTemplates.find((t) => t.id === activeLabelTemplateId) || null;
   const [showConnectModal, setShowConnectModal] = useState(false);
