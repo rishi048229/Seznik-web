@@ -59,3 +59,14 @@ export async function resolveBusinessLogoUri(stored: string | null | undefined):
 
   return null;
 }
+
+/**
+ * Removes the persistent logo from on-device storage when cleared by user.
+ */
+export async function clearPersistedBusinessLogo(): Promise<void> {
+  try {
+    await FileSystem.deleteAsync(LOGO_FILE, { idempotent: true });
+  } catch {
+    /* ignore if doesn't exist */
+  }
+}

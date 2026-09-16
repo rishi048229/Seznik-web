@@ -155,9 +155,12 @@ export default function ProductsScreen() {
   const [showRestockModal, setShowRestockModal] = useState(false);
   const [restockQtyInput, setRestockQtyInput] = useState('');
 
-  // Quick Add Category Modal State
+  // Quick Add Category & Supplier Modal State
   const [showAddCatModal, setShowAddCatModal] = useState(false);
   const [newCatName, setNewCatName] = useState('');
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierPhone, setNewSupplierPhone] = useState('');
 
   // Form Dropdowns
   const [showGstDropdown, setShowGstDropdown] = useState(false);
@@ -620,6 +623,22 @@ export default function ProductsScreen() {
     }
   };
 
+  const handleQuickCreateSupplier = async () => {
+    if (!newSupplierName.trim()) return;
+    try {
+      const created = await createSupplier({
+        name: newSupplierName.trim(),
+        phone: newSupplierPhone.trim() || '—',
+      });
+      setSupplierId(created.id);
+      setNewSupplierName('');
+      setNewSupplierPhone('');
+      setShowAddSupplierModal(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to create supplier');
+    }
+  };
+
   const sPrice = parseFloat(sellingPrice) || 0;
   const cPrice = parseFloat(costPrice) || 0;
   const marginAmt = sPrice - cPrice;
@@ -659,7 +678,11 @@ export default function ProductsScreen() {
             <Text style={[styles.backBtnText, { color: theme.textSecondary }]}>{t('back', 'Back')}</Text>
           </TouchableOpacity>
 
-          <View style={styles.headerActionsGroup}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.headerActionsGroup}
+          >
             <TouchableOpacity
               onPress={() => setShowAiModal(true)}
               activeOpacity={0.75}
@@ -716,7 +739,7 @@ export default function ProductsScreen() {
               <Plus size={14} color="#FFFFFF" strokeWidth={2.8} />
               <Text style={styles.addPrimaryBtnText}>{t('addProduct', 'Add Product')}</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
 
         <Text style={[styles.title, { color: theme.textPrimary }]}>
@@ -1561,9 +1584,19 @@ export default function ProductsScreen() {
             />
 
             {/* Category Dropdown */}
-            <View style={styles.labelRow}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Category</Text>
-              <Info size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+            <View style={[styles.labelRow, { justifyContent: 'space-between', alignItems: 'center' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>Category</Text>
+                <Info size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAddCatModal(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(37,99,235,0.1)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}
+                activeOpacity={0.7}
+              >
+                <Plus size={13} color={BRAND_COLORS.blue600} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: BRAND_COLORS.blue600, marginLeft: 2 }}>Add New</Text>
+              </TouchableOpacity>
             </View>
             <TouchableOpacity
               onPress={() => setShowCatDropdown(!showCatDropdown)}
@@ -1597,9 +1630,19 @@ export default function ProductsScreen() {
             ) : null}
 
             {/* Supplier / Vendor Dropdown */}
-            <View style={styles.labelRow}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>Supplier / Vendor</Text>
-              <Info size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+            <View style={[styles.labelRow, { justifyContent: 'space-between', alignItems: 'center' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>Supplier / Vendor</Text>
+                <Info size={14} color={theme.textSecondary} style={{ marginLeft: 4 }} />
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAddSupplierModal(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(20,184,166,0.1)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}
+                activeOpacity={0.7}
+              >
+                <Plus size={13} color="#14B8A6" />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#14B8A6', marginLeft: 2 }}>Add New</Text>
+              </TouchableOpacity>
             </View>
             <TouchableOpacity
               onPress={() => setShowSupplierDropdown(!showSupplierDropdown)}
@@ -1923,6 +1966,95 @@ export default function ProductsScreen() {
           </View>
           </KeyboardAvoidingWrapper>
         </SafeAreaView>
+      </Modal>
+
+      {/* QUICK ADD CATEGORY MODAL */}
+      <Modal visible={showAddCatModal} transparent animationType="fade" onRequestClose={() => setShowAddCatModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 400, backgroundColor: theme.cardBg, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: theme.borderColor }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, marginBottom: 14 }}>Create New Category</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 16 }]}
+              value={newCatName}
+              onChangeText={setNewCatName}
+              placeholder="e.g. Beverages, Bakery, Electronics"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+              <TouchableOpacity onPress={() => setShowAddCatModal(false)} style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleQuickCreateCategory} style={{ backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800' }}>Add Category</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* QUICK ADD SUPPLIER MODAL */}
+      <Modal visible={showAddSupplierModal} transparent animationType="fade" onRequestClose={() => setShowAddSupplierModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 400, backgroundColor: theme.cardBg, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: theme.borderColor }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, marginBottom: 14 }}>Create New Supplier</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 12 }]}
+              value={newSupplierName}
+              onChangeText={setNewSupplierName}
+              placeholder="Supplier / Vendor Name *"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+            />
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 16 }]}
+              value={newSupplierPhone}
+              onChangeText={setNewSupplierPhone}
+              placeholder="Phone Number (Optional)"
+              placeholderTextColor="#94A3B8"
+              keyboardType="phone-pad"
+            />
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+              <TouchableOpacity onPress={() => setShowAddSupplierModal(false)} style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleQuickCreateSupplier} style={{ backgroundColor: '#14B8A6', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800' }}>Add Supplier</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* QUICK RESTOCK MODAL */}
+      <Modal visible={showRestockModal} transparent animationType="fade" onRequestClose={() => setShowRestockModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 400, backgroundColor: theme.cardBg, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: theme.borderColor }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, marginBottom: 6 }}>
+              Restock {detailProduct?.name}
+            </Text>
+            <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 14 }}>
+              Current In-Stock: {detailProduct?.currentStock || 0} {detailProduct?.unit || 'units'}
+            </Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 16 }]}
+              value={restockQtyInput}
+              onChangeText={setRestockQtyInput}
+              placeholder="Quantity to add (e.g. 10)"
+              placeholderTextColor="#94A3B8"
+              keyboardType="numeric"
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+              <TouchableOpacity onPress={() => setShowRestockModal(false)} style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleConfirmRestock} style={{ backgroundColor: '#10B981', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800' }}>Add Stock</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* BULK PRODUCT UPLOAD MODAL */}

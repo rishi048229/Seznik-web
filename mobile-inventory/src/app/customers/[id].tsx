@@ -407,19 +407,26 @@ export default function CustomerAccountScreen() {
                 </View>
 
                 {/* Phone */}
-                <TouchableOpacity
-                  onPress={handleCall}
-                  style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
-                >
-                  <Phone size={12} color="#94A3B8" style={{ marginRight: 5 }} />
-                  <Text style={styles.profileMetaText}>{customer.phone || '+91 98765 43210'}</Text>
-                </TouchableOpacity>
+                {customer.phone ? (
+                  <TouchableOpacity
+                    onPress={handleCall}
+                    style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
+                  >
+                    <Phone size={12} color="#94A3B8" style={{ marginRight: 5 }} />
+                    <Text style={styles.profileMetaText}>{customer.phone}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Phone size={12} color="#94A3B8" style={{ marginRight: 5 }} />
+                    <Text style={styles.profileMetaText}>—</Text>
+                  </View>
+                )}
 
                 {/* Location */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
                   <MapPin size={12} color="#94A3B8" style={{ marginRight: 5 }} />
                   <Text style={styles.profileMetaText} numberOfLines={1}>
-                    {customer.address || 'Pune, Maharashtra'}
+                    {customer.address || '—'}
                   </Text>
                 </View>
               </View>

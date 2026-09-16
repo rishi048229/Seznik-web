@@ -1343,7 +1343,7 @@ export default function PrintersScreen() {
 
               {/* SAVE CONFIGURATION BUTTON */}
               <TouchableOpacity
-                onPress={handleSaveCalibration}
+                onPress={handleSavePrinterSettings}
                 disabled={isSavingSettings}
                 style={[styles.saveSettingsBtn, { marginTop: 16 }]}
               >
@@ -1569,22 +1569,6 @@ export default function PrintersScreen() {
               {/* HARDWARE CALIBRATION */}
               <Text style={[styles.sectionHeader, { marginTop: 6 }]}>HARDWARE CALIBRATION & PRINT SETTINGS</Text>
 
-              {/* Stepper 1: Paper Width */}
-              <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Paper Width Size</Text>
-                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Thermal roll width (58mm or 80mm)</Text>
-                </View>
-                <View style={styles.stepperControls}>
-                  <TouchableOpacity onPress={() => setPaperWidthVal(58)} style={[styles.widthChip, paperWidthVal === 58 && styles.widthChipActive]}>
-                    <Text style={[styles.widthChipText, paperWidthVal === 58 && styles.widthChipTextActive]}>58mm</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setPaperWidthVal(80)} style={[styles.widthChip, paperWidthVal === 80 && styles.widthChipActive]}>
-                    <Text style={[styles.widthChipText, paperWidthVal === 80 && styles.widthChipTextActive]}>80mm</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
               {/* Stepper 2: Top Offset Margin */}
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
@@ -1744,7 +1728,7 @@ export default function PrintersScreen() {
 
               {/* SAVE CONFIGURATION BUTTON */}
               <TouchableOpacity
-                onPress={handleSaveCalibration}
+                onPress={handleSavePrinterSettings}
                 disabled={isSavingSettings}
                 style={[styles.saveSettingsBtn, { marginTop: 16 }]}
               >

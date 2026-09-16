@@ -46,7 +46,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSettings, setCachedSettings } from '@/hooks/useSettings';
 import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { settingsApi, Settings } from '@/api/settings';
-import { persistBusinessLogo } from '@/utils/businessLogoStorage';
+import { persistBusinessLogo, clearPersistedBusinessLogo } from '@/utils/businessLogoStorage';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -214,6 +214,8 @@ export default function SettingsScreen() {
       if (logoUri) {
         persistedLogo = await persistBusinessLogo(logoUri);
         setLogoUri(persistedLogo);
+      } else {
+        await clearPersistedBusinessLogo().catch(() => {});
       }
       const existingReceipt =
         settings?.receiptConfig && typeof settings.receiptConfig === 'object'
@@ -232,7 +234,7 @@ export default function SettingsScreen() {
           address: storeAddress,
           phone: storePhone.trim(),
           gstin: storeGstin.trim(),
-          ...(persistedLogo ? { logoURL: persistedLogo } : {}),
+          logoURL: persistedLogo ?? null,
           ...(upiId ? { upiId } : {}),
           receiptConfigUpdatedAt: new Date().toISOString(),
         },

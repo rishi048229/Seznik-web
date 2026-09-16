@@ -130,7 +130,7 @@ declare class JoshLabelPrinterNativeModule extends NativeModule<JoshLabelPrinter
   startDiscovery(): Promise<boolean>;
   stopDiscovery(): Promise<boolean>;
   getPairedPrinters(): Promise<JoshPrinterDevice[]>;
-  connect(address: string): Promise<boolean>;
+  connect(address: string, name?: string): Promise<boolean>;
   disconnect(): Promise<boolean>;
   isConnected(): Promise<boolean>;
   getPrinterInfo(): Promise<{

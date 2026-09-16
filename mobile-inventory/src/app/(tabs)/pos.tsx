@@ -274,7 +274,8 @@ function PosScreen() {
       ? true
       : p.name.toLowerCase().includes(q) ||
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
-        (p.sku && p.sku.toLowerCase().includes(q));
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
+        (p.sellingPrice !== undefined && String(p.sellingPrice).includes(q));
     return matchesCategory && matchesQuery;
   }), [products, selectedCategoryId, deferredSearchQuery]);
 
@@ -726,7 +727,7 @@ function PosScreen() {
           <Search size={16} color={theme.textSecondary} />
           <TextInput
             style={[styles.inputField, { color: theme.textPrimary }]}
-            placeholder={t('searchProducts', 'Search by name, barcode, or SKU...')}
+            placeholder={t('searchProducts', 'Search by name, price, barcode, or SKU...')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -2032,8 +2033,8 @@ const styles = StyleSheet.create({
   toolBtnBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   toolBtnBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
   searchRowContainer: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 12, marginBottom: 12 },
-  searchInputFull: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 13, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
-  inputField: { flex: 1, marginLeft: 10, fontSize: 14.5, fontWeight: '600' },
+  searchInputFull: { flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 0, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+  inputField: { flex: 1, marginLeft: 10, fontSize: 14.5, fontWeight: '600', paddingVertical: 0 },
   categoryChipRow: { flexGrow: 0, marginBottom: 12 },
   categorySearchBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1.5, paddingVertical: 10, paddingHorizontal: 14, marginRight: 8 },
   categorySearchBtnText: { fontSize: 12, fontWeight: '800', marginHorizontal: 4 },

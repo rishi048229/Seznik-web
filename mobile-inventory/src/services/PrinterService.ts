@@ -2975,10 +2975,14 @@ class ThermalPrinterServiceManager {
     labelHeightMm: number = 30
   ) {
     const DOTS_PER_MM = 8; // 203 DPI standard for thermal label printers (8 dots per mm)
-    const LABEL_W_DOTS = labelWidthMm * DOTS_PER_MM; // 50mm = 400 dots
-    const LABEL_H_DOTS = labelHeightMm * DOTS_PER_MM; // 30mm = 240 dots
-    const FONT3_CHAR_W = 16; // TSPL FONT_3 width at 1x
+    const LABEL_W_DOTS = Math.max(160, labelWidthMm * DOTS_PER_MM);
+    const LABEL_H_DOTS = Math.max(160, labelHeightMm * DOTS_PER_MM);
     const MARGIN_2MM = 16; // Standard 2mm minimum margin = 16 dots at 203 DPI
+
+    const isLargeLabel = labelHeightMm >= 45 || labelWidthMm >= 60;
+    const fontMul = isLargeLabel && labelWidthMm >= 50 ? 1 : 1;
+    const fontHeightDots = 24 * fontMul;
+    const FONT3_CHAR_W = 16 * fontMul;
 
     const rawCode = product.barcode || product.sku || `PROD-${product.id?.slice(-6) || '1234'}`;
 
@@ -2987,15 +2991,22 @@ class ThermalPrinterServiceManager {
     const displayName = product.name.length > maxNameChars ? `${product.name.slice(0, maxNameChars - 1)}…` : product.name;
     const priceText = `Rs.${product.sellingPrice.toFixed(2)}`;
 
-    // 1. Name Text — Centered Horizontally at Top (y=10)
+    // Estimate total content height to center vertically
+    const barHeight = Math.min(130, Math.max(54, Math.round(LABEL_H_DOTS * (isLargeLabel ? 0.36 : 0.28))));
+    const codeEstimateH = format === 'qr' ? Math.min(LABEL_W_DOTS * 0.5, LABEL_H_DOTS * 0.5) : barHeight + 20;
+    const totalEstimatedH = fontHeightDots * 2 + 16 + codeEstimateH;
+
+    const startY = Math.max(MARGIN_2MM, Math.round((LABEL_H_DOTS - totalEstimatedH) / 2));
+
+    // 1. Name Text — Centered Horizontally
     const nameWidthDots = displayName.length * FONT3_CHAR_W;
     const nameX = Math.max(MARGIN_2MM, Math.round((LABEL_W_DOTS - nameWidthDots) / 2));
-    const nameY = 10;
+    const nameY = startY;
 
-    // 2. Price Text — Centered Horizontally below Name (y=34)
+    // 2. Price Text — Centered Horizontally below Name
     const priceWidthDots = priceText.length * FONT3_CHAR_W;
     const priceX = Math.max(MARGIN_2MM, Math.round((LABEL_W_DOTS - priceWidthDots) / 2));
-    const priceY = 34;
+    const priceY = nameY + fontHeightDots + (isLargeLabel ? 8 : 4);
 
     const text = [
       {
@@ -3004,8 +3015,8 @@ class ThermalPrinterServiceManager {
         y: nameY,
         fonttype: NativeTscPrinter.FONTTYPE?.FONT_3 ?? '3',
         rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
-        xscal: NativeTscPrinter.FONTMUL?.MUL_1 ?? 1,
-        yscal: NativeTscPrinter.FONTMUL?.MUL_1 ?? 1,
+        xscal: fontMul,
+        yscal: fontMul,
       },
       {
         text: priceText,
@@ -3013,16 +3024,16 @@ class ThermalPrinterServiceManager {
         y: priceY,
         fonttype: NativeTscPrinter.FONTTYPE?.FONT_3 ?? '3',
         rotation: NativeTscPrinter.ROTATION?.ROTATION_0 ?? 0,
-        xscal: NativeTscPrinter.FONTMUL?.MUL_1 ?? 1,
-        yscal: NativeTscPrinter.FONTMUL?.MUL_1 ?? 1,
+        xscal: fontMul,
+        yscal: fontMul,
         bold: true,
       },
     ];
 
-    // 3. Code Zone (QR Code or Barcode) — Starts at y=62 (2mm gap below price text), leaving 2mm (16 dots) bottom margin
-    const codeZoneY = 62;
-    const maxBottomY = Math.round(LABEL_H_DOTS - MARGIN_2MM); // 224 dots max Y for 30mm label
-    const maxCodeH = Math.max(40, maxBottomY - codeZoneY); // 162 dots max available height
+    // 3. Code Zone (QR Code or Barcode) — Positioned below price
+    const codeZoneY = priceY + fontHeightDots + (isLargeLabel ? 12 : 6);
+    const maxBottomY = Math.round(LABEL_H_DOTS - MARGIN_2MM);
+    const maxCodeH = Math.max(40, maxBottomY - codeZoneY);
 
     let qrcode: any[] | undefined;
     let barcode: any[] | undefined;
@@ -3043,22 +3054,13 @@ class ThermalPrinterServiceManager {
         qrModules = 25;
       }
 
-      // STANDARD SPEC: QR Code size = 15x15mm (120x120 dots) to 20x20mm (160x160 dots) square
-      const MIN_QR_DOTS = 120; // 15mm
-      const MAX_QR_DOTS = 160; // 20mm
+      const targetQrDots = isLargeLabel
+        ? Math.min(240, Math.round(LABEL_H_DOTS * 0.48))
+        : Math.min(160, Math.max(120, Math.round(LABEL_H_DOTS * 0.45)));
 
-      let cellWidth = Math.floor(150 / qrModules);
+      let cellWidth = Math.max(2, Math.floor(targetQrDots / qrModules));
       let qrSize = qrModules * cellWidth;
 
-      if (qrSize < MIN_QR_DOTS) {
-        cellWidth = Math.min(6, Math.ceil(MIN_QR_DOTS / qrModules));
-        qrSize = qrModules * cellWidth;
-      } else if (qrSize > MAX_QR_DOTS) {
-        cellWidth = Math.max(2, Math.floor(MAX_QR_DOTS / qrModules));
-        qrSize = qrModules * cellWidth;
-      }
-
-      // Perfectly Centered Horizontally & Vertically in lower region with >2mm margin on all sides
       const qrX = Math.max(MARGIN_2MM, Math.round((LABEL_W_DOTS - qrSize) / 2));
       const qrY = codeZoneY + Math.max(0, Math.round((maxCodeH - qrSize) / 2));
 
@@ -3073,17 +3075,14 @@ class ThermalPrinterServiceManager {
         },
       ];
     } else {
-      // STANDARD SPEC: Barcode size = 35x8mm (280x64 dots) to 40x10mm (320x80 dots) rectangle
-      const barY = codeZoneY + 6;
-      const barHeight = 64; // 8mm height standard rectangle
-      const TARGET_MIN_W_DOTS = 280; // 35mm
-      const TARGET_MAX_W_DOTS = 320; // 40mm
+      const barY = codeZoneY + 4;
+      const targetMinW = Math.min(LABEL_W_DOTS - MARGIN_2MM * 2, isLargeLabel ? 320 : 280);
+      const targetMaxW = Math.min(LABEL_W_DOTS - MARGIN_2MM * 2, isLargeLabel ? 360 : 320);
 
       if (effectiveFormat === 'ean13') {
         const digits = rawCode.replace(/\D/g, '');
-        const EAN13_MODULES = 95; // GS1 spec
-        // narrow=3 => 95 * 3 = 285 dots (35.6mm wide), perfectly inside 35-40mm range
-        const narrow = 3;
+        const EAN13_MODULES = 95;
+        const narrow = LABEL_W_DOTS >= 480 ? 4 : 3;
         const barWidth = EAN13_MODULES * narrow;
         const barX = Math.max(MARGIN_2MM, Math.round((LABEL_W_DOTS - barWidth) / 2));
 
@@ -3103,15 +3102,15 @@ class ThermalPrinterServiceManager {
       } else {
         const content = rawCode.replace(/[^\x20-\x7E]/g, '');
         const estModules = 35 + content.length * 11;
-        let narrow = Math.min(3, Math.max(2, Math.floor(TARGET_MAX_W_DOTS / estModules)));
+        let narrow = Math.min(3, Math.max(2, Math.floor(targetMaxW / estModules)));
         let barWidth = estModules * narrow;
 
-        if (barWidth < TARGET_MIN_W_DOTS && narrow < 4) {
-          narrow = Math.min(4, Math.ceil(TARGET_MIN_W_DOTS / estModules));
+        if (barWidth < targetMinW && narrow < 4) {
+          narrow = Math.min(4, Math.ceil(targetMinW / estModules));
           barWidth = estModules * narrow;
         }
 
-        const barX = Math.max(MARGIN_2MM, Math.round((LABEL_W_DOTS - Math.min(TARGET_MAX_W_DOTS, barWidth)) / 2));
+        const barX = Math.max(MARGIN_2MM, Math.round((LABEL_W_DOTS - Math.min(targetMaxW, barWidth)) / 2));
 
         barcode = [
           {
@@ -3929,7 +3928,7 @@ class ThermalPrinterServiceManager {
         await new Promise((resolve) => setTimeout(resolve, 150));
       }
     } catch {}
-    const ok = await JoshLabelPrinter.connect(address);
+    const ok = await JoshLabelPrinter.connect(address, name);
     if (ok) {
       const printerName = name || 'JOSH Printer';
       setStoredJoshPrinter({ address, name: printerName }).catch(() => {});

@@ -246,16 +246,17 @@ export function calculateReturnSummary(
   for (const req of returnRequests) {
     if (!req.quantity || req.quantity <= 0) continue;
 
-    const matched = resolvedLines.find(
-      (line) =>
-        (line.orig.productId && req.productId && line.orig.productId === req.productId) ||
-        (line.orig.id && req.id && line.orig.id === req.id) ||
-        (line.orig.productName && req.productName && line.orig.productName === req.productName) ||
-        (line.orig.name && req.name && line.orig.name === req.name)
-    );
+    const matched = resolvedLines.find((line) => {
+      if (line.orig.productId && req.productId && String(line.orig.productId) === String(req.productId)) return true;
+      if (line.orig.id && req.id && String(line.orig.id) === String(req.id)) return true;
+      const oName = (line.orig.productName || line.orig.name || '').trim().toLowerCase();
+      const rName = (req.productName || req.name || '').trim().toLowerCase();
+      if (oName && rName && oName === rName) return true;
+      return false;
+    }) || (resolvedLines.length === 1 && returnRequests.length === 1 ? resolvedLines[0] : undefined);
 
     if (!matched) {
-      throw new Error(`Item ${req.productName || req.productId || 'unknown'} not found in original sale`);
+      throw new Error(`Item ${req.productName || req.productId || 'item'} not found in original sale`);
     }
 
     const returnQty = Math.min(Number(req.quantity), matched.origQty);
@@ -287,7 +288,7 @@ export function calculateReturnSummary(
   // -------------------------------------------------------------------------
   let finalRefundAmount = totalRefund;
 
-  if (isFullInvoiceReturn && saleContext?.grandTotal !== undefined && saleContext.grandTotal > 0) {
+  if (isFullInvoiceReturn && saleContext?.grandTotal !== undefined && saleContext.grandTotal >= 0) {
     // Invariant 1: Full invoice return must refund EXACTLY Sale.grandTotal
     finalRefundAmount = saleContext.grandTotal;
     subtotal = Number(saleContext.subtotal ?? subtotal);
@@ -304,7 +305,7 @@ export function calculateReturnSummary(
       primaryLine.taxableAmount = round2(primaryLine.taxableAmount + taxableDiff);
       primaryLine.gstAmount = round2(primaryLine.gstAmount + taxDiff);
     }
-  } else if (isFinalReturnCompletingInvoice && saleContext?.grandTotal !== undefined && saleContext.grandTotal > 0) {
+  } else if (isFinalReturnCompletingInvoice && saleContext?.grandTotal !== undefined && saleContext.grandTotal >= 0) {
     // Invariant 4: Absorbs any cumulative fractional paise drift on the last partial return
     const remainingInvoiceBalance = Math.max(0, round2(saleContext.grandTotal - pastTotalRefunded));
     const drift = round2(remainingInvoiceBalance - totalRefund);

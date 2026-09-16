@@ -495,7 +495,11 @@ export default function InvoicesTabScreen() {
                     </TouchableOpacity>
 
                     {/* Bottom Actions Row Below */}
-                    <View style={[styles.cardActionsRow, { borderTopColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={[styles.cardActionsRow, { borderTopColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}
+                    >
                       <TouchableOpacity
                         onPress={() => openA4Preview(item)}
                         style={[styles.cardActionBtn, { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}
@@ -590,7 +594,7 @@ export default function InvoicesTabScreen() {
                         disabled={isBusy}
                         style={[styles.cardActionBtn, styles.printIconBtn]}
                         accessibilityRole="button"
-                        accessibilityLabel={t('print', 'Print')}
+                        accessibilityLabel={t('printInvoice', 'Print invoice receipt')}
                         activeOpacity={0.7}
                       >
                         {isBusy && busyAction === 'print' ? (
@@ -604,7 +608,7 @@ export default function InvoicesTabScreen() {
                           </>
                         )}
                       </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                   </View>
                 );
               }}
@@ -862,14 +866,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardActionBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     borderRadius: 10,
-    gap: 4,
+    gap: 5,
     minHeight: 34,
+    flexShrink: 0,
   },
   cardActionBtnText: {
     fontSize: 11.5,

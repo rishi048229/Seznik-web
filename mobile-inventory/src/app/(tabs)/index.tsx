@@ -64,6 +64,8 @@ import {
   ChefHat,
   Store,
   WifiOff,
+  Flashlight,
+  FlashlightOff,
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
@@ -234,6 +236,7 @@ export default function DashboardScreen() {
 
   const [showScanModal, setShowScanModal] = useState(false);
   const [scanMode, setScanMode] = useState<'bill' | 'stock'>('bill');
+  const [isTorchOn, setIsTorchOn] = useState(false);
 
   const showKot =
     isNavFeatureVisible(user?.businessType, 'kot') && hasPermission('canAccessKOT');
@@ -556,6 +559,47 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+              {/* Welcome / Catalog Setup Guidance Banner */}
+              {totalSkuCount === 0 && (
+                <View
+                  style={[
+                    styles.welcomeBanner,
+                    {
+                      backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.14)' : '#EFF6FF',
+                      borderColor: theme.isDark ? 'rgba(56, 189, 248, 0.3)' : '#BFDBFE',
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', flex: 1 }}>
+                    <View style={[styles.welcomeIconBox, { backgroundColor: BRAND_COLORS.blue600 }]}>
+                      <Sparkles size={18} color="#FFFFFF" />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.welcomeTitle, { color: theme.textPrimary }]}>
+                        Welcome to Seznik POS! 🚀
+                      </Text>
+                      <Text style={[styles.welcomeSubtitle, { color: theme.textSecondary }]}>
+                        Get started by adding your first product or bulk uploading your catalog via Excel.
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                        <TouchableOpacity
+                          onPress={() => router.push('/products' as any)}
+                          style={[styles.welcomeActionBtn, { backgroundColor: BRAND_COLORS.blue600 }]}
+                        >
+                          <Plus size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+                          <Text style={styles.welcomeActionBtnText}>Add Product</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setShowAiImportModal(true)}
+                          style={[styles.welcomeSecBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                        >
+                          <Text style={[styles.welcomeSecBtnText, { color: theme.textPrimary }]}>Bulk Excel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
 
               {/* 2. APP LAUNCHER — Primary 4 Tools with Show More Menu */}
               <View style={styles.sectionHeaderRow}>
@@ -733,13 +777,6 @@ export default function DashboardScreen() {
                       icon={TrendingDown}
                       color="#EF4444"
                       onPress={() => router.push('/expenses' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('purchases', 'Purchases')}
-                      icon={ShoppingBag}
-                      color="#14B8A6"
-                      onPress={() => router.push('/purchases' as any)}
                       theme={theme}
                     />
                     {showTokens ? (
@@ -1296,25 +1333,61 @@ export default function DashboardScreen() {
           )}
         </ScrollView>
 
-        {/* Camera Barcode Scanner Modal */}
-        <Modal visible={showScanModal} animationType="slide">
+        {/* Camera Barcode Scanner Modal with Viewfinder Overlay */}
+        <Modal visible={showScanModal} animationType="slide" onRequestClose={() => setShowScanModal(false)}>
           <View style={{ flex: 1, backgroundColor: '#000' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
             <View style={styles.scannerHeader}>
-              <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '800' }}>
-                {scanMode === 'bill' ? t('scanStockToBill', 'Scan Product Barcode to Bill') : t('scanStockToAdd', 'Scan Barcode to Add Stock')}
-              </Text>
-              <TouchableOpacity onPress={() => setShowScanModal(false)}>
-                <X size={24} color="#FFF" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Barcode size={18} color="#10B981" />
+                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '800' }}>
+                  {scanMode === 'bill' ? t('scanStockToBill', 'Scan Product Barcode to Bill') : t('scanStockToAdd', 'Scan Barcode to Add Stock')}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setIsTorchOn((prev) => !prev)}
+                  style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isTorchOn ? '#F59E0B' : 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }}
+                  activeOpacity={0.7}
+                >
+                  {isTorchOn ? <Flashlight size={18} color="#000" /> : <FlashlightOff size={18} color="#FFF" />}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowScanModal(false)}
+                  style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', justifyContent: 'center', alignItems: 'center' }}
+                  activeOpacity={0.7}
+                >
+                  <X size={20} color="#FFF" />
+                </TouchableOpacity>
+              </View>
             </View>
             {permission?.granted ? (
-              <CameraView
-                style={{ flex: 1 }}
-                barcodeScannerSettings={{
-                  barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e'],
-                }}
-                onBarcodeScanned={handleBarcodeScanned}
-              />
+              <View style={{ flex: 1, position: 'relative' }}>
+                <CameraView
+                  style={StyleSheet.absoluteFill}
+                  facing="back"
+                  enableTorch={isTorchOn}
+                  barcodeScannerSettings={{
+                    barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e', 'itf14', 'pdf417'],
+                  }}
+                  onBarcodeScanned={handleBarcodeScanned}
+                />
+                {/* Viewfinder Reticle Overlay */}
+                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }]}>
+                  <View style={{ width: 260, height: 220, position: 'relative', justifyContent: 'center', alignItems: 'center' }}>
+                    {/* Corners */}
+                    <View style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTopWidth: 4, borderLeftWidth: 4, borderColor: '#10B981', borderTopLeftRadius: 8 }} />
+                    <View style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTopWidth: 4, borderRightWidth: 4, borderColor: '#10B981', borderTopRightRadius: 8 }} />
+                    <View style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottomWidth: 4, borderLeftWidth: 4, borderColor: '#10B981', borderBottomLeftRadius: 8 }} />
+                    <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottomWidth: 4, borderRightWidth: 4, borderColor: '#10B981', borderBottomRightRadius: 8 }} />
+                    {/* Center glowing laser scan line */}
+                    <View style={{ width: '92%', height: 2, backgroundColor: '#EF4444', shadowColor: '#EF4444', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 8, elevation: 6 }} />
+                  </View>
+                  <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600', marginTop: 16 }}>
+                    Align barcode inside the green frame
+                  </Text>
+                </View>
+              </View>
             ) : (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
                 <Text style={{ color: '#FFF', textAlign: 'center', marginBottom: 12 }}>{t('permissionRequired', 'Camera permission required')}</Text>
@@ -1727,5 +1800,49 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
+  },
+  welcomeBanner: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  welcomeIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  welcomeSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  welcomeActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  welcomeActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  welcomeSecBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  welcomeSecBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
   },
 });

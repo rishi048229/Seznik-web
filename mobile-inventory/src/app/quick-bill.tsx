@@ -8,6 +8,7 @@ import {
   Alert,
   StyleSheet,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { useSales } from '@/hooks/useSales';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useCustomers } from '@/hooks/useCustomers';
 import {
   buildReceiptPrintOptions,
   generateProvisionalInvoice,
@@ -81,11 +83,45 @@ export default function QuickBillScreen() {
     }))
   );
 
+  const { customers = [], createCustomer } = useCustomers();
+
   const [quickBillItems, setQuickBillItems] = useState<QuickBillRow[]>([
     { id: '1', name: '', price: '', qty: '1' },
   ]);
   const [quickCustomerName, setQuickCustomerName] = useState('');
+  const [quickCustomerPhone, setQuickCustomerPhone] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
   const [quickPaymentMethod, setQuickPaymentMethod] = useState<'cash' | 'upi' | 'card'>('cash');
+
+  const handleQuickCreateCustomer = async () => {
+    if (!newCustName.trim()) return;
+    try {
+      const created = await createCustomer({
+        name: newCustName.trim(),
+        phone: newCustPhone.trim() || undefined,
+      });
+      setQuickCustomerName(created.name);
+      if (created.phone) setQuickCustomerPhone(created.phone);
+      setNewCustName('');
+      setNewCustPhone('');
+      setShowAddCustomerModal(false);
+      setShowCustomerDropdown(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to create customer');
+    }
+  };
+
+  const filteredCustomers = (customers || []).filter((c) => {
+    if (!quickCustomerName.trim()) return true;
+    const query = quickCustomerName.toLowerCase();
+    return (
+      (c.name && c.name.toLowerCase().includes(query)) ||
+      (c.phone && c.phone.includes(query))
+    );
+  }).slice(0, 5);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-IN', {
@@ -263,22 +299,58 @@ export default function QuickBillScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>Customer Name (Optional)</Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.bg,
-                  borderColor: theme.borderColor,
-                  color: theme.textPrimary,
-                  marginBottom: 16,
-                },
-              ]}
-              value={quickCustomerName}
-              onChangeText={setQuickCustomerName}
-              placeholder="Walk-in Customer"
-              placeholderTextColor="#94A3B8"
-            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={[styles.inputLabel, { color: theme.textPrimary, marginBottom: 0 }]}>Customer (Optional)</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddCustomerModal(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(37,99,235,0.1)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}
+                activeOpacity={0.7}
+              >
+                <Plus size={13} color={BRAND_COLORS.blue600} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: BRAND_COLORS.blue600, marginLeft: 2 }}>Add Customer</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ position: 'relative', zIndex: 10, marginBottom: 16 }}>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.bg,
+                    borderColor: theme.borderColor,
+                    color: theme.textPrimary,
+                    marginBottom: 0,
+                  },
+                ]}
+                value={quickCustomerName}
+                onChangeText={(txt) => {
+                  setQuickCustomerName(txt);
+                  setShowCustomerDropdown(true);
+                }}
+                onFocus={() => setShowCustomerDropdown(true)}
+                placeholder="Search or enter customer name / phone"
+                placeholderTextColor="#94A3B8"
+              />
+
+              {showCustomerDropdown && filteredCustomers.length > 0 ? (
+                <View style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, marginTop: 4, zIndex: 20, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 }}>
+                  {filteredCustomers.map((cust) => (
+                    <TouchableOpacity
+                      key={cust.id}
+                      onPress={() => {
+                        setQuickCustomerName(cust.name);
+                        if (cust.phone) setQuickCustomerPhone(cust.phone);
+                        setShowCustomerDropdown(false);
+                      }}
+                      style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.borderColor, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textPrimary }}>{cust.name}</Text>
+                      {cust.phone ? <Text style={{ fontSize: 12, color: theme.textSecondary }}>{cust.phone}</Text> : null}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+            </View>
 
             <Text style={[styles.inputLabel, { color: theme.textPrimary, marginBottom: 8 }]}>
               Products / Items ({quickBillItems.length})
@@ -436,6 +508,39 @@ export default function QuickBillScreen() {
           </View>
         </KeyboardAvoidingWrapper>
       </SafeAreaView>
+
+      {/* QUICK ADD CUSTOMER MODAL */}
+      <Modal visible={showAddCustomerModal} transparent animationType="fade" onRequestClose={() => setShowAddCustomerModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 400, backgroundColor: theme.cardBg, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: theme.borderColor }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, marginBottom: 14 }}>Create New Customer</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 12 }]}
+              value={newCustName}
+              onChangeText={setNewCustName}
+              placeholder="Customer Name *"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+            />
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.borderColor, color: theme.textPrimary, marginBottom: 16 }]}
+              value={newCustPhone}
+              onChangeText={setNewCustPhone}
+              placeholder="Phone Number (Optional)"
+              placeholderTextColor="#94A3B8"
+              keyboardType="phone-pad"
+            />
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+              <TouchableOpacity onPress={() => setShowAddCustomerModal(false)} style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: theme.textSecondary, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleQuickCreateCustomer} style={{ backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800' }}>Add Customer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenBackground>
   );
 }

@@ -12,6 +12,7 @@ import {
   BookOpen,
 } from 'lucide-react-native';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MoreMenuModal } from '@/components/ui/MoreMenuModal';
 import { GlobalPosCartBar } from '@/components/pos/GlobalPosCartBar';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -21,6 +22,7 @@ import { getCatalogNavLabel, isKotFirstNav, isNavFeatureVisible } from '@/utils/
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { t } = useTranslation();
   const { user, hasPermission } = useAuth();
@@ -34,18 +36,13 @@ export default function TabsLayout() {
     ? true
     : isNavFeatureVisible(user?.businessType, 'calculator');
 
+  const bottomInset = Math.max(insets.bottom, 0);
+
   const screenOptions = useMemo(
     () => ({
       headerShown: false,
-      // Mount only the screen the cashier opens. Rendering every tab at once
-      // makes the first interaction compete with several data-heavy screens.
       lazy: true,
       freezeOnBlur: true,
-      // 'shift' (not 'fade'/'default') deliberately keeps the "a tap must feel instant"
-      // property the previous 'none' was protecting: it's a GPU-composited translateX on
-      // already-mounted scene content — the tab bar's active state and the new screen are
-      // both live the instant you tap, the animation is purely how the outgoing/incoming
-      // content visually slides past each other, not a transition the tap waits on.
       animation: 'shift' as const,
       sceneStyle: { backgroundColor: isDark ? '#000000' : '#F8FAFC' },
       tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
@@ -53,16 +50,16 @@ export default function TabsLayout() {
       tabBarStyle: {
         backgroundColor: isDark ? '#000000' : '#FFFFFF',
         borderTopColor: isDark ? '#1F1F1F' : BRAND_COLORS.slate200,
-        height: 64,
-        paddingBottom: 8,
-        paddingTop: 8,
+        height: 60 + bottomInset,
+        paddingBottom: Math.max(bottomInset, 6),
+        paddingTop: 6,
       },
       tabBarLabelStyle: {
         fontSize: 11,
         fontWeight: '600' as const,
       },
     }),
-    [isDark]
+    [isDark, bottomInset]
   );
 
   const closeMoreMenu = () => setIsMoreOpen(false);

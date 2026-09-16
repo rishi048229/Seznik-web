@@ -304,7 +304,7 @@ class JoshLabelPrinterModule : Module() {
       }
     }
 
-    AsyncFunction("connect") { address: String, promise: Promise ->
+    AsyncFunction("connect") { address: String, nameArg: String?, promise: Promise ->
       try {
         val instance = requireApi()
         
@@ -338,67 +338,90 @@ class JoshLabelPrinterModule : Module() {
         }
 
         val mac = bondedDev?.address ?: known?.macAddress ?: address
-        val name = bondedDev?.name ?: known?.shownName ?: address
-        
-        val latch = CountDownLatch(1)
-        pendingConnectLatch = latch
+        val rawName = nameArg?.takeIf { it.isNotBlank() } ?: bondedDev?.name ?: known?.shownName ?: address
+        val name = if (rawName.isBlank()) mac else rawName
 
-        // Strategy 1: open by address (DUAL mode)
-        val addrDual = IDzPrinter.PrinterAddress(mac, name, IDzPrinter.AddressType.DUAL)
-        discovered[mac] = addrDual
-        discovered[name] = addrDual
-        discovered[address] = addrDual
-
-        var initiated = instance.openPrinterByAddress(addrDual)
-
-        // Strategy 2: open by SPP address if DUAL did not initiate
-        if (!initiated) {
-          val addrSpp = IDzPrinter.PrinterAddress(mac, name, IDzPrinter.AddressType.SPP)
-          initiated = instance.openPrinterByAddress(addrSpp)
+        fun checkConnected(): Boolean {
+          return instance.isPrinterOpened && (
+            lastState == "connected" ||
+            instance.printerState == IDzPrinter.PrinterState.Connected ||
+            instance.printerState == IDzPrinter.PrinterState.Connected2 ||
+            instance.printerState == IDzPrinter.PrinterState.Working
+          )
         }
 
-        // Strategy 3: open bonded device directly
-        if (!initiated && bondedDev != null) {
-          initiated = instance.openPrinter(bondedDev)
-        }
-
-        // Strategy 4: open by name / mac string or sync address
-        if (!initiated) {
-          initiated = instance.openPrinter(name) || instance.openPrinter(mac) || instance.openPrinterByAddressSync(addrDual)
-        }
-
-        if (initiated) {
-          latch.await(8, TimeUnit.SECONDS)
-        }
-
-        // Additional polling buffer in case state change event arrived asynchronously
-        var isConnected = instance.isPrinterOpened && (
-          lastState == "connected" ||
-          instance.printerState == IDzPrinter.PrinterState.Connected ||
-          instance.printerState == IDzPrinter.PrinterState.Connected2 ||
-          instance.printerState == IDzPrinter.PrinterState.Working
+        var isConnected = false
+        val strategies = listOf(
+          IDzPrinter.AddressType.SPP,
+          IDzPrinter.AddressType.BLE,
+          IDzPrinter.AddressType.DUAL
         )
 
+        for (addrType in strategies) {
+          if (checkConnected()) {
+            isConnected = true
+            break
+          }
+          val pAddr = IDzPrinter.PrinterAddress(mac, name, addrType)
+          discovered[mac] = pAddr
+          discovered[name] = pAddr
+          discovered[address] = pAddr
+
+          val latch = CountDownLatch(1)
+          pendingConnectLatch = latch
+
+          val initiated = instance.openPrinterByAddress(pAddr)
+          if (initiated) {
+            latch.await(3500, TimeUnit.MILLISECONDS)
+          }
+          pendingConnectLatch = null
+
+          if (checkConnected()) {
+            isConnected = true
+            break
+          }
+        }
+
+        // Fallback strategy: open by name / bonded dev
         if (!isConnected) {
+          if (bondedDev != null) {
+            val latch = CountDownLatch(1)
+            pendingConnectLatch = latch
+            val initiated = instance.openPrinter(bondedDev)
+            if (initiated) {
+              latch.await(3500, TimeUnit.MILLISECONDS)
+            }
+            pendingConnectLatch = null
+          }
+        }
+
+        // Fallback strategy: open by name / mac directly
+        if (!isConnected && !checkConnected()) {
+          val latch = CountDownLatch(1)
+          pendingConnectLatch = latch
+          val initiated = instance.openPrinter(name) || instance.openPrinter(mac)
+          if (initiated) {
+            latch.await(3500, TimeUnit.MILLISECONDS)
+          }
+          pendingConnectLatch = null
+        }
+
+        // Final verification with short polling
+        if (!checkConnected()) {
           var waitedMs = 0
-          while (waitedMs < 1500) {
-            Thread.sleep(250)
-            waitedMs += 250
-            if (instance.isPrinterOpened && (
-              lastState == "connected" ||
-              instance.printerState == IDzPrinter.PrinterState.Connected ||
-              instance.printerState == IDzPrinter.PrinterState.Connected2 ||
-              instance.printerState == IDzPrinter.PrinterState.Working
-            )) {
+          while (waitedMs < 1000) {
+            Thread.sleep(200)
+            waitedMs += 200
+            if (checkConnected()) {
               isConnected = true
               break
             }
           }
+        } else {
+          isConnected = true
         }
 
-        pendingConnectLatch = null
-
-        if (isConnected) {
+        if (isConnected || checkConnected()) {
           lastState = "connected"
           promise.resolve(true)
         } else {
