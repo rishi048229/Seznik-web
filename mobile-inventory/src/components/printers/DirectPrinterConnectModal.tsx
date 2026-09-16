@@ -359,7 +359,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
-  // Connect JOSH (LPAPI with Smart Fallback)
+  // Connect JOSH (LPAPI)
   const handleConnectJosh = async (device: JoshPrinterDevice) => {
     setConnectingId(device.address);
     const devName = (device.name || '').toLowerCase();
@@ -385,9 +385,8 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
       }
 
       // If user tapped a Shakti / DEV / ESC-POS printer while on JOSH tab, connect via DEV ESC/POS directly
-      if (devName.includes('shakti') || devName.includes('dev') || devName.includes('veer') || devName.includes('pos-')) {
-        const targetModel = devName.includes('veer') ? 'veer' : 'dev';
-        setConnectedPrinterModel(targetModel);
+      if (devName.includes('shakti') || devName.includes('dev') || devName.includes('pos-')) {
+        setConnectedPrinterModel('dev');
         await connectDevice(device.address, device.name);
         await refreshAllStatuses();
         if (onConnected) onConnected();
@@ -397,32 +396,13 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
 
       // Standard JOSH LPAPI connection attempt
       setConnectedPrinterModel('josh');
-      let ok = await ThermalPrinterService.joshConnect(device.address, device.name);
-
-      // Smart Fallback 1: If JOSH LPAPI failed, attempt TEJ (YX SDK)
-      if (!ok && YxLabelPrinter) {
-        try {
-          const okTej = await ThermalPrinterService.tejConnect(device.address, device.name);
-          if (okTej) {
-            setConnectedPrinterModel('tej');
-            const activePaperMode = usePrinterStore.getState().labelPaperMode || 'gap';
-            ThermalPrinterService.yxCalibrate(activePaperMode === 'continuous' ? 0 : 2).catch(() => {});
-            ok = true;
-          }
-        } catch {}
-      }
-
-      // Smart Fallback 2: If still not connected, attempt standard Bluetooth ESC/POS
-      if (!ok) {
-        try {
-          await connectDevice(device.address, device.name);
-          setConnectedPrinterModel('dev');
-          ok = true;
-        } catch {}
-      }
+      const ok = await ThermalPrinterService.joshConnect(device.address, device.name);
 
       if (!ok) {
-        throw new Error('Connection could not be established. Ensure your printer is turned ON, paired in phone Bluetooth, and in range.');
+        setConnectedPrinterModel(null as any);
+        throw new Error(
+          `Could not connect to SEZNIK JOSH (${device.name || device.address}). Please ensure the printer is turned ON, paired in phone Settings > Bluetooth, and within Bluetooth range.`
+        );
       }
       await refreshAllStatuses();
       if (onConnected) onConnected();
@@ -430,14 +410,18 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     } catch (e: any) {
       Alert.alert(
         'Connection Failed',
-        e?.message || 'Could not establish connection. Please check that printer is paired in phone Settings > Bluetooth.'
+        e?.message || 'Could not establish connection to SEZNIK JOSH. Please check that printer is paired in phone Settings > Bluetooth.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => handleConnectJosh(device) },
+        ]
       );
     } finally {
       setConnectingId(null);
     }
   };
 
-  // Connect TEJ (TEJ / YX SDK with Smart Fallback)
+  // Connect TEJ (TEJ / YX SDK)
   const handleConnectTej = async (device: YxPrinterDevice) => {
     setConnectingId(device.address);
     const devName = (device.name || '').toLowerCase();
@@ -449,9 +433,8 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
       }
 
       // If user tapped a Shakti / DEV / ESC-POS printer while on TEJ tab
-      if (devName.includes('shakti') || devName.includes('dev') || devName.includes('veer') || devName.includes('pos-')) {
-        const targetModel = devName.includes('veer') ? 'veer' : 'dev';
-        setConnectedPrinterModel(targetModel);
+      if (devName.includes('shakti') || devName.includes('dev') || devName.includes('pos-')) {
+        setConnectedPrinterModel('dev');
         await connectDevice(device.address, device.name);
         await refreshAllStatuses();
         if (onConnected) onConnected();
@@ -460,29 +443,10 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
       }
 
       setConnectedPrinterModel('tej');
-      let ok = await ThermalPrinterService.tejConnect(device.address, device.name);
-
-      // Smart Fallback 1: If TEJ failed, attempt JOSH LPAPI
-      if (!ok && ThermalPrinterService.isJoshSupported()) {
-        try {
-          const okJosh = await ThermalPrinterService.joshConnect(device.address, device.name);
-          if (okJosh) {
-            setConnectedPrinterModel('josh');
-            ok = true;
-          }
-        } catch {}
-      }
-
-      // Smart Fallback 2: If still not connected, attempt standard ESC/POS
-      if (!ok) {
-        try {
-          await connectDevice(device.address, device.name);
-          setConnectedPrinterModel('dev');
-          ok = true;
-        } catch {}
-      }
+      const ok = await ThermalPrinterService.tejConnect(device.address, device.name);
 
       if (!ok) {
+        setConnectedPrinterModel(null as any);
         throw new Error('Connection could not be established. Ensure SEZNIK TEJ is turned ON and in Bluetooth range.');
       }
       const activePaperMode = usePrinterStore.getState().labelPaperMode || 'gap';
@@ -494,7 +458,11 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     } catch (e: any) {
       Alert.alert(
         'Connection Failed',
-        e?.message || 'Connection failed. Please ensure printer is powered on and Bluetooth is enabled.'
+        e?.message || 'Connection failed. Please ensure printer is powered on and Bluetooth is enabled.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => handleConnectTej(device) },
+        ]
       );
     } finally {
       setConnectingId(null);

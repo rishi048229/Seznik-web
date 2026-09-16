@@ -4060,7 +4060,7 @@ class ThermalPrinterServiceManager {
     for (const rawLine of lines) {
       const trimmed = rawLine.trim();
       if (!trimmed) {
-        y += 2.0;
+        y += 1.8;
         continue;
       }
 
@@ -4073,13 +4073,13 @@ class ThermalPrinterServiceManager {
           x: 0,
           y,
           width: printableWidth,
-          fontHeight: 2.2,
+          fontHeight: 2.1,
           bold: false,
           align: 1, // Center
           fontFamily: 'monospace',
           monospace: true,
         });
-        y += 3.2;
+        y += 2.8;
         continue;
       }
 
@@ -4091,9 +4091,9 @@ class ThermalPrinterServiceManager {
         const isGrandTotal = /GRAND TOTAL/i.test(leftPart);
         const isTableHeader = /ITEM/i.test(leftPart) && /AMOUNT|QTY/i.test(rightPart);
         const isBold = isGrandTotal || isTableHeader;
-        const fontH = isGrandTotal ? 3.4 : 2.7;
+        const fontH = isGrandTotal ? 2.9 : 2.4;
 
-        const indentMm = leftPart.startsWith('   ') ? 3.0 : leftPart.startsWith(' ') ? 2.0 : 1.0;
+        const indentMm = leftPart.startsWith('   ') ? 2.5 : leftPart.startsWith(' ') ? 1.5 : 0.5;
 
         // Left column
         elements.push({
@@ -4109,13 +4109,13 @@ class ThermalPrinterServiceManager {
           monospace: true,
         });
 
-        // Right column (ends precisely at printableWidth - 1mm)
+        // Right column (ends precisely at printableWidth - 0.5mm)
         elements.push({
           type: 'text',
           value: rightPart,
-          x: 1.0,
+          x: 0.5,
           y,
-          width: printableWidth - 2.0,
+          width: printableWidth - 1.0,
           fontHeight: fontH,
           bold: isBold,
           align: 2, // Right
@@ -4123,7 +4123,7 @@ class ThermalPrinterServiceManager {
           monospace: true,
         });
 
-        y += fontH + (isGrandTotal ? 1.8 : 1.1);
+        y += fontH + (isGrandTotal ? 1.5 : 0.9);
         continue;
       }
 
@@ -4133,7 +4133,7 @@ class ThermalPrinterServiceManager {
       const isMainHeader = trimmed.toUpperCase() === (data.storeName || options.storeName || '').trim().toUpperCase();
       const isDocTitle = /BILL OF SUPPLY|TAX INVOICE/i.test(trimmed);
       const isBold = isMainHeader || isDocTitle;
-      const fontH = isMainHeader ? 3.6 : isDocTitle ? 3.1 : 2.7;
+      const fontH = isMainHeader ? 3.2 : isDocTitle ? 2.8 : 2.4;
 
       if (isCentered) {
         elements.push({
@@ -4149,7 +4149,7 @@ class ThermalPrinterServiceManager {
           monospace: true,
         });
       } else {
-        const indentMm = rawLine.startsWith('   ') ? 3.0 : rawLine.startsWith(' ') ? 2.0 : 1.0;
+        const indentMm = rawLine.startsWith('   ') ? 2.5 : rawLine.startsWith(' ') ? 1.5 : 0.5;
         elements.push({
           type: 'text',
           value: trimmed,
@@ -4164,7 +4164,7 @@ class ThermalPrinterServiceManager {
         });
       }
 
-      y += fontH + (isMainHeader ? 1.6 : 1.1);
+      y += fontH + (isMainHeader ? 1.4 : 0.9);
     }
 
     // 3. Dynamic UPI QR Code (if available and enabled)
@@ -5903,7 +5903,7 @@ class ThermalPrinterServiceManager {
     try {
       // 1. Direct Josh Printer support (LPAPI / continuous roll)
       const currentModel = require('../store/usePrinterStore').usePrinterStore.getState().connectedPrinterModel;
-      if (currentModel !== 'dev' && currentModel !== 'veer') {
+      if (currentModel === 'josh' || (currentModel !== 'dev' && currentModel !== 'veer' && (await this.joshIsConnected()))) {
         if (await this.joshEnsureConnected()) {
           try {
             const ok = await this.printReceiptViaJosh(saleData, effectivePaperWidth, {
@@ -5913,7 +5913,10 @@ class ThermalPrinterServiceManager {
             if (!ok) throw new Error('Josh printer rejected receipt data');
             return true;
           } catch (joshErr: any) {
-            console.warn('Josh receipt print failed, falling back to ESC/POS:', joshErr);
+            console.error('Josh receipt print error:', joshErr);
+            if (currentModel === 'josh') {
+              throw joshErr;
+            }
           }
         }
       }

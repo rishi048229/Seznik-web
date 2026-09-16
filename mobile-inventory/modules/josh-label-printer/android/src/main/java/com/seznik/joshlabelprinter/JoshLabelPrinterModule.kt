@@ -350,40 +350,43 @@ class JoshLabelPrinterModule : Module() {
           )
         }
 
-        val latch = CountDownLatch(1)
-        pendingConnectLatch = latch
-
-        // 1. Try DUAL address mode
         val addrDual = IDzPrinter.PrinterAddress(mac, name, IDzPrinter.AddressType.DUAL)
         discovered[mac] = addrDual
         discovered[name] = addrDual
         discovered[address] = addrDual
 
-        var initiated = instance.openPrinterByAddress(addrDual)
-
-        // 2. Try bonded BluetoothDevice directly
-        if (!initiated && bondedDev != null) {
-          initiated = instance.openPrinter(bondedDev)
+        val strategies = mutableListOf<Pair<String, () -> Boolean>>()
+        if (bondedDev != null) {
+          strategies.add("bondedDev" to { instance.openPrinter(bondedDev) })
         }
-
-        // 3. Try open by name or mac string
-        if (!initiated) {
-          initiated = instance.openPrinter(name) || instance.openPrinter(mac) || instance.openPrinterByAddressSync(addrDual)
+        if (mac.isNotBlank()) {
+          strategies.add("mac" to { instance.openPrinter(mac) })
         }
-
-        if (initiated) {
-          latch.await(8, TimeUnit.SECONDS)
+        if (name.isNotBlank()) {
+          strategies.add("name" to { instance.openPrinter(name) })
         }
+        strategies.add("addrDual" to { instance.openPrinterByAddress(addrDual) })
 
-        pendingConnectLatch = null
+        for ((_, attempt) in strategies) {
+          if (checkConnected()) break
+          val latch = CountDownLatch(1)
+          pendingConnectLatch = latch
+          val ok = try { attempt() } catch (t: Throwable) { false }
+          if (ok) {
+            latch.await(3500, TimeUnit.MILLISECONDS)
+          }
+          pendingConnectLatch = null
+          if (checkConnected()) break
+          Thread.sleep(100)
+        }
 
         // Polling buffer in case onStateChange arrived asynchronously
         var isConnected = checkConnected()
         if (!isConnected) {
           var waitedMs = 0
-          while (waitedMs < 2000) {
-            Thread.sleep(250)
-            waitedMs += 250
+          while (waitedMs < 1500) {
+            Thread.sleep(200)
+            waitedMs += 200
             if (checkConnected()) {
               isConnected = true
               break
