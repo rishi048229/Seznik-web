@@ -350,75 +350,45 @@ class JoshLabelPrinterModule : Module() {
           )
         }
 
-        var isConnected = false
-        val strategies = listOf(
-          IDzPrinter.AddressType.SPP,
-          IDzPrinter.AddressType.BLE,
-          IDzPrinter.AddressType.DUAL
-        )
+        val latch = CountDownLatch(1)
+        pendingConnectLatch = latch
 
-        for (addrType in strategies) {
-          if (checkConnected()) {
-            isConnected = true
-            break
-          }
-          val pAddr = IDzPrinter.PrinterAddress(mac, name, addrType)
-          discovered[mac] = pAddr
-          discovered[name] = pAddr
-          discovered[address] = pAddr
+        // 1. Try DUAL address mode
+        val addrDual = IDzPrinter.PrinterAddress(mac, name, IDzPrinter.AddressType.DUAL)
+        discovered[mac] = addrDual
+        discovered[name] = addrDual
+        discovered[address] = addrDual
 
-          val latch = CountDownLatch(1)
-          pendingConnectLatch = latch
+        var initiated = instance.openPrinterByAddress(addrDual)
 
-          val initiated = instance.openPrinterByAddress(pAddr)
-          if (initiated) {
-            latch.await(3500, TimeUnit.MILLISECONDS)
-          }
-          pendingConnectLatch = null
-
-          if (checkConnected()) {
-            isConnected = true
-            break
-          }
+        // 2. Try bonded BluetoothDevice directly
+        if (!initiated && bondedDev != null) {
+          initiated = instance.openPrinter(bondedDev)
         }
 
-        // Fallback strategy: open by name / bonded dev
+        // 3. Try open by name or mac string
+        if (!initiated) {
+          initiated = instance.openPrinter(name) || instance.openPrinter(mac) || instance.openPrinterByAddressSync(addrDual)
+        }
+
+        if (initiated) {
+          latch.await(8, TimeUnit.SECONDS)
+        }
+
+        pendingConnectLatch = null
+
+        // Polling buffer in case onStateChange arrived asynchronously
+        var isConnected = checkConnected()
         if (!isConnected) {
-          if (bondedDev != null) {
-            val latch = CountDownLatch(1)
-            pendingConnectLatch = latch
-            val initiated = instance.openPrinter(bondedDev)
-            if (initiated) {
-              latch.await(3500, TimeUnit.MILLISECONDS)
-            }
-            pendingConnectLatch = null
-          }
-        }
-
-        // Fallback strategy: open by name / mac directly
-        if (!isConnected && !checkConnected()) {
-          val latch = CountDownLatch(1)
-          pendingConnectLatch = latch
-          val initiated = instance.openPrinter(name) || instance.openPrinter(mac)
-          if (initiated) {
-            latch.await(3500, TimeUnit.MILLISECONDS)
-          }
-          pendingConnectLatch = null
-        }
-
-        // Final verification with short polling
-        if (!checkConnected()) {
           var waitedMs = 0
-          while (waitedMs < 1000) {
-            Thread.sleep(200)
-            waitedMs += 200
+          while (waitedMs < 2000) {
+            Thread.sleep(250)
+            waitedMs += 250
             if (checkConnected()) {
               isConnected = true
               break
             }
           }
-        } else {
-          isConnected = true
         }
 
         if (isConnected || checkConnected()) {

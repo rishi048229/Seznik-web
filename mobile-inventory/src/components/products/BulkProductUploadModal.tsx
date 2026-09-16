@@ -381,9 +381,23 @@ export function BulkProductUploadModal({
         const base64 = await FileSystem.readAsStringAsync(file.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
+
+        let effectiveMime = file.mimeType || 'application/pdf';
+        if (fileName.endsWith('.pdf') || mime.includes('pdf')) {
+          effectiveMime = 'application/pdf';
+        } else if (fileName.endsWith('.png') || mime.includes('png')) {
+          effectiveMime = 'image/png';
+        } else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || mime.includes('jpeg') || mime.includes('jpg')) {
+          effectiveMime = 'image/jpeg';
+        } else if (fileName.endsWith('.webp') || mime.includes('webp')) {
+          effectiveMime = 'image/webp';
+        } else if (effectiveMime === 'application/octet-stream' || effectiveMime === '*/*') {
+          effectiveMime = fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
+        }
+
         const res = await aiExtractProducts({
           imageBase64: base64,
-          mimeType: file.mimeType || 'application/pdf',
+          mimeType: effectiveMime,
         });
 
         if (res.success && Array.isArray(res.products) && res.products.length > 0) {
