@@ -21,10 +21,10 @@ interface ShopState {
 
 export const useShopStore = create<ShopState>((set) => ({
   profile: {
-    name: 'My Smart Shop',
-    address: '123 Shop Street, Market Area',
-    phone: '+91 98765 43210',
-    taxId: 'GSTIN1234567890',
+    name: '',
+    address: '',
+    phone: '',
+    taxId: '',
   },
   currency: '₹',
   defaultTaxRate: 18,

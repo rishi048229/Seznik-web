@@ -3926,6 +3926,7 @@ class ThermalPrinterServiceManager {
     try {
       if (NativeBluetoothManager && typeof NativeBluetoothManager.disconnect === 'function') {
         await NativeBluetoothManager.disconnect(address);
+        await new Promise((resolve) => setTimeout(resolve, 150));
       }
     } catch {}
     const ok = await JoshLabelPrinter.connect(address);

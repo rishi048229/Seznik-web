@@ -129,6 +129,46 @@ export default function SalesHistoryTabScreen() {
             />
           </View>
 
+          {/* Filter Pills */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+            style={{ flexGrow: 0, marginBottom: 12 }}
+          >
+            {[
+              { label: t('all', 'All'), value: null },
+              { label: t('cash', 'Cash'), value: 'cash' },
+              { label: t('upi', 'UPI'), value: 'upi' },
+              { label: t('card', 'Card'), value: 'card' },
+              { label: t('credit', 'Credit'), value: 'credit' },
+            ].map((filter) => {
+              const active = selectedPaymentMethod === filter.value;
+              return (
+                <TouchableOpacity
+                  key={filter.label}
+                  onPress={() => setSelectedPaymentMethod(filter.value)}
+                  style={[
+                    styles.filterChip,
+                    {
+                      backgroundColor: active ? '#2563EB' : theme.cardBg,
+                      borderColor: active ? '#2563EB' : theme.borderColor,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      { color: active ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
           {isLoading ? (
             <ScreenLoadingState
               message={t('loadingSales', 'Loading sales...')}
@@ -306,8 +346,11 @@ const styles = StyleSheet.create({
   menuBtn: { padding: 9, borderRadius: 12, borderWidth: 1 },
   headerTitle: { fontSize: 22, fontWeight: '900' },
   headerSub: { fontSize: 12, marginTop: 1 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 15 },
+  filterRow: { flexDirection: 'row', gap: 6 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
+  filterChipText: { fontSize: 11, fontWeight: '800' },
   saleCard: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   invoiceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5, flexWrap: 'wrap', gap: 4 },
   invoiceNum: { fontSize: 17, fontWeight: '800' },

@@ -146,12 +146,12 @@ export async function initDatabase() {
       );
     `);
 
-    // Seed shop profile if empty
+    // Seed shop profile if empty (clean empty strings, no dummy data)
     const profile = await db.getAllAsync('SELECT * FROM shop_profile LIMIT 1');
     if (profile.length === 0) {
       await db.runAsync(
         'INSERT INTO shop_profile (id, name, logoUri, address, phone, taxId) VALUES (?, ?, ?, ?, ?, ?)',
-        ['profile', 'My Smart Shop', '', '123 Shop Street, Market Area', '+91 98765 43210', 'GSTIN1234567890']
+        ['profile', '', '', '', '', '']
       );
     }
 
@@ -243,26 +243,33 @@ export async function saveOnboarded(val: boolean): Promise<void> {
 
 export async function getShopProfile(): Promise<ShopProfile> {
   const db = await getSQLiteDb();
-  if (!db) return { name: 'My Smart Shop' };
+  if (!db) return { name: '' };
   const profile: any[] = await db.getAllAsync('SELECT * FROM shop_profile LIMIT 1');
   if (profile.length > 0) {
     return {
-      name: profile[0].name,
+      name: profile[0].name || '',
       logoUri: profile[0].logoUri || undefined,
       address: profile[0].address || undefined,
       phone: profile[0].phone || undefined,
       taxId: profile[0].taxId || undefined,
     };
   }
-  return { name: 'My Smart Shop' };
+  return { name: '' };
 }
 
 export async function saveShopProfile(profile: ShopProfile): Promise<void> {
   const db = await getSQLiteDb();
   if (!db) return;
   await db.runAsync(
-    `UPDATE shop_profile SET name = ?, logoUri = ?, address = ?, phone = ?, taxId = ? WHERE id = 'profile'`,
-    [profile.name, profile.logoUri || '', profile.address || '', profile.phone || '', profile.taxId || '']
+    `INSERT INTO shop_profile (id, name, logoUri, address, phone, taxId)
+     VALUES ('profile', ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       logoUri = excluded.logoUri,
+       address = excluded.address,
+       phone = excluded.phone,
+       taxId = excluded.taxId`,
+    [profile.name || '', profile.logoUri || '', profile.address || '', profile.phone || '', profile.taxId || '']
   );
 }
 

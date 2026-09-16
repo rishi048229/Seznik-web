@@ -279,11 +279,11 @@ export const PosProductTile = memo(function PosProductTile({
         {
           backgroundColor: inCart
             ? isDark
-              ? 'rgba(37, 99, 235, 0.14)'
-              : 'rgba(37, 99, 235, 0.08)'
+              ? 'rgba(37, 99, 235, 0.12)'
+              : '#F0F7FF'
             : cardBg,
           borderColor: inCart ? BRAND_COLORS.blue600 : borderColor,
-          borderWidth: inCart ? 1.5 : 1,
+          borderWidth: 1.5,
           opacity: pressed ? 0.92 : isDisabled ? 0.72 : 1,
         },
       ]}
@@ -307,7 +307,7 @@ export const PosProductTile = memo(function PosProductTile({
         {product.imageUrl ? (
           <Image source={{ uri: product.imageUrl }} style={styles.tileProductImage} resizeMode="cover" />
         ) : (
-          <View style={[styles.initialsHeroBadge, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+          <View style={[styles.initialsHeroBadge, { backgroundColor: palette.bg }]}>
             <Text style={[styles.initialsText, { color: palette.text }]}>{initials}</Text>
             {product.category?.name ? (
               <Text style={[styles.categoryBadgeSub, { color: palette.text }]} numberOfLines={1}>
@@ -379,6 +379,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     justifyContent: 'space-between',
     minHeight: 172,
+    overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -437,7 +438,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,

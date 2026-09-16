@@ -1167,173 +1167,71 @@ export default function PrintersScreen() {
                 </View>
               )}
             </>
-          ) : (
+          ) : activeTab === 'label' ? (
             <>
-              {/* TEXT TO THERMAL PRINT CARD */}
+              {/* LABEL STUDIO HERO BANNER */}
               <TouchableOpacity
-                onPress={() => router.push('/printers/quick-print' as any)}
+                onPress={() => router.push('/printers/label-studio' as any)}
                 activeOpacity={0.88}
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: theme.cardBg,
-                    borderColor: '#10B981',
-                    borderWidth: 1.5,
-                    padding: 16,
-                    marginBottom: 12,
-                  },
-                ]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 14,
-                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: 12,
-                    }}
-                  >
-                    <FileText size={22} color="#10B981" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary }}>
-                        Text to Thermal Print
-                      </Text>
-                      <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981' }}>Quick Print</Text>
-                      </View>
-                    </View>
-                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                      Type or paste any custom text, delivery notes or select modular receipt blocks
-                    </Text>
-                  </View>
-                  <ChevronRight size={20} color="#10B981" />
-                </View>
-              </TouchableOpacity>
-
-              {/* AI A4 BILL TO RECEIPT CONVERTER CARD */}
-              <TouchableOpacity
-                onPress={() => setShowAiBillModal(true)}
-                activeOpacity={0.88}
-                style={[styles.card, { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.blue600, padding: 18, marginBottom: 12 }]}
+                style={[styles.card, { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.blue600, borderWidth: 1.5, padding: 16, marginBottom: 14 }]}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: BRAND_COLORS.blue600, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                    <Sparkles size={22} color="#FFFFFF" />
+                    <Layers size={22} color="#FFFFFF" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#FFFFFF' }}>A4 Bill to Thermal Receipt (AI)</Text>
-                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Upload or snap any invoice, bill, or receipt • Instant accurate extraction with AI • 1-tap print</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '900', color: '#FFFFFF' }}>
+                        Open Label Studio Designer
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                      {activeLabelTemplate ? `Active: "${activeLabelTemplate.name}" • Tap to edit layout` : 'Design personalized barcode, QR & product labels with custom drag-and-drop elements'}
+                    </Text>
                   </View>
                   <ChevronRight size={20} color="#FFFFFF" />
                 </View>
               </TouchableOpacity>
 
-              {/* CUSTOM RECEIPT BUILDER & DIGITAL QR CARD */}
-              <TouchableOpacity
-                onPress={() => router.push('/printers/receipt-builder')}
-                activeOpacity={0.88}
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: theme.cardBg,
-                    borderColor: activeCustomTemplateId ? '#3B82F6' : theme.borderColor,
-                    borderWidth: activeCustomTemplateId ? 2 : 1,
-                    padding: 16,
-                    marginBottom: 14,
-                  },
-                ]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 14,
-                      backgroundColor: '#EFF6FF',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: 12,
-                    }}
-                  >
-                    <Receipt size={22} color="#2563EB" />
-                  </View>
+              {/* LABEL PAPER MODE */}
+              <Text style={styles.sectionHeader}>LABEL PAPER MODE</Text>
+              <View style={[styles.stepperRow, { flexDirection: 'column', alignItems: 'stretch' }, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14 }]}>
+                <Text style={[styles.stepperSub, { color: theme.textSecondary, marginBottom: 10 }]}>
+                  Where should barcode/QR labels actually print?
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLabelPaperMode('gap');
+                    ThermalPrinterService.yxCalibrate(2).catch(() => {});
+                  }}
+                  style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'gap' ? BRAND_COLORS.blue600 : theme.borderColor }]}
+                >
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary }}>
-                        Build Custom Receipt
-                      </Text>
-                      {activeCustomTemplate && (
-                        <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#16A34A' }}>Active</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                      {activeCustomTemplate
-                        ? `Using "${activeCustomTemplate.name}" • Tap to customize layout`
-                        : 'Design receipt layout, add custom blocks & enable Digital Bill QR'}
-                    </Text>
+                    <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Die-Cut Labels (Gap Sensor)</Text>
+                    <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Separate TSPL label printer with label-gap stock</Text>
                   </View>
-                  <ChevronRight size={20} color={theme.textSecondary} />
-                </View>
-              </TouchableOpacity>
-
-              {/* A4 TO THERMAL RECEIPT KIOSK DASHBOARD */}
-              <TouchableOpacity
-                onPress={() => router.push('/a4-to-receipt' as any)}
-                activeOpacity={0.88}
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: theme.cardBg,
-                    borderColor: '#10B981',
-                    borderWidth: 1.5,
-                    padding: 16,
-                    marginBottom: 14,
-                  },
-                ]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 14,
-                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: 12,
-                    }}
-                  >
-                    <Zap size={22} color="#10B981" />
-                  </View>
+                  {labelPaperMode === 'gap' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLabelPaperMode('continuous');
+                    ThermalPrinterService.yxCalibrate(0).catch(() => {});
+                  }}
+                  style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'continuous' ? BRAND_COLORS.blue600 : theme.borderColor, marginBottom: 0 }]}
+                >
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: theme.textPrimary }}>
-                        A4 Bill to Thermal Receipt Kiosk
-                      </Text>
-                      <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#16A34A' }}>AI Kiosk</Text>
-                      </View>
-                    </View>
-                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                      Convert A4 bills to thermal slips, track earnings & share receipts on WhatsApp
-                    </Text>
+                    <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Continuous Roll (Receipt Paper)</Text>
+                    <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Prints real barcode/QR on the connected receipt printer — no gap sensor</Text>
                   </View>
-                  <ChevronRight size={20} color={theme.textSecondary} />
-                </View>
-              </TouchableOpacity>
+                  {labelPaperMode === 'continuous' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
+                </TouchableOpacity>
+              </View>
 
-              {/* SEZNIK 4-PRINTER FLEET CONNECTION CARDS */}
+              {/* LABEL PRINTER FLEET */}
               {ThermalPrinterService.isYxSupported() && (
                 <View style={{ marginBottom: 12 }}>
                   <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    1. SEZNIK TEJ SMART PRINTER (RECEIPTS & LABELS)
+                    SEZNIK TEJ SMART PRINTER (LABELS & RECEIPTS)
                   </Text>
                   <YxPrinterCard />
                 </View>
@@ -1342,15 +1240,147 @@ export default function PrintersScreen() {
               {ThermalPrinterService.isJoshSupported() && (
                 <View style={{ marginBottom: 12 }}>
                   <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    4. SEZNIK JOSH SMART PRINTER (RECEIPTS & LABELS)
+                    SEZNIK JOSH SMART PRINTER (LABELS & RECEIPTS)
                   </Text>
                   <JoshPrinterCard />
                 </View>
               )}
 
-              {/* Section: PAIRED & DISCOVERED BLUETOOTH PRINTERS (DEV & VEER) */}
+              {labelPaperMode === 'gap' ? (
+                <>
+                  <Text style={[styles.sectionHeader, { marginTop: 14 }]}>
+                    LABEL STOCK SIZE (mm) — MATCH YOUR REAL LABEL ROLL
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10, lineHeight: 16 }}>
+                    Barcode/QR positions align to these dimensions. Check your label packaging to select the matching preset.
+                  </Text>
+
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                    {LABEL_SIZE_PRESETS.map((preset) => {
+                      const selected = labelWidthMm === preset.widthMm && labelHeightMm === preset.heightMm;
+                      return (
+                        <TouchableOpacity
+                          key={preset.label}
+                          onPress={() => {
+                            setLabelWidthMm(preset.widthMm);
+                            setLabelHeightMm(preset.heightMm);
+                          }}
+                          style={[styles.widthChip, selected && styles.widthChipActive]}
+                        >
+                          <Text style={[styles.widthChipText, selected && styles.widthChipTextActive]}>{preset.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Label Width</Text>
+                      <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Left-to-right width of one label</Text>
+                    </View>
+                    <View style={styles.stepperControls}>
+                      <TouchableOpacity onPress={() => setLabelWidthMm(Math.max(10, labelWidthMm - 1))} style={styles.stepBtn}>
+                        <Minus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                      <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelWidthMm}mm</Text>
+                      <TouchableOpacity onPress={() => setLabelWidthMm(Math.min(100, labelWidthMm + 1))} style={styles.stepBtn}>
+                        <Plus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Label Height</Text>
+                      <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Top-to-bottom height of one label</Text>
+                    </View>
+                    <View style={styles.stepperControls}>
+                      <TouchableOpacity onPress={() => setLabelHeightMm(Math.max(10, labelHeightMm - 1))} style={styles.stepBtn}>
+                        <Minus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                      <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelHeightMm}mm</Text>
+                      <TouchableOpacity onPress={() => setLabelHeightMm(Math.min(150, labelHeightMm + 1))} style={styles.stepBtn}>
+                        <Plus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Label Gap</Text>
+                      <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Blank gap between labels (gap sensor)</Text>
+                    </View>
+                    <View style={styles.stepperControls}>
+                      <TouchableOpacity onPress={() => setLabelGapMm(Math.max(0, labelGapMm - 1))} style={styles.stepBtn}>
+                        <Minus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                      <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelGapMm}mm</Text>
+                      <TouchableOpacity onPress={() => setLabelGapMm(Math.min(10, labelGapMm + 1))} style={styles.stepBtn}>
+                        <Plus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Vertical Trim</Text>
+                      <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                        Nudges content down (+) or up (-) on label printer
+                      </Text>
+                    </View>
+                    <View style={styles.stepperControls}>
+                      <TouchableOpacity onPress={() => setLabelOffsetMm(labelOffsetMm - 0.5)} style={styles.stepBtn}>
+                        <Minus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                      <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelOffsetMm > 0 ? `+${labelOffsetMm}` : labelOffsetMm}mm</Text>
+                      <TouchableOpacity onPress={() => setLabelOffsetMm(labelOffsetMm + 0.5)} style={styles.stepBtn}>
+                        <Plus size={16} color={theme.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              ) : null}
+
+              {/* SAVE CONFIGURATION BUTTON */}
+              <TouchableOpacity
+                onPress={handleSaveCalibration}
+                disabled={isSavingSettings}
+                style={[styles.saveSettingsBtn, { marginTop: 16 }]}
+              >
+                {isSavingSettings ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Save size={18} color="#FFFFFF" />
+                    <Text style={styles.saveSettingsBtnText}>Save Label Configuration</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {/* SEZNIK SMART PRINTER HARDWARE FLEET */}
+              {ThermalPrinterService.isYxSupported() && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                    SEZNIK TEJ SMART PRINTER (RECEIPTS & LABELS)
+                  </Text>
+                  <YxPrinterCard />
+                </View>
+              )}
+
+              {ThermalPrinterService.isJoshSupported() && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
+                    SEZNIK JOSH SMART PRINTER (RECEIPTS & LABELS)
+                  </Text>
+                  <JoshPrinterCard />
+                </View>
+              )}
+
+              {/* PAIRED & DISCOVERED BLUETOOTH PRINTERS (DEV & VEER) */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>2 & 3. SEZNIK DEV / VEER (BLUETOOTH) ({scannedDevices.length})</Text>
+                <Text style={styles.sectionHeader}>SEZNIK DEV / VEER & BLUETOOTH POS ({scannedDevices.length})</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity onPress={() => setShowDeviceModal(true)}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>
@@ -1365,7 +1395,7 @@ export default function PrintersScreen() {
                 </View>
               </View>
 
-              {/* Manual Add Card — only appears when the user taps "+ Add Manually" above */}
+              {/* Manual Add Card */}
               {showManualAdd ? (
                 <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14 }]}>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: theme.textPrimary, marginBottom: 10 }}>
@@ -1392,7 +1422,7 @@ export default function PrintersScreen() {
                 </View>
               ) : null}
 
-              {/* Compact Devices View: Top 3 Preview + Show More Modal */}
+              {/* Compact Devices View */}
               {scannedDevices.length === 0 ? (
                 <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 14, paddingVertical: 18, alignItems: 'center' }]}>
                   <Bluetooth size={24} color={theme.textSecondary} style={{ marginBottom: 6 }} />
@@ -1467,8 +1497,77 @@ export default function PrintersScreen() {
                 </>
               )}
 
-              {/* Stepper Calibration Fields */}
-              <Text style={[styles.sectionHeader, { marginTop: 16 }]}>HARDWARE CALIBRATION</Text>
+              {/* QUICK PRINTING TOOLS */}
+              <Text style={[styles.sectionHeader, { marginTop: 14 }]}>PRINTING UTILITIES & AI</Text>
+
+              {/* TEXT TO THERMAL PRINT CARD */}
+              <TouchableOpacity
+                onPress={() => router.push('/printers/quick-print' as any)}
+                activeOpacity={0.88}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.cardBg,
+                    borderColor: '#10B981',
+                    borderWidth: 1.5,
+                    padding: 14,
+                    marginBottom: 10,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 12,
+                    }}
+                  >
+                    <FileText size={20} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: theme.textPrimary }}>
+                        Text to Thermal Print
+                      </Text>
+                      <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981' }}>Quick Print</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
+                      Type or paste custom notes, order slips or modular receipt blocks
+                    </Text>
+                  </View>
+                  <ChevronRight size={18} color="#10B981" />
+                </View>
+              </TouchableOpacity>
+
+              {/* AI A4 BILL TO THERMAL RECEIPT */}
+              <TouchableOpacity
+                onPress={() => setShowAiBillModal(true)}
+                activeOpacity={0.88}
+                style={[styles.card, { backgroundColor: BRAND_COLORS.navyInk, borderColor: BRAND_COLORS.blue600, padding: 14, marginBottom: 14 }]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: BRAND_COLORS.blue600, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Sparkles size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '900', color: '#FFFFFF' }}>A4 Bill to Thermal Receipt (AI)</Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Upload or snap any invoice or bill • AI instant extraction • 1-tap print</Text>
+                  </View>
+                  <ChevronRight size={18} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+
+              {/* HARDWARE CALIBRATION */}
+              <Text style={[styles.sectionHeader, { marginTop: 6 }]}>HARDWARE CALIBRATION & PRINT SETTINGS</Text>
 
               {/* Stepper 1: Paper Width */}
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -1503,7 +1602,7 @@ export default function PrintersScreen() {
                 </View>
               </View>
 
-              {/* Stepper 3: Print Density (label printer only — ESC/POS receipts have no native density command) */}
+              {/* Stepper 3: Print Density */}
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Print Density Darkness</Text>
@@ -1558,7 +1657,7 @@ export default function PrintersScreen() {
                 </View>
               </View>
 
-              {/* Compact Mode — paper-saving sizing layout */}
+              {/* Compact Mode */}
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Compact</Text>
@@ -1634,7 +1733,7 @@ export default function PrintersScreen() {
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Auto-Cut After Print</Text>
-                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Feeds & cuts paper — no-op if your printer has no cutter</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Feeds & cuts paper — no-op if printer has no cutter</Text>
                 </View>
                 <Switch
                   value={autoCutVal}
@@ -1643,226 +1742,18 @@ export default function PrintersScreen() {
                 />
               </View>
 
-              {/* Label Paper Mode + Element Reorder list */}
-              {activeTab === 'label' ? (
-                <>
-                  <TouchableOpacity
-                    onPress={() => router.push('/printers/label-studio' as any)}
-                    style={[styles.labelStudioBtn, { backgroundColor: BRAND_COLORS.navyInk }]}
-                  >
-                    <Layers size={18} color="#FFFFFF" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.labelStudioBtnTitle}>Open Label Studio</Text>
-                      <Text style={styles.labelStudioBtnSub}>
-                        {activeLabelTemplate ? `Default: "${activeLabelTemplate.name}"` : 'Design a personalized label with your own layout'}
-                      </Text>
-                    </View>
-                    <ChevronRight size={18} color="rgba(255,255,255,0.7)" />
-                  </TouchableOpacity>
-
-                  <Text style={[styles.sectionHeader, { marginTop: 16 }]}>LABEL PAPER MODE</Text>
-                  <View style={[styles.stepperRow, { flexDirection: 'column', alignItems: 'stretch' }, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                    <Text style={[styles.stepperSub, { color: theme.textSecondary, marginBottom: 10 }]}>
-                      Where should barcode/QR labels actually print?
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setLabelPaperMode('gap');
-                        ThermalPrinterService.yxCalibrate(2).catch(() => {});
-                      }}
-                      style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'gap' ? BRAND_COLORS.blue600 : theme.borderColor }]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Die-Cut Labels (Gap Sensor)</Text>
-                        <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Separate TSPL label printer with label-gap stock</Text>
-                      </View>
-                      {labelPaperMode === 'gap' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setLabelPaperMode('continuous');
-                        ThermalPrinterService.yxCalibrate(0).catch(() => {});
-                      }}
-                      style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'continuous' ? BRAND_COLORS.blue600 : theme.borderColor, marginBottom: 0 }]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Continuous Roll (Receipt Paper)</Text>
-                        <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Prints real barcode/QR on the connected receipt printer — no gap sensor</Text>
-                      </View>
-                      {labelPaperMode === 'continuous' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Dedicated TEJ label printer */}
-                  {ThermalPrinterService.isYxSupported() && (
-                    <View style={{ marginTop: 16 }}>
-                      <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                        1. SEZNIK TEJ SMART PRINTER (LABELS & BILLS)
-                      </Text>
-                      <YxPrinterCard />
-                    </View>
-                  )}
-
-                  {/* Dedicated JOSH label printer */}
-                  {ThermalPrinterService.isJoshSupported() && (
-                    <View style={{ marginTop: 16 }}>
-                      <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                        4. SEZNIK JOSH SMART PRINTER (LABELS & BILLS)
-                      </Text>
-                      <JoshPrinterCard />
-                    </View>
-                  )}
-
-                  {labelPaperMode === 'gap' ? (
-                    <>
-                      <Text style={[styles.sectionHeader, { marginTop: 16 }]}>
-                        LABEL STOCK SIZE (mm) — MATCH YOUR REAL LABEL ROLL
-                      </Text>
-                      <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10, lineHeight: 16 }}>
-                        Every barcode/QR/text position is centered based on these numbers. If they
-                        do not match the label actually loaded in the printer, content is centered
-                        for the wrong canvas and can overflow onto the next label. Check the
-                        roll&apos;s packaging or measure a blank label to get this right.
-                      </Text>
-
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                        {LABEL_SIZE_PRESETS.map((preset) => {
-                          const selected = labelWidthMm === preset.widthMm && labelHeightMm === preset.heightMm;
-                          return (
-                            <TouchableOpacity
-                              key={preset.label}
-                              onPress={() => {
-                                setLabelWidthMm(preset.widthMm);
-                                setLabelHeightMm(preset.heightMm);
-                              }}
-                              style={[styles.widthChip, selected && styles.widthChipActive]}
-                            >
-                              <Text style={[styles.widthChipText, selected && styles.widthChipTextActive]}>{preset.label}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-
-                      <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Label Width</Text>
-                          <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Left-to-right size of one label</Text>
-                        </View>
-                        <View style={styles.stepperControls}>
-                          <TouchableOpacity onPress={() => setLabelWidthMm(Math.max(10, labelWidthMm - 1))} style={styles.stepBtn}>
-                            <Minus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                          <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelWidthMm}mm</Text>
-                          <TouchableOpacity onPress={() => setLabelWidthMm(Math.min(100, labelWidthMm + 1))} style={styles.stepBtn}>
-                            <Plus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Label Height</Text>
-                          <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Top-to-bottom size of one label</Text>
-                        </View>
-                        <View style={styles.stepperControls}>
-                          <TouchableOpacity onPress={() => setLabelHeightMm(Math.max(10, labelHeightMm - 1))} style={styles.stepBtn}>
-                            <Minus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                          <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelHeightMm}mm</Text>
-                          <TouchableOpacity onPress={() => setLabelHeightMm(Math.min(150, labelHeightMm + 1))} style={styles.stepBtn}>
-                            <Plus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Label Gap</Text>
-                          <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Blank gap between labels (gap sensor)</Text>
-                        </View>
-                        <View style={styles.stepperControls}>
-                          <TouchableOpacity onPress={() => setLabelGapMm(Math.max(0, labelGapMm - 1))} style={styles.stepBtn}>
-                            <Minus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                          <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelGapMm}mm</Text>
-                          <TouchableOpacity onPress={() => setLabelGapMm(Math.min(10, labelGapMm + 1))} style={styles.stepBtn}>
-                            <Plus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Vertical Trim</Text>
-                          <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
-                            Nudges content down (+) or up (-) on printers without a gap sensor
-                          </Text>
-                        </View>
-                        <View style={styles.stepperControls}>
-                          <TouchableOpacity onPress={() => setLabelOffsetMm(Math.max(-15, Math.round((labelOffsetMm - 0.5) * 2) / 2))} style={styles.stepBtn}>
-                            <Minus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                          <Text style={[styles.stepVal, { color: theme.textPrimary }]}>{labelOffsetMm}mm</Text>
-                          <TouchableOpacity onPress={() => setLabelOffsetMm(Math.min(15, Math.round((labelOffsetMm + 0.5) * 2) / 2))} style={styles.stepBtn}>
-                            <Plus size={16} color={theme.textPrimary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        onPress={async () => {
-                          try {
-                            const ok = await ThermalPrinterService.printAlignmentSelfTest(4);
-                            Alert.alert(
-                              ok ? 'Alignment Test Sent' : 'Alignment Test Incomplete',
-                              ok
-                                ? `Printed 4 test labels at ${labelWidthMm}x${labelHeightMm}mm.
-
-Border even inside all four edges = aligned.
-Same amount cut off on every label = adjust Vertical Trim by that much.
-Cut grows label to label = label height/gap are wrong, fix those first.`
-                                : 'Some labels did not print. Check the printer is connected.'
-                            );
-                          } catch (e: any) {
-                            Alert.alert('Alignment Test Failed', e?.message || 'Could not print the alignment test.');
-                          }
-                        }}
-                        style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-                      >
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Print Alignment Test</Text>
-                          <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
-                            4 labels with a border + crosshair, to check and dial in the trim
-                          </Text>
-                        </View>
-                        <Tag size={18} color={BRAND_COLORS.blue600} />
-                      </TouchableOpacity>
-                    </>
-                  ) : null}
-
-                  <Text style={[styles.sectionHeader, { marginTop: 16 }]}>LABEL REORDER ELEMENTS</Text>
-                  {labelElements.map((item) => (
-                    <View key={item.id} style={[styles.dragRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                      <GripVertical size={18} color={theme.textSecondary} style={{ marginRight: 10 }} />
-                      <Text style={[styles.dragText, { color: theme.textPrimary, flex: 1 }]}>{item.name}</Text>
-                      <CheckCircle2 size={18} color="#10B981" />
-                    </View>
-                  ))}
-                </>
-              ) : null}
-
-              {/* Save Configuration Button */}
+              {/* SAVE CONFIGURATION BUTTON */}
               <TouchableOpacity
-                onPress={handleSavePrinterSettings}
+                onPress={handleSaveCalibration}
                 disabled={isSavingSettings}
-                style={styles.saveSettingsBtn}
+                style={[styles.saveSettingsBtn, { marginTop: 16 }]}
               >
                 {isSavingSettings ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
                     <Save size={18} color="#FFFFFF" />
-                    <Text style={styles.saveSettingsBtnText}>Save Printer Calibration</Text>
+                    <Text style={styles.saveSettingsBtnText}>Save Hardware Configuration</Text>
                   </>
                 )}
               </TouchableOpacity>

@@ -36,7 +36,7 @@ export function resolveStoreProfile(
     str(receiptConfig?.companyName) ||
     user?.businessName?.trim() ||
     user?.displayName?.trim() ||
-    'Your Store Name';
+    '';
 
   const storeAddress =
     settings?.businessAddress?.trim() || str(receiptConfig?.address) || '';

@@ -274,7 +274,12 @@ export default function SalesHistoryScreen() {
           </View>
 
           {/* Filter Pills */}
-          <View style={styles.filterRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+            style={{ flexGrow: 0, marginBottom: 12 }}
+          >
             {[
               { label: t('all', 'All'), value: null },
               { label: t('cash', 'Cash'), value: 'cash' },
@@ -306,7 +311,7 @@ export default function SalesHistoryScreen() {
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
 
           {/* Sales List */}
           {isLoading ? (
@@ -496,27 +501,27 @@ export default function SalesHistoryScreen() {
                         {isPrintingThermal ? (
                           <ActivityIndicator color="#FFF" size="small" />
                         ) : (
-                          <Printer size={16} color="#FFFFFF" />
+                          <Printer size={15} color="#FFFFFF" />
                         )}
-                        <Text style={styles.actionBtnPrimaryText}>Reprint Thermal Bill</Text>
+                        <Text style={styles.actionBtnPrimaryText} numberOfLines={1}>Reprint Bill</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         onPress={() => handleDownloadPdf(selectedSale)}
                         style={[styles.actionBtnSecondary, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: 'rgba(37, 99, 235, 0.25)' }]}
                       >
-                        <Download size={16} color={BRAND_COLORS.blue600} />
-                        <Text style={[styles.actionBtnSecondaryText, { color: BRAND_COLORS.blue600 }]}>Download PDF</Text>
+                        <Download size={15} color={BRAND_COLORS.blue600} />
+                        <Text style={[styles.actionBtnSecondaryText, { color: BRAND_COLORS.blue600 }]} numberOfLines={1}>Download PDF</Text>
                       </TouchableOpacity>
                     </View>
 
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <TouchableOpacity
                         onPress={() => handleSharePdf(selectedSale)}
-                        style={[styles.actionBtnSecondary, { flex: 1.5, backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.25)' }]}
+                        style={[styles.actionBtnSecondary, { flex: 1.2, backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.25)' }]}
                       >
-                        <Share2 size={16} color="#10B981" />
-                        <Text style={[styles.actionBtnSecondaryText, { color: '#10B981' }]}>Share PDF</Text>
+                        <Share2 size={15} color="#10B981" />
+                        <Text style={[styles.actionBtnSecondaryText, { color: '#10B981' }]} numberOfLines={1}>Share PDF</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -524,7 +529,7 @@ export default function SalesHistoryScreen() {
                         style={[styles.actionBtnSecondary, { flex: 1, backgroundColor: 'rgba(100, 116, 139, 0.12)', borderColor: theme.borderColor }]}
                       >
                         <FileText size={15} color={theme.textPrimary} />
-                        <Text style={[styles.actionBtnSecondaryText, { color: theme.textPrimary }]}>A4 Invoice</Text>
+                        <Text style={[styles.actionBtnSecondaryText, { color: theme.textPrimary }]} numberOfLines={1}>A4 Invoice</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity

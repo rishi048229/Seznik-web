@@ -25,11 +25,11 @@ export async function initDatabase() {
   if (!fallbackStorage.get('categories')) fallbackStorage.set('categories', []);
   if (!fallbackStorage.get('shop_profile')) {
     fallbackStorage.set('shop_profile', {
-      name: 'My Smart Shop',
+      name: '',
       logoUri: '',
-      address: '123 Shop Street, Market Area',
-      phone: '+91 98765 43210',
-      taxId: 'GSTIN1234567890',
+      address: '',
+      phone: '',
+      taxId: '',
     });
   }
 }
@@ -55,7 +55,7 @@ export async function saveOnboarded(val: boolean): Promise<void> {
 // ─── Shop Profile ───────────────────────────────────────────────────────────
 
 export async function getShopProfile(): Promise<ShopProfile> {
-  return fallbackStorage.get('shop_profile') || { name: 'My Smart Shop' };
+  return fallbackStorage.get('shop_profile') || { name: '' };
 }
 
 export async function saveShopProfile(profile: ShopProfile): Promise<void> {
