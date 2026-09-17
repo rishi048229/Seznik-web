@@ -30,15 +30,12 @@ def safeExtGet(prop, fallback) {
 repositories {
   google()
   mavenCentral()
-  flatDir {
-    dirs 'libs'
-  }
 }
 
 dependencies {
   implementation project(':expo-modules-core')
   implementation "org.jetbrains.kotlin:kotlin-stdlib:${safeExtGet('kotlinVersion', '2.0.21')}"
   // TD-404 / Ninestar SDK
-  implementation files('libs/labelprinter.aar')
+  implementation files('libs/labelprinter.jar')
   implementation 'com.google.zxing:core:3.5.3'
 }
