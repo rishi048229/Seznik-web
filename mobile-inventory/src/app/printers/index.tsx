@@ -63,7 +63,6 @@ import {
 } from '@/constants/receiptTemplates';
 import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
 import { JoshPrinterCard } from '@/components/printers/JoshPrinterCard';
-import { YxPrinterCard } from '@/components/printers/YxPrinterCard';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
@@ -1228,15 +1227,6 @@ export default function PrintersScreen() {
               </View>
 
               {/* LABEL PRINTER FLEET */}
-              {ThermalPrinterService.isYxSupported() && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    SEZNIK TEJ SMART PRINTER (LABELS & RECEIPTS)
-                  </Text>
-                  <YxPrinterCard />
-                </View>
-              )}
-
               {ThermalPrinterService.isJoshSupported() && (
                 <View style={{ marginBottom: 12 }}>
                   <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
@@ -1360,15 +1350,6 @@ export default function PrintersScreen() {
           ) : (
             <>
               {/* SEZNIK SMART PRINTER HARDWARE FLEET */}
-              {ThermalPrinterService.isYxSupported() && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    SEZNIK TEJ SMART PRINTER (RECEIPTS & LABELS)
-                  </Text>
-                  <YxPrinterCard />
-                </View>
-              )}
-
               {ThermalPrinterService.isJoshSupported() && (
                 <View style={{ marginBottom: 12 }}>
                   <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
@@ -1380,7 +1361,7 @@ export default function PrintersScreen() {
 
               {/* PAIRED & DISCOVERED BLUETOOTH PRINTERS (DEV & VEER) */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>SEZNIK DEV / VEER & BLUETOOTH POS ({scannedDevices.length})</Text>
+                <Text style={styles.sectionHeader}>OTHER PRINTERS & BLUETOOTH POS ({scannedDevices.length})</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity onPress={() => setShowDeviceModal(true)}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND_COLORS.blue600 }}>

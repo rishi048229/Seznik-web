@@ -210,10 +210,8 @@ export default function LabelStudioScreen() {
     const name = (labelPrinter.name || '').toLowerCase();
     return (
       connectedPrinterModel === 'dev' ||
-      connectedPrinterModel === 'tej' ||
       name.includes('2in1') ||
       name.includes('dev') ||
-      name.includes('tej') ||
       name.includes('seznik')
     );
   }, [labelPrinter.name, connectedPrinterModel]);
@@ -708,7 +706,7 @@ export default function LabelStudioScreen() {
             >
               <Sparkles size={14} color="#2563EB" style={{ marginRight: 6 }} />
               <Text style={[styles.dualModeCalloutText, { color: theme.isDark ? '#93C5FD' : '#1D4ED8' }]}>
-                SEZNIK {connectedPrinterModel === 'tej' || (labelPrinter.name || '').toUpperCase().includes('TEJ') ? 'TEJ' : 'DEV'} 2-in-1 POS & Label Printer connected ({labelPrinter.name}) • Ready for die-cut sticker rolls
+                Other 2-in-1 POS & Label Printer connected ({labelPrinter.name}) • Ready for die-cut sticker rolls
               </Text>
             </View>
           )}
@@ -1516,9 +1514,9 @@ export default function LabelStudioScreen() {
                 >
                   {labelPrinter.isConnected
                     ? isDev2in1
-                      ? `SEZNIK ${connectedPrinterModel === 'tej' || (labelPrinter.name || '').toUpperCase().includes('TEJ') ? 'TEJ' : 'DEV'} 2-in-1 POS & Label Printer (${labelPrinter.name})`
+                      ? `Other 2-in-1 POS & Label Printer (${labelPrinter.name})`
                       : labelPrinter.kind === 'label'
-                      ? `Josh Dual-Mode Smart Printer (${labelPrinter.name})`
+                      ? `SEZNIK JOSH Dual-Mode Smart Printer (${labelPrinter.name})`
                       : `Receipt Printer Connected (${labelPrinter.name})`
                     : 'No Printer Connected'}
                 </Text>

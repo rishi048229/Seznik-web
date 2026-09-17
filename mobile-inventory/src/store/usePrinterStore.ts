@@ -130,11 +130,10 @@ interface PrinterState {
   attemptAutoConnect: () => Promise<void>;
   addPairedPrinter: (device: PrinterDevice) => Promise<void>;
   /** Active SEZNIK printer model: 'tej' | 'dev' | 'veer' | 'josh' | null */
-  connectedPrinterModel: 'tej' | 'dev' | 'veer' | 'josh' | null;
-  setConnectedPrinterModel: (model: 'tej' | 'dev' | 'veer' | 'josh' | null) => void;
-  /** User-selected default/preferred printer model: 'tej' | 'dev' | 'veer' | 'josh' | null */
-  preferredPrinterModel: 'tej' | 'dev' | 'veer' | 'josh' | null;
-  setPreferredPrinterModel: (model: 'tej' | 'dev' | 'veer' | 'josh' | null) => void;
+  connectedPrinterModel: 'josh' | 'dev' | 'veer' | null;
+  setConnectedPrinterModel: (model: 'josh' | 'dev' | 'veer' | null) => void;
+  preferredPrinterModel: 'josh' | 'dev' | 'veer' | null;
+  setPreferredPrinterModel: (model: 'josh' | 'dev' | 'veer' | null) => void;
   setPaperWidth: (width: '58mm' | '80mm') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setReceiptFont: (font: ReceiptFontId) => void;

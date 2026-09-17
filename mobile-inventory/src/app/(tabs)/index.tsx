@@ -189,12 +189,11 @@ export default function DashboardScreen() {
   const [showAiImportModal, setShowAiImportModal] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
   const [joshConnected, setJoshConnected] = useState(false);
-  const [tejConnected, setTejConnected] = useState(false);
 
   const initialModel: SeznikPrinterModelId =
     preferredPrinterModel ||
     connectedPrinterModel ||
-    (tejConnected ? 'tej' : joshConnected ? 'josh' : 'tej');
+    (joshConnected ? 'josh' : 'dev');
   const [selectedPrinterModalModel, setSelectedPrinterModalModel] = useState<SeznikPrinterModelId>(initialModel);
 
   useEffect(() => {
@@ -208,11 +207,7 @@ export default function DashboardScreen() {
       try {
         const joshOn = await ThermalPrinterService.joshIsConnected();
         setJoshConnected(joshOn);
-        const tejOn = await ThermalPrinterService.yxIsConnected();
-        setTejConnected(tejOn);
-        if (tejOn) {
-          setConnectedPrinterModel('tej');
-        } else if (joshOn) {
+        if (joshOn) {
           setConnectedPrinterModel('josh');
         }
       } catch {}
@@ -223,15 +218,13 @@ export default function DashboardScreen() {
   }, []);
 
   const isPrinterConnected =
-    connectionState === 'connected' || Boolean(activeDevice) || joshConnected || tejConnected;
+    connectionState === 'connected' || Boolean(activeDevice) || joshConnected;
   const activePrinterDisplayName =
     activeDevice?.name ||
-    (tejConnected
-      ? 'SEZNIK TEJ'
-      : joshConnected
+    (joshConnected
       ? 'SEZNIK JOSH'
       : connectedPrinterModel
-      ? `SEZNIK ${connectedPrinterModel.toUpperCase()}`
+      ? (connectedPrinterModel === 'josh' ? 'SEZNIK JOSH' : `Other Printer (${connectedPrinterModel.toUpperCase()})`)
       : 'Connected Printer');
 
   const [showScanModal, setShowScanModal] = useState(false);
@@ -367,10 +360,8 @@ export default function DashboardScreen() {
 
   const handleDisconnectPrinter = async () => {
     try {
-      if (tejConnected) await ThermalPrinterService.yxDisconnect().catch(() => {});
       if (joshConnected) await ThermalPrinterService.joshDisconnect().catch(() => {});
       await disconnectDevice();
-      setTejConnected(false);
       setJoshConnected(false);
       try { Vibration.vibrate(60); } catch (e) {}
     } catch (e: any) {
@@ -379,11 +370,10 @@ export default function DashboardScreen() {
   };
 
   const handleTestPrint = async (model?: SeznikPrinterModel) => {
-    const targetModelId = model?.id || (tejConnected ? 'tej' : joshConnected ? 'josh' : connectedPrinterModel);
+    const targetModelId = model?.id || (joshConnected ? 'josh' : connectedPrinterModel);
     const isJosh = targetModelId === 'josh';
-    const isTej = targetModelId === 'tej';
 
-    if (isJosh || isTej) {
+    if (isJosh) {
       try {
         const sample = {
           name: 'Sample Item 500g',
@@ -873,13 +863,12 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
-                {/* 4 PRINTER MODEL SELECTOR ROW */}
+                {/* PRINTER MODEL SELECTOR ROW */}
                 <View style={styles.dashboardModelSelectorContainer}>
                   {PRINTER_MODEL_LIST.map((model) => {
                     const isSelected = selectedPrinterModalModel === model.id;
                     const isConn =
                       (model.id === 'josh' && joshConnected) ||
-                      (model.id === 'tej' && tejConnected) ||
                       ((model.id === 'dev' || model.id === 'veer') &&
                         connectionState === 'connected' &&
                         (connectedPrinterModel === model.id || (!connectedPrinterModel && model.id === 'dev')));

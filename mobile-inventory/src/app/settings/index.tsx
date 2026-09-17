@@ -43,6 +43,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useSettings, setCachedSettings } from '@/hooks/useSettings';
 import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { settingsApi, Settings } from '@/api/settings';
@@ -89,24 +90,24 @@ export default function SettingsScreen() {
   useEffect(() => {
     if (settings || user) {
       const profile = resolveStoreProfile(settings, user);
-      if (!userEditedRef.current.storeName && profile.storeName && profile.storeName !== 'Your Store Name') {
-        setStoreName(profile.storeName);
+      if (!userEditedRef.current.storeName) {
+        setStoreName(profile.storeName || '');
       }
-      if (!userEditedRef.current.storeGstin && profile.storeGstin) {
-        setStoreGstin(profile.storeGstin);
+      if (!userEditedRef.current.storeGstin) {
+        setStoreGstin(profile.storeGstin || '');
       }
-      if (!userEditedRef.current.storePhone && profile.storePhone) {
-        setStorePhone(profile.storePhone);
+      if (!userEditedRef.current.storePhone) {
+        setStorePhone(profile.storePhone || '');
       }
-      if (!userEditedRef.current.storeAddress && profile.storeAddress) {
-        setStoreAddress(profile.storeAddress);
+      if (!userEditedRef.current.storeAddress) {
+        setStoreAddress(profile.storeAddress || '');
       }
       const resolvedLogo = profile.storeLogoUrl || settings?.businessLogoURL || null;
-      if (!userEditedRef.current.logoUri && resolvedLogo) {
+      if (!userEditedRef.current.logoUri) {
         setLogoUri(resolvedLogo);
       }
       const resolvedUpi = profile.upiId || settings?.upiId || '';
-      if (!userEditedRef.current.upiId && resolvedUpi) {
+      if (!userEditedRef.current.upiId) {
         setUpiId(resolvedUpi);
       }
       if (user?.businessType) {
@@ -118,20 +119,26 @@ export default function SettingsScreen() {
   useEffect(() => {
     if (activeSection === 'profile' && (settings || user)) {
       const profile = resolveStoreProfile(settings, user);
-      if (!storeName && profile.storeName && profile.storeName !== 'Your Store Name') {
-        setStoreName(profile.storeName);
+      if (!userEditedRef.current.storeName) {
+        setStoreName(profile.storeName || '');
       }
-      if (!storeGstin && profile.storeGstin) setStoreGstin(profile.storeGstin);
-      if (!storePhone && profile.storePhone) setStorePhone(profile.storePhone);
-      if (!storeAddress && profile.storeAddress) setStoreAddress(profile.storeAddress);
-      if (!logoUri && (profile.storeLogoUrl || settings?.businessLogoURL)) {
+      if (!userEditedRef.current.storeGstin) {
+        setStoreGstin(profile.storeGstin || '');
+      }
+      if (!userEditedRef.current.storePhone) {
+        setStorePhone(profile.storePhone || '');
+      }
+      if (!userEditedRef.current.storeAddress) {
+        setStoreAddress(profile.storeAddress || '');
+      }
+      if (!userEditedRef.current.logoUri) {
         setLogoUri(profile.storeLogoUrl || settings?.businessLogoURL || null);
       }
-      if (!upiId && (profile.upiId || settings?.upiId)) {
+      if (!userEditedRef.current.upiId) {
         setUpiId(profile.upiId || settings?.upiId || '');
       }
     }
-  }, [activeSection]);
+  }, [activeSection, settings, user]);
 
   const [rawPickedLogo, setRawPickedLogo] = useState<string | null>(null);
   const [showLogoBgModal, setShowLogoBgModal] = useState<boolean>(false);
@@ -207,7 +214,6 @@ export default function SettingsScreen() {
       return;
     }
 
-
     try {
       setIsSavingProfile(true);
       let persistedLogo: string | null = logoUri;
@@ -221,21 +227,27 @@ export default function SettingsScreen() {
         settings?.receiptConfig && typeof settings.receiptConfig === 'object'
           ? settings.receiptConfig
           : {};
+      const cleanName = storeName.trim();
+      const cleanGstin = storeGstin.trim();
+      const cleanPhone = storePhone.trim();
+      const cleanAddress = storeAddress.trim();
+      const cleanUpi = upiId.trim();
+
       const payload = {
-        businessName: storeName.trim() || undefined,
-        businessGSTIN: storeGstin.trim() || undefined,
-        businessPhone: storePhone.trim() || undefined,
-        businessAddress: storeAddress,
+        businessName: cleanName,
+        businessGSTIN: cleanGstin,
+        businessPhone: cleanPhone,
+        businessAddress: cleanAddress,
         businessLogoURL: persistedLogo ?? null,
-        upiId: upiId || undefined,
+        upiId: cleanUpi,
         receiptConfig: {
           ...existingReceipt,
-          companyName: storeName.trim(),
-          address: storeAddress,
-          phone: storePhone.trim(),
-          gstin: storeGstin.trim(),
+          companyName: cleanName,
+          address: cleanAddress,
+          phone: cleanPhone,
+          gstin: cleanGstin,
           logoURL: persistedLogo ?? null,
-          ...(upiId ? { upiId } : {}),
+          upiId: cleanUpi,
           receiptConfigUpdatedAt: new Date().toISOString(),
         },
       };
@@ -250,6 +262,21 @@ export default function SettingsScreen() {
         setStoredSettings(savedResult).catch(() => {});
         queryClient.setQueryData(['settings'], savedResult);
       }
+
+      // Sync with active auth store user profile
+      const authUser = useAuthStore.getState().user;
+      if (authUser) {
+        useAuthStore.getState().updateUser({
+          ...authUser,
+          businessName: cleanName || authUser.businessName,
+          displayName: cleanName || authUser.displayName,
+          phone: cleanPhone || authUser.phone,
+        });
+      }
+
+      // Reset user-edited flags now that state matches saved settings
+      userEditedRef.current = {};
+
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       Alert.alert('Settings Saved!', 'Your store configuration has been updated.');
       setActiveSection('menu');
@@ -313,7 +340,13 @@ export default function SettingsScreen() {
                 : t('appLanguage', 'Language & Locale')}
             </Text>
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 160 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={true}
+            >
               {activeSection === 'menu' ? (
                 /* Main Menu: Executive Inset Layout */
                 <View style={{ gap: 20 }}>

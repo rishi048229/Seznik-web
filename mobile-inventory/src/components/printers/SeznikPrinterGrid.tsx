@@ -66,7 +66,6 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
   );
 
   const [joshConnected, setJoshConnected] = useState(false);
-  const [tejConnected, setTejConnected] = useState(false);
   const [isPrintingTest, setIsPrintingTest] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
@@ -74,8 +73,6 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
     try {
       const joshOn = await ThermalPrinterService.joshIsConnected();
       setJoshConnected(joshOn);
-      const tejOn = await ThermalPrinterService.yxIsConnected();
-      setTejConnected(tejOn);
     } catch {
       // safe fallback
     }
@@ -90,9 +87,6 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
   const getModelStatus = (model: SeznikPrinterModel) => {
     if (model.id === 'josh') {
       return joshConnected ? 'connected' : 'disconnected';
-    }
-    if (model.id === 'tej') {
-      return tejConnected ? 'connected' : 'disconnected';
     }
     // veer and dev use ESC/POS
     if (connectionState === 'connected') {
@@ -110,15 +104,10 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
 
     // Clean disconnect of conflicting bridges when switching models
     if (model.id === 'josh') {
-      if (tejConnected) ThermalPrinterService.yxDisconnect().catch(() => {});
-      if (connectionState === 'connected') disconnectDevice().catch(() => {});
-    } else if (model.id === 'tej') {
-      if (joshConnected) ThermalPrinterService.joshDisconnect().catch(() => {});
       if (connectionState === 'connected') disconnectDevice().catch(() => {});
     } else {
       // veer or dev (ESC/POS)
       if (joshConnected) ThermalPrinterService.joshDisconnect().catch(() => {});
-      if (tejConnected) ThermalPrinterService.yxDisconnect().catch(() => {});
     }
 
     if (onSelectModel) {
@@ -132,10 +121,13 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
       if (onDisconnect) {
         await onDisconnect(model);
       } else {
-        await disconnectDevice();
+        if (model.id === 'josh') {
+          await ThermalPrinterService.joshDisconnect();
+        } else {
+          await disconnectDevice();
+        }
       }
       setJoshConnected(false);
-      setTejConnected(false);
       try { Vibration.vibrate(60); } catch (e) {}
     } catch (e) {
       // Ignored
@@ -150,7 +142,7 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
       if (onTestPrint) {
         await onTestPrint(model);
       } else {
-        if (model.id === 'josh' || model.id === 'tej') {
+        if (model.id === 'josh') {
           const sample = {
             name: 'Sample Item 500g',
             sellingPrice: 250.0,
@@ -172,6 +164,7 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
             Alert.alert('Print Failed', `Could not send test label to ${model.name}.`);
           }
         } else {
+          // Non-SEZNIK printer: only receipt printing is supported
           const {
             paperWidth,
             activeTemplateId,
@@ -380,12 +373,16 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
                 style={[
                   styles.warningBox,
                   {
-                    backgroundColor: model.id === 'veer' ? (isDark ? 'rgba(217, 119, 6, 0.12)' : '#FFFBEB') : (isDark ? 'rgba(37, 99, 235, 0.08)' : '#F8FAFC'),
-                    borderColor: model.id === 'veer' ? (isDark ? 'rgba(217, 119, 6, 0.3)' : '#FDE68A') : theme.borderColor,
+                    backgroundColor: model.isNonSeznik
+                      ? (isDark ? 'rgba(217, 119, 6, 0.12)' : '#FFFBEB')
+                      : (isDark ? 'rgba(37, 99, 235, 0.08)' : '#F8FAFC'),
+                    borderColor: model.isNonSeznik
+                      ? (isDark ? 'rgba(217, 119, 6, 0.3)' : '#FDE68A')
+                      : theme.borderColor,
                   },
                 ]}
               >
-                {model.id === 'veer' ? (
+                {model.isNonSeznik ? (
                   <AlertTriangle size={14} color="#D97706" style={{ marginRight: 6, marginTop: 1 }} />
                 ) : (
                   <Zap size={14} color={BRAND_COLORS.blue600} style={{ marginRight: 6, marginTop: 1 }} />
@@ -393,7 +390,7 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
                 <Text
                   style={[
                     styles.warningText,
-                    { color: model.id === 'veer' ? (isDark ? '#FBBF24' : '#B45309') : theme.textSecondary },
+                    { color: model.isNonSeznik ? (isDark ? '#FBBF24' : '#B45309') : theme.textSecondary },
                   ]}
                 >
                   {model.warningNotice}

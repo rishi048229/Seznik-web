@@ -1500,8 +1500,9 @@ export default function ProductsScreen() {
           <KeyboardAvoidingWrapper inModal>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: 160 }}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
           >
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>

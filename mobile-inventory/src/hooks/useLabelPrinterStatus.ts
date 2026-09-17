@@ -67,9 +67,7 @@ export function useLabelPrinterStatus(pollWhileVisible = true): LabelPrinterStat
   const connectedModel = usePrinterStore.getState().connectedPrinterModel;
   const isDual =
     connectedModel === 'dev' ||
-    connectedModel === 'tej' ||
     (activeDevice?.name || '').toUpperCase().includes('DEV') ||
-    (activeDevice?.name || '').toUpperCase().includes('TEJ') ||
     (activeDevice?.name || '').toUpperCase().includes('2IN1') ||
     activeDevice?.type === 'dual';
 

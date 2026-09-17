@@ -23,17 +23,16 @@ export function KeyboardAvoidingWrapper({
 }: {
   children: React.ReactNode;
   style?: ViewStyle;
-  /** Extra offset for iOS, e.g. to account for a modal's own header height. */
+  /** Extra offset for iOS / Android */
   keyboardVerticalOffset?: number;
   /** Set true when this wrapper sits directly inside a <Modal> — see behavior notes above. */
   inModal?: boolean;
 }) {
-  const androidBehavior = inModal ? 'height' : undefined;
   return (
     <KeyboardAvoidingView
       style={[{ flex: 1 }, style]}
-      behavior={Platform.OS === 'ios' ? 'padding' : androidBehavior}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? keyboardVerticalOffset : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : inModal ? 'height' : 'padding'}
+      keyboardVerticalOffset={keyboardVerticalOffset ?? (Platform.OS === 'ios' ? 0 : inModal ? 0 : 20)}
     >
       {children}
     </KeyboardAvoidingView>

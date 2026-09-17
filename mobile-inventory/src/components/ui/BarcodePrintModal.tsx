@@ -529,31 +529,147 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               </ScrollView>
             </View>
 
-            {/* Live Preview Card */}
-            <View style={styles.previewContainer}>
-              <View style={styles.labelCard}>
-                <Text style={styles.labelStoreHeader}>{storeName.toUpperCase()}</Text>
-                <Text style={styles.labelTitle} numberOfLines={1}>
-                  {product.name}
-                </Text>
-                <Text style={styles.labelPrice}>₹{product.sellingPrice.toFixed(2)}</Text>
+            {/* Live Preview Card with pointerEvents="none" so touch drag scrolls the parent ScrollView smoothly */}
+            <View style={styles.previewContainer} pointerEvents="none">
+              <View style={[styles.labelCard, { width: 230, minHeight: 120 }]}>
+                {printMode === 'template' && usableTemplate ? (
+                  // Custom template layout preview
+                  <View style={{ width: '100%', padding: 4, alignItems: 'center' }}>
+                    <Text style={[styles.labelStoreHeader, { color: '#64748B', marginBottom: 4 }]}>
+                      TEMPLATE: {usableTemplate.name.toUpperCase()}
+                    </Text>
+                    {usableTemplate.elements.map((el: any, idx: number) => {
+                      if (el.type === 'text') {
+                        let textVal = el.customText || '';
+                        if (el.binding === 'productName') textVal = product.name;
+                        else if (el.binding === 'price') textVal = `₹${product.sellingPrice.toFixed(2)}`;
+                        else if (el.binding === 'barcode') textVal = rawCode;
+                        else if (el.binding === 'sku') textVal = product.sku || rawCode;
+                        else if (el.binding === 'category') textVal = product.category || 'General';
 
-                {/* Graphic Preview */}
-                <View style={styles.graphicBox}>
-                  {selectedFormat === 'qr' ? (
-                    <QRCodeSVG value={rawCode} size={78} color="#000000" backgroundColor="#FFFFFF" />
-                  ) : selectedFormat === 'code128' ? (
-                    <View style={styles.barcodeVisualBox}>
-                      <Text style={styles.barcodeLinesText}>{formattedCode128}</Text>
+                        return (
+                          <Text
+                            key={el.id || idx}
+                            style={{
+                              fontSize: Math.max(9, (el.fontSizePt || 10) * 1.0),
+                              fontWeight: el.bold ? '800' : '500',
+                              textAlign: el.align || 'center',
+                              color: '#0F172A',
+                              marginVertical: 1,
+                              width: '100%',
+                            }}
+                            numberOfLines={1}
+                          >
+                            {textVal}
+                          </Text>
+                        );
+                      }
+                      if (el.type === 'barcode') {
+                        return (
+                          <View key={el.id || idx} style={[styles.barcodeVisualBox, { marginVertical: 3, width: '90%', paddingVertical: 4 }]}>
+                            <Text style={[styles.barcodeLinesText, { fontSize: 11 }]}>{formattedCode128}</Text>
+                          </View>
+                        );
+                      }
+                      if (el.type === 'qrcode') {
+                        return (
+                          <View key={el.id || idx} style={{ marginVertical: 4, alignItems: 'center' }}>
+                            <QRCodeSVG value={rawCode} size={54} color="#000000" backgroundColor="#FFFFFF" />
+                          </View>
+                        );
+                      }
+                      if (el.type === 'divider' || el.type === 'line') {
+                        return <View key={el.id || idx} style={{ width: '100%', height: 1, backgroundColor: '#CBD5E1', marginVertical: 2 }} />;
+                      }
+                      return null;
+                    })}
+                  </View>
+                ) : presetId === 'retail_dual_code' ? (
+                  // Barcode + QR side-by-side
+                  <View style={{ width: '100%', alignItems: 'center' }}>
+                    <Text style={styles.labelStoreHeader}>{storeName.toUpperCase()}</Text>
+                    <Text style={styles.labelTitle} numberOfLines={1}>{product.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginVertical: 4, paddingHorizontal: 4 }}>
+                      <View style={{ flex: 1, marginRight: 8, alignItems: 'center' }}>
+                        <View style={[styles.barcodeVisualBox, { width: '100%', paddingHorizontal: 4, paddingVertical: 4 }]}>
+                          <Text style={[styles.barcodeLinesText, { fontSize: 10, letterSpacing: 1 }]}>{formattedCode128}</Text>
+                        </View>
+                        <Text style={[styles.codeSubtitle, { fontSize: 8, marginTop: 2 }]}>*{rawCode}*</Text>
+                      </View>
+                      <View style={{ backgroundColor: '#FFF', padding: 2, borderRadius: 4, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                        <QRCodeSVG value={rawCode} size={48} color="#000000" backgroundColor="#FFFFFF" />
+                      </View>
                     </View>
-                  ) : (
-                    <View style={styles.barcodeVisualBox}>
-                      <Text style={styles.barcodeLinesText}>{formattedEAN13}</Text>
+                    <Text style={[styles.codeSubtitle, { fontSize: 8.5, color: '#64748B', marginTop: 1 }]}>MRP (Incl. of all taxes)</Text>
+                    <Text style={[styles.labelPrice, { fontSize: 15, marginVertical: 1 }]}>₹{product.sellingPrice.toFixed(2)}</Text>
+                  </View>
+                ) : presetId === 'classic_mrp' ? (
+                  // Classic centred with MRP
+                  <View style={{ width: '100%', alignItems: 'center' }}>
+                    <Text style={styles.labelStoreHeader}>{storeName.toUpperCase()}</Text>
+                    <Text style={styles.labelTitle} numberOfLines={1}>{product.name}</Text>
+                    <View style={[styles.graphicBox, { height: 52, marginVertical: 2 }]}>
+                      <View style={[styles.barcodeVisualBox, { width: 175, paddingVertical: 5 }]}>
+                        <Text style={styles.barcodeLinesText}>{formattedCode128}</Text>
+                      </View>
                     </View>
-                  )}
-                </View>
+                    <Text style={styles.codeSubtitle}>*{rawCode}*</Text>
+                    <Text style={[styles.codeSubtitle, { fontSize: 8.5, color: '#64748B', marginTop: 3 }]}>MRP (Incl. of all taxes)</Text>
+                    <Text style={[styles.labelPrice, { fontSize: 15, marginVertical: 2 }]}>₹{product.sellingPrice.toFixed(2)}</Text>
+                  </View>
+                ) : presetId === 'minimal_tag' ? (
+                  // Minimal price tag: Left-aligned name, full width barcode, right-aligned price
+                  <View style={{ width: '100%' }}>
+                    <Text style={[styles.labelTitle, { textAlign: 'left', fontSize: 12 }]} numberOfLines={1}>
+                      {product.name}
+                    </Text>
+                    <View style={[styles.graphicBox, { height: 50, marginVertical: 3 }]}>
+                      <View style={[styles.barcodeVisualBox, { width: '100%', paddingVertical: 4 }]}>
+                        <Text style={[styles.barcodeLinesText, { fontSize: 11 }]}>{formattedCode128}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={[styles.codeSubtitle, { marginTop: 0 }]}>*{rawCode}*</Text>
+                      <Text style={[styles.labelPrice, { marginVertical: 0, fontSize: 15 }]}>₹{product.sellingPrice.toFixed(2)}</Text>
+                    </View>
+                  </View>
+                ) : presetId === 'centered_standard' ? (
+                  // Centred standard without MRP line
+                  <View style={{ width: '100%', alignItems: 'center' }}>
+                    <Text style={styles.labelStoreHeader}>{storeName.toUpperCase()}</Text>
+                    <Text style={styles.labelTitle} numberOfLines={1}>{product.name}</Text>
+                    <View style={[styles.graphicBox, { height: 52, marginVertical: 2 }]}>
+                      <View style={[styles.barcodeVisualBox, { width: 175, paddingVertical: 5 }]}>
+                        <Text style={styles.barcodeLinesText}>{formattedCode128}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.codeSubtitle}>*{rawCode}*</Text>
+                    <Text style={[styles.labelPrice, { fontSize: 15, marginVertical: 3 }]}>₹{product.sellingPrice.toFixed(2)}</Text>
+                  </View>
+                ) : (
+                  // Default format (QR / Code128 / EAN13)
+                  <View style={{ width: '100%', alignItems: 'center' }}>
+                    <Text style={styles.labelStoreHeader}>{storeName.toUpperCase()}</Text>
+                    <Text style={styles.labelTitle} numberOfLines={1}>{product.name}</Text>
+                    <Text style={styles.labelPrice}>₹{product.sellingPrice.toFixed(2)}</Text>
 
-                <Text style={styles.codeSubtitle}>*{rawCode}*</Text>
+                    <View style={styles.graphicBox}>
+                      {selectedFormat === 'qr' ? (
+                        <QRCodeSVG value={rawCode} size={78} color="#000000" backgroundColor="#FFFFFF" />
+                      ) : selectedFormat === 'code128' ? (
+                        <View style={styles.barcodeVisualBox}>
+                          <Text style={styles.barcodeLinesText}>{formattedCode128}</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.barcodeVisualBox}>
+                          <Text style={styles.barcodeLinesText}>{formattedEAN13}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={styles.codeSubtitle}>*{rawCode}*</Text>
+                  </View>
+                )}
               </View>
             </View>
 

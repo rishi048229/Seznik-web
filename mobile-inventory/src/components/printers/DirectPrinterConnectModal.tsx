@@ -43,7 +43,6 @@ import {
 } from '@/constants/printerModels';
 import ThermalPrinterService from '@/services/PrinterService';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshPrinterDevice } from '../../../modules/josh-label-printer';
-import YxLabelPrinter, { isYxPrinterSupported, YxPrinterDevice } from '../../../modules/yx-label-printer';
 
 interface DirectPrinterConnectModalProps {
   visible: boolean;
@@ -67,7 +66,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   showContinueWithoutPrinter = true,
   onContinueWithoutPrinter,
   continueWithoutPrinterLabel,
-  initialModelId = 'dev',
+  initialModelId = 'josh',
 }) => {
   const { t } = useTranslation();
   const theme = useAppTheme();
@@ -111,11 +110,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   const [isJoshScanning, setIsJoshScanning] = useState(false);
   const [joshConnectedDevice, setJoshConnectedDevice] = useState<{ address: string; name: string } | null>(null);
 
-  // TEJ / YX SDK state
-  const [yxDevices, setYxDevices] = useState<YxPrinterDevice[]>([]);
-  const [isYxScanning, setIsYxScanning] = useState(false);
-  const [yxConnectedDevice, setYxConnectedDevice] = useState<{ address: string; name: string } | null>(null);
-
   const VISIBLE_DEVICE_LIMIT = 5;
   const [showAllDevices, setShowAllDevices] = useState(false);
 
@@ -139,20 +133,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
         }
       } catch {
         setJoshConnectedDevice(null);
-      }
-    }
-
-    if (ThermalPrinterService.isTejSupported()) {
-      try {
-        const isConn = await ThermalPrinterService.tejIsConnected();
-        if (isConn) {
-          const info = await ThermalPrinterService.tejGetPrinterInfo();
-          setYxConnectedDevice(info ? { address: info.address, name: info.name } : null);
-        } else {
-          setYxConnectedDevice(null);
-        }
-      } catch {
-        setYxConnectedDevice(null);
       }
     }
   }, []);
@@ -222,62 +202,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
-  /**
-   * TEJ scanning — merges standard paired/scanned Bluetooth devices plus YX discovery.
-   */
-  const scanYxDevices = async () => {
-    // 1. Immediately seed paired & scanned Bluetooth devices from store
-    const storeDevices = [...(pairedPrinters || []), ...(scannedDevices || [])];
-    const initialList: YxPrinterDevice[] = storeDevices.map((d) => ({ address: d.id, name: d.name }));
-    setYxDevices((prev) => {
-      const combined = [...prev];
-      for (const d of initialList) {
-        if (d.address && !combined.some((x) => x.address === d.address)) {
-          combined.push(d);
-        }
-      }
-      return combined;
-    });
-
-    if (scanForDevices) {
-      scanForDevices().catch(() => {});
-    }
-
-    if (!YxLabelPrinter) return;
-    const ok = await ensureAndroidPermissions();
-    if (!ok) return;
-    setIsYxScanning(true);
-
-    try {
-      // 2. Query YX module for paired printers
-      const paired = await YxLabelPrinter.getPairedPrinters();
-      if (paired && paired.length > 0) {
-        setYxDevices((prev) => {
-          const combined = [...prev];
-          for (const d of paired) {
-            if (d.address && !combined.some((x) => x.address === d.address)) {
-              combined.push(d);
-            }
-          }
-          return combined;
-        });
-      }
-
-      // 3. Start native YX discovery
-      await YxLabelPrinter.startDiscovery();
-
-      setTimeout(() => {
-        try {
-          YxLabelPrinter?.stopDiscovery().catch(() => {});
-        } catch {}
-        setIsYxScanning(false);
-      }, 8000);
-    } catch (e) {
-      console.log('[TEJ] scan failed:', e);
-      setIsYxScanning(false);
-    }
-  };
-
   useEffect(() => {
     if (visible) {
       refreshAllStatuses();
@@ -287,8 +211,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
         }
       } else if (selectedModel === 'josh') {
         scanJoshDevices();
-      } else if (selectedModel === 'tej') {
-        scanYxDevices();
       }
     }
   }, [visible, selectedModel]);
@@ -311,24 +233,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     };
   }, [refreshAllStatuses]);
 
-  // Listeners for YX / TEJ — no guard on isYxSupported to ensure we always listen
-  useEffect(() => {
-    if (!YxLabelPrinter) return;
-    const foundSub = YxLabelPrinter.addListener('onPrinterFound', (device) => {
-      setYxDevices((prev) => {
-        const exists = prev.some((d) => d.address === device.address);
-        return exists ? prev : [...prev, device];
-      });
-    });
-    const stateSub = YxLabelPrinter.addListener('onPrinterStateChange', () => {
-      refreshAllStatuses();
-    });
-    return () => {
-      foundSub.remove();
-      stateSub.remove();
-    };
-  }, [refreshAllStatuses]);
-
   // Connect ESC/POS (VEER / DEV)
   const handleConnectEscPos = async (device: PhoneBluetoothDevice, modelId: 'dev' | 'veer') => {
     setConnectingId(device.id);
@@ -336,9 +240,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
       // Clean disconnect conflicting bridges
       if (ThermalPrinterService.isJoshSupported()) {
         ThermalPrinterService.joshDisconnect().catch(() => {});
-      }
-      if (YxLabelPrinter) {
-        ThermalPrinterService.yxDisconnect().catch(() => {});
       }
 
       setConnectedPrinterModel(modelId);
@@ -366,25 +267,8 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     try {
       // Clean disconnect conflicting bridges
       disconnectDevice().catch(() => {});
-      if (YxLabelPrinter) {
-        ThermalPrinterService.yxDisconnect().catch(() => {});
-      }
 
-      // If user tapped a TEJ printer while on JOSH tab, connect via TEJ directly
-      if (devName.includes('tej')) {
-        setConnectedPrinterModel('tej');
-        const okTej = await ThermalPrinterService.tejConnect(device.address, device.name);
-        if (okTej) {
-          const activePaperMode = usePrinterStore.getState().labelPaperMode || 'gap';
-          ThermalPrinterService.yxCalibrate(activePaperMode === 'continuous' ? 0 : 2).catch(() => {});
-          await refreshAllStatuses();
-          if (onConnected) onConnected();
-          onClose();
-          return;
-        }
-      }
-
-      // If user tapped a Shakti / DEV / ESC-POS printer while on JOSH tab, connect via DEV ESC/POS directly
+      // If user tapped a third-party POS / DEV printer while on JOSH tab, route to DEV ESC/POS directly
       if (devName.includes('shakti') || devName.includes('dev') || devName.includes('pos-')) {
         setConnectedPrinterModel('dev');
         await connectDevice(device.address, device.name);
@@ -421,63 +305,12 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
-  // Connect TEJ (TEJ / YX SDK)
-  const handleConnectTej = async (device: YxPrinterDevice) => {
-    setConnectingId(device.address);
-    const devName = (device.name || '').toLowerCase();
-    try {
-      // Clean disconnect conflicting bridges
-      disconnectDevice().catch(() => {});
-      if (ThermalPrinterService.isJoshSupported()) {
-        ThermalPrinterService.joshDisconnect().catch(() => {});
-      }
-
-      // If user tapped a Shakti / DEV / ESC-POS printer while on TEJ tab
-      if (devName.includes('shakti') || devName.includes('dev') || devName.includes('pos-')) {
-        setConnectedPrinterModel('dev');
-        await connectDevice(device.address, device.name);
-        await refreshAllStatuses();
-        if (onConnected) onConnected();
-        onClose();
-        return;
-      }
-
-      setConnectedPrinterModel('tej');
-      const ok = await ThermalPrinterService.tejConnect(device.address, device.name);
-
-      if (!ok) {
-        setConnectedPrinterModel(null as any);
-        throw new Error('Connection could not be established. Ensure SEZNIK TEJ is turned ON and in Bluetooth range.');
-      }
-      const activePaperMode = usePrinterStore.getState().labelPaperMode || 'gap';
-      ThermalPrinterService.yxCalibrate(activePaperMode === 'continuous' ? 0 : 2).catch(() => {});
-
-      await refreshAllStatuses();
-      if (onConnected) onConnected();
-      onClose();
-    } catch (e: any) {
-      Alert.alert(
-        'Connection Failed',
-        e?.message || 'Connection failed. Please ensure printer is powered on and Bluetooth is enabled.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Retry', onPress: () => handleConnectTej(device) },
-        ]
-      );
-    } finally {
-      setConnectingId(null);
-    }
-  };
-
   // --- DISCONNECT handler ---
   const handleDisconnect = async () => {
     try {
       if (selectedModel === 'josh') {
         await ThermalPrinterService.joshDisconnect();
         setJoshConnectedDevice(null);
-      } else if (selectedModel === 'tej') {
-        await ThermalPrinterService.tejDisconnect();
-        setYxConnectedDevice(null);
       } else {
         await disconnectDevice();
       }
@@ -489,13 +322,13 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
-  // --- TEST PRINT handler (asks Receipt or Label) ---
+  // --- TEST PRINT handler (asks Receipt or Label for JOSH, Receipt-only for others) ---
   const handleTestPrint = () => {
     const modelConfig = SEZNIK_PRINTER_MODELS[selectedModel];
     const supportsLabels = modelConfig.capabilities.labels;
 
-    if (!supportsLabels) {
-      // Only receipts supported (e.g. VEER)
+    if (!supportsLabels || modelConfig.isNonSeznik) {
+      // Non-SEZNIK or receipt-only: print test receipt directly
       doTestPrint('receipt');
       return;
     }
@@ -539,8 +372,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
       scanForDevices().catch(() => {});
     } else if (selectedModel === 'josh') {
       scanJoshDevices();
-    } else if (selectedModel === 'tej') {
-      scanYxDevices();
     }
   };
 
@@ -549,7 +380,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   // Helper to determine if selected model is connected
   const isSelectedModelConnected =
     (selectedModel === 'josh' && !!joshConnectedDevice) ||
-    (selectedModel === 'tej' && !!yxConnectedDevice) ||
     ((selectedModel === 'dev' || selectedModel === 'veer') &&
       connectionState === 'connected' &&
       (connectedPrinterModel === selectedModel || (!connectedPrinterModel && selectedModel === 'dev')));
@@ -569,7 +399,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
               </View>
               <View style={{ marginLeft: 10, flex: 1 }}>
                 <Text style={[styles.title, { color: theme.textPrimary }]}>
-                  {title || 'Connect SEZNIK Printer'}
+                  {title || 'Connect Bluetooth Printer'}
                 </Text>
                 <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
                   {subtitle || 'Select your printer model below to link via Bluetooth'}
@@ -586,13 +416,12 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
             </TouchableOpacity>
           </View>
 
-          {/* 4 PRINTER MODEL SELECTOR ROW */}
+          {/* PRINTER MODEL SELECTOR ROW */}
           <View style={styles.modelSelectorContainer}>
             {PRINTER_MODEL_LIST.map((model) => {
               const isSelected = selectedModel === model.id;
               const isConn =
                 (model.id === 'josh' && !!joshConnectedDevice) ||
-                (model.id === 'tej' && !!yxConnectedDevice) ||
                 ((model.id === 'dev' || model.id === 'veer') &&
                   connectionState === 'connected' &&
                   (connectedPrinterModel === model.id || (!connectedPrinterModel && model.id === 'dev')));
@@ -633,57 +462,49 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                     ]}
                     numberOfLines={1}
                   >
-                    {model.name.replace('SEZNIK ', '')}
+                    {model.id === 'josh' ? 'SEZNIK JOSH' : model.name.replace('Other Printer (', '').replace(')', '')}
                   </Text>
                   <Text
                     style={[
                       styles.tabType,
-                      { color: model.id === 'veer' ? '#D97706' : '#059669' },
+                      { color: model.isNonSeznik ? '#D97706' : '#7C3AED' },
                     ]}
                     numberOfLines={1}
                   >
-                    {model.id === 'veer' ? 'Receipt Only' : '2-in-1'}
+                    {model.id === 'josh' ? 'Official 2-in-1' : 'Receipt Only'}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          {/* CLEAN MODEL INFO (no tech jargon) */}
+          {/* CLEAN MODEL INFO / WARNING BANNER */}
           <View
             style={[
               styles.modelNoticeBox,
               {
                 backgroundColor:
-                  selectedModel === 'veer'
-                    ? '#FFFBEB'
-                    : selectedModel === 'josh'
-                    ? '#EEF2FF'
-                    : selectedModel === 'tej'
-                    ? '#ECFDF5'
-                    : '#EFF6FF',
+                  activeModelConfig.isNonSeznik
+                    ? (theme.isDark ? 'rgba(217, 119, 6, 0.12)' : '#FFFBEB')
+                    : (theme.isDark ? 'rgba(124, 58, 237, 0.1)' : '#F5F3FF'),
                 borderColor:
-                  selectedModel === 'veer'
-                    ? '#FDE68A'
-                    : selectedModel === 'josh'
-                    ? '#C7D2FE'
-                    : selectedModel === 'tej'
-                    ? '#A7F3D0'
-                    : '#BFDBFE',
+                  activeModelConfig.isNonSeznik
+                    ? (theme.isDark ? 'rgba(217, 119, 6, 0.3)' : '#FDE68A')
+                    : (theme.isDark ? 'rgba(124, 58, 237, 0.3)' : '#DDD6FE'),
               },
             ]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
-              {selectedModel === 'veer' ? (
+              {activeModelConfig.isNonSeznik ? (
                 <AlertTriangle size={15} color="#D97706" style={{ marginRight: 6 }} />
               ) : (
-                <Zap size={15} color={BRAND_COLORS.blue600} style={{ marginRight: 6 }} />
+                <Zap size={15} color="#7C3AED" style={{ marginRight: 6 }} />
               )}
               <Text
                 style={{
                   fontSize: 12,
                   fontWeight: '800',
-                  color: selectedModel === 'veer' ? '#B45309' : BRAND_COLORS.blue600,
+                  color: activeModelConfig.isNonSeznik ? '#B45309' : '#7C3AED',
                 }}
               >
                 {activeModelConfig.name} • {activeModelConfig.typeBadge}
@@ -692,17 +513,13 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
             <Text
               style={{
                 fontSize: 11,
-                color: selectedModel === 'veer' ? '#92400E' : theme.textSecondary,
+                color: activeModelConfig.isNonSeznik ? '#92400E' : theme.textSecondary,
                 lineHeight: 15,
               }}
             >
-              {selectedModel === 'veer'
-                ? '⚠️ This printer supports receipts only. It does not support sticker labels.'
-                : selectedModel === 'dev'
-                ? 'Supports both continuous receipts and 50×30mm die-cut sticker labels.'
-                : selectedModel === 'josh'
-                ? 'Supports high-precision die-cut labels and receipts with hardware gap detection.'
-                : 'Supports ultra-fast die-cut labels and receipts with smart calibration.'}
+              {activeModelConfig.isNonSeznik
+                ? '⚠️ Non-SEZNIK Printer: This printer is a third-party non-SEZNIK device. Only receipt printing is supported. Label printing is exclusive to official SEZNIK hardware.'
+                : 'Supports high-precision die-cut labels and receipts with hardware optical gap detection.'}
             </Text>
           </View>
 
@@ -799,7 +616,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                                 style={[styles.deviceName, { color: theme.textPrimary }]}
                                 numberOfLines={1}
                               >
-                                {p.name || 'SEZNIK Bluetooth Printer'}
+                                {p.name || 'Bluetooth Printer'}
                               </Text>
                               {p.isDefault ? (
                                 <View style={styles.defaultBadge}>
@@ -879,8 +696,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                     <View style={[styles.emptyBox, { borderColor: theme.borderColor }]}>
                       <Smartphone size={22} color={theme.textSecondary} />
                       <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                        No devices found. Turn ON {activeModelConfig.name} and pair it in phone
-                        settings first.
+                        No devices found. Turn ON printer and pair it in phone Bluetooth settings.
                       </Text>
                     </View>
                   ) : (
@@ -972,10 +788,10 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                   >
                     <RefreshCw
                       size={12}
-                      color={BRAND_COLORS.blue600}
+                      color="#7C3AED"
                       style={isJoshScanning ? { transform: [{ rotate: '45deg' }] } : {}}
                     />
-                    <Text style={styles.scanRefreshText}>
+                    <Text style={[styles.scanRefreshText, { color: '#7C3AED' }]}>
                       {isJoshScanning ? 'Scanning...' : 'Scan'}
                     </Text>
                   </TouchableOpacity>
@@ -983,11 +799,11 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
 
                 {isJoshScanning && joshDevices.length === 0 ? (
                   <View style={styles.scanningPlaceholder}>
-                    <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
+                    <ActivityIndicator size="small" color="#7C3AED" />
                     <Text
                       style={[styles.scanningPlaceholderText, { color: theme.textSecondary }]}
                     >
-                      Searching for nearby JOSH printers...
+                      Searching for nearby SEZNIK JOSH printers...
                     </Text>
                   </View>
                 ) : joshDevices.length === 0 ? (
@@ -1024,13 +840,13 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                             {
                               backgroundColor: isThisActive
                                 ? 'rgba(16, 185, 129, 0.15)'
-                                : 'rgba(99, 102, 241, 0.12)',
+                                : 'rgba(124, 58, 237, 0.12)',
                             },
                           ]}
                         >
                           <Tag
                             size={18}
-                            color={isThisActive ? '#10B981' : '#6366F1'}
+                            color={isThisActive ? '#10B981' : '#7C3AED'}
                           />
                         </View>
                         <View style={{ flex: 1, marginLeft: 10 }}>
@@ -1046,7 +862,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                         </View>
 
                         {isThisConnecting ? (
-                          <ActivityIndicator size="small" color="#6366F1" />
+                          <ActivityIndicator size="small" color="#7C3AED" />
                         ) : isThisActive ? (
                           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                             <CheckCircle2 size={16} color="#10B981" />
@@ -1065,128 +881,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                           <View
                             style={[
                               styles.connectBtnSmall,
-                              { backgroundColor: '#6366F1' },
-                            ]}
-                          >
-                            <Text style={styles.connectBtnSmallText}>Connect</Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
-            )}
-
-            {/* TEJ / YX LIST */}
-            {selectedModel === 'tej' && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>
-                    TEJ PRINTERS ({yxDevices.length})
-                  </Text>
-                  <TouchableOpacity
-                    onPress={scanYxDevices}
-                    disabled={isYxScanning}
-                    style={styles.scanRefreshBtn}
-                  >
-                    <RefreshCw
-                      size={12}
-                      color={BRAND_COLORS.blue600}
-                      style={isYxScanning ? { transform: [{ rotate: '45deg' }] } : {}}
-                    />
-                    <Text style={styles.scanRefreshText}>
-                      {isYxScanning ? 'Scanning...' : 'Scan'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {isYxScanning && yxDevices.length === 0 ? (
-                  <View style={styles.scanningPlaceholder}>
-                    <ActivityIndicator size="small" color={BRAND_COLORS.blue600} />
-                    <Text
-                      style={[styles.scanningPlaceholderText, { color: theme.textSecondary }]}
-                    >
-                      Searching for nearby TEJ printers...
-                    </Text>
-                  </View>
-                ) : yxDevices.length === 0 ? (
-                  <View style={[styles.emptyBox, { borderColor: theme.borderColor }]}>
-                    <Smartphone size={22} color={theme.textSecondary} />
-                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                      No TEJ printers found. Ensure SEZNIK TEJ is powered on and within Bluetooth range.
-                    </Text>
-                  </View>
-                ) : (
-                  yxDevices.map((d) => {
-                    const isThisConnecting = connectingId === d.address;
-                    const isThisActive =
-                      yxConnectedDevice?.address === d.address ||
-                      (connectedPrinterModel === 'tej' &&
-                        (activeDevice?.id === d.address || activeDevice?.macAddress === d.address || (!!yxConnectedDevice && !activeDevice)));
-
-                    return (
-                      <TouchableOpacity
-                        key={d.address}
-                        activeOpacity={0.8}
-                        onPress={() => handleConnectTej(d)}
-                        disabled={isThisConnecting || isThisActive}
-                        style={[
-                          styles.deviceItem,
-                          {
-                            backgroundColor: theme.cardBg,
-                            borderColor: isThisActive ? '#10B981' : theme.borderColor,
-                          },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.deviceIconBox,
-                            {
-                              backgroundColor: isThisActive
-                                ? 'rgba(16, 185, 129, 0.15)'
-                                : 'rgba(16, 185, 129, 0.12)',
-                            },
-                          ]}
-                        >
-                          <Zap
-                            size={18}
-                            color={isThisActive ? '#10B981' : '#059669'}
-                          />
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text
-                            style={[styles.deviceName, { color: theme.textPrimary }]}
-                            numberOfLines={1}
-                          >
-                            {d.name || 'SEZNIK TEJ Printer'}
-                          </Text>
-                          <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
-                            {d.address}
-                          </Text>
-                        </View>
-
-                        {isThisConnecting ? (
-                          <ActivityIndicator size="small" color="#059669" />
-                        ) : isThisActive ? (
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <CheckCircle2 size={16} color="#10B981" />
-                            <Text
-                              style={{
-                                color: '#10B981',
-                                fontSize: 11,
-                                fontWeight: '800',
-                                marginLeft: 4,
-                              }}
-                            >
-                              Ready
-                            </Text>
-                          </View>
-                        ) : (
-                          <View
-                            style={[
-                              styles.connectBtnSmall,
-                              { backgroundColor: '#059669' },
+                              { backgroundColor: '#7C3AED' },
                             ]}
                           >
                             <Text style={styles.connectBtnSmallText}>Connect</Text>

@@ -148,7 +148,7 @@ export function YxPrinterCard() {
       if (ThermalPrinterService.isJoshSupported()) {
         ThermalPrinterService.joshDisconnect().catch(() => {});
       }
-      usePrinterStore.getState().setConnectedPrinterModel('tej');
+      usePrinterStore.getState().setConnectedPrinterModel(null as any);
 
       const ok = await ThermalPrinterService.tejConnect(device.address, device.name);
       if (ok) {
