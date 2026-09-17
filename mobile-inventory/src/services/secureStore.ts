@@ -251,6 +251,8 @@ const LABEL_TEMPLATES_KEY = 'seznik_label_templates';
 const ACTIVE_LABEL_TEMPLATE_KEY = 'seznik_active_label_template';
 const PRINTER_CALIBRATION_KEY = 'seznik_printer_calibration';
 
+import { SeznikPrinterModelId } from '../constants/printerModels';
+
 export interface StoredPrinterCalibration {
   paperWidth?: '58mm' | '80mm';
   printDensity?: number;
@@ -267,10 +269,10 @@ export interface StoredPrinterCalibration {
   labelGapMm?: number;
   /** Residual vertical alignment trim in mm for gap-sensor-less (blind raster) label printing. */
   labelOffsetMm?: number;
-  /** User's preferred SEZNIK printer model choice: 'josh' | 'dev' | 'veer' | null */
-  preferredPrinterModel?: 'josh' | 'dev' | 'veer' | null;
-  /** Last actively connected SEZNIK printer model: 'josh' | 'dev' | 'veer' | null */
-  connectedPrinterModel?: 'josh' | 'dev' | 'veer' | null;
+  /** User's preferred SEZNIK printer model choice */
+  preferredPrinterModel?: SeznikPrinterModelId | null;
+  /** Last actively connected SEZNIK printer model */
+  connectedPrinterModel?: SeznikPrinterModelId | null;
 }
 
 export async function getStoredPrinterCalibration(): Promise<StoredPrinterCalibration | null> {
@@ -659,7 +661,7 @@ export async function getStoredSettings<T = any>(): Promise<T | null> {
     }
     return json ? (JSON.parse(json) as T) : null;
   } catch (error) {
-    console.error('Error reading stored settings:', error);
+    console.error('Error reading stored szzzzzzzzzzzzzzzzzzzzzzzzzzettings:', error);
     return null;
   }
 }

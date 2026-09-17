@@ -66,6 +66,7 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
   );
 
   const [joshConnected, setJoshConnected] = useState(false);
+  const [td404Connected, setTd404Connected] = useState(false);
   const [isPrintingTest, setIsPrintingTest] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
@@ -73,6 +74,8 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
     try {
       const joshOn = await ThermalPrinterService.joshIsConnected();
       setJoshConnected(joshOn);
+      const td404On = await ThermalPrinterService.td404IsConnected();
+      setTd404Connected(td404On);
     } catch {
       // safe fallback
     }
@@ -88,7 +91,11 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
     if (model.id === 'josh') {
       return joshConnected ? 'connected' : 'disconnected';
     }
-    // veer and dev use ESC/POS
+    if (model.id === 'rudra' || model.id === 'tejas') {
+      if (td404Connected && connectedPrinterModel === model.id) return 'connected';
+      return 'disconnected';
+    }
+    // veer, dev, other use ESC/POS
     if (connectionState === 'connected') {
       if (connectedPrinterModel === model.id) return 'connected';
       if (!connectedPrinterModel) {
@@ -105,9 +112,14 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
     // Clean disconnect of conflicting bridges when switching models
     if (model.id === 'josh') {
       if (connectionState === 'connected') disconnectDevice().catch(() => {});
-    } else {
-      // veer or dev (ESC/POS)
+      if (td404Connected) ThermalPrinterService.td404Disconnect().catch(() => {});
+    } else if (model.id === 'rudra' || model.id === 'tejas') {
+      if (connectionState === 'connected') disconnectDevice().catch(() => {});
       if (joshConnected) ThermalPrinterService.joshDisconnect().catch(() => {});
+    } else {
+      // veer, dev, or other (ESC/POS)
+      if (joshConnected) ThermalPrinterService.joshDisconnect().catch(() => {});
+      if (td404Connected) ThermalPrinterService.td404Disconnect().catch(() => {});
     }
 
     if (onSelectModel) {
@@ -123,11 +135,14 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
       } else {
         if (model.id === 'josh') {
           await ThermalPrinterService.joshDisconnect();
+        } else if (model.id === 'rudra' || model.id === 'tejas') {
+          await ThermalPrinterService.td404Disconnect();
         } else {
           await disconnectDevice();
         }
       }
       setJoshConnected(false);
+      setTd404Connected(false);
       try { Vibration.vibrate(60); } catch (e) {}
     } catch (e) {
       // Ignored

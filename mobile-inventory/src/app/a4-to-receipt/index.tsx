@@ -270,13 +270,13 @@ export default function A4ToReceiptScreen() {
   const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
+        type: 'application/pdf',
         copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        await processImageOrPdf(asset.uri, asset.mimeType || 'application/pdf');
+        await processImageOrPdf(asset.uri, 'application/pdf');
       }
     } catch (e: any) {
       Alert.alert('Document Error', e.message);
@@ -506,17 +506,17 @@ export default function A4ToReceiptScreen() {
           onPress={handleOpenScanner}
         >
           <View style={styles.heroIconBadge}>
-            <Scan size={28} color="#FFFFFF" />
+            <FileText size={28} color="#FFFFFF" />
           </View>
           <View style={styles.heroTextWrap}>
-            <Text style={styles.heroTitle}>⚡ Convert A4 Bill to Thermal Slip</Text>
+            <Text style={styles.heroTitle}>⚡ Convert A4 PDF Bill to Thermal Slip</Text>
             <Text style={styles.heroSub}>
-              Camera • Photo • PDF • 100% Offline OCR
+              Select PDF • 100% Offline OCR & Text Extraction
             </Text>
           </View>
           <View style={styles.heroBtnPill}>
             <Sparkles size={16} color="#FFFFFF" />
-            <Text style={styles.heroBtnText}>Scan Now</Text>
+            <Text style={styles.heroBtnText}>Select PDF</Text>
           </View>
         </TouchableOpacity>
 
@@ -711,63 +711,36 @@ export default function A4ToReceiptScreen() {
             <View style={{ width: 24 }} />
           </View>
 
-          {/* STEP 1: SOURCE PICKER */}
+          {/* STEP 1: SOURCE PICKER (PDF UPLOAD) */}
           {scannerStep === 'source' && (
             <View style={styles.sourceSelectContainer}>
               <View style={styles.sourceIntro}>
-                <Scan size={44} color={BRAND_COLORS.navyInk} />
+                <FileText size={44} color={BRAND_COLORS.navyInk} />
                 <Text style={[styles.sourceTitle, { color: theme.textPrimary }]}>
-                  Scan or Upload A4 Utility Bill
+                  Upload A4 PDF Utility Bill
                 </Text>
                 <Text style={[styles.sourceSub, { color: theme.textSecondary }]}>
-                  On-device OCR extracts CA number, consumer name, units, due date, and amount — 100% offline, zero fake data.
+                  Upload e-bills (Electricity, Water, Gas, Telecom) to extract CA number, consumer name, units, due date, and amount — 100% offline.
                 </Text>
               </View>
 
               <View style={styles.sourceButtonsWrap}>
-                <TouchableOpacity style={styles.sourceBtn} onPress={handlePickCamera}>
-                  <View style={[styles.sourceBtnIcon, { backgroundColor: '#3B82F6' }]}>
-                    <Camera size={26} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.sourceBtnTextCol}>
-                    <Text style={[styles.sourceBtnTitle, { color: theme.textPrimary }]}>
-                      Take Photo with Camera
-                    </Text>
-                    <Text style={[styles.sourceBtnSub, { color: theme.textSecondary }]}>
-                      Snap physical A4 electricity or water bill
-                    </Text>
-                  </View>
-                  <ChevronRight size={20} color={theme.textSecondary} />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.sourceBtn} onPress={handlePickGallery}>
-                  <View style={[styles.sourceBtnIcon, { backgroundColor: '#10B981' }]}>
-                    <ImageIcon size={26} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.sourceBtnTextCol}>
-                    <Text style={[styles.sourceBtnTitle, { color: theme.textPrimary }]}>
-                      Pick Bill from Gallery
-                    </Text>
-                    <Text style={[styles.sourceBtnSub, { color: theme.textSecondary }]}>
-                      Select bill photo or screenshot from storage
-                    </Text>
-                  </View>
-                  <ChevronRight size={20} color={theme.textSecondary} />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.sourceBtn} onPress={handlePickDocument}>
-                  <View style={[styles.sourceBtnIcon, { backgroundColor: '#8B5CF6' }]}>
+                <TouchableOpacity
+                  style={[styles.sourceBtn, { borderColor: BRAND_COLORS.blue600, borderWidth: 2, backgroundColor: 'rgba(37, 99, 235, 0.05)' }]}
+                  onPress={handlePickDocument}
+                >
+                  <View style={[styles.sourceBtnIcon, { backgroundColor: BRAND_COLORS.blue600 }]}>
                     <FileText size={26} color="#FFFFFF" />
                   </View>
                   <View style={styles.sourceBtnTextCol}>
-                    <Text style={[styles.sourceBtnTitle, { color: theme.textPrimary }]}>
-                      Upload PDF Bill Document
+                    <Text style={[styles.sourceBtnTitle, { color: theme.textPrimary, fontWeight: '800' }]}>
+                      Select PDF Document
                     </Text>
                     <Text style={[styles.sourceBtnSub, { color: theme.textSecondary }]}>
-                      Import official e-bills downloaded from DISCOM portal
+                      Choose PDF bill from phone downloads or files
                     </Text>
                   </View>
-                  <ChevronRight size={20} color={theme.textSecondary} />
+                  <ChevronRight size={20} color={BRAND_COLORS.blue600} />
                 </TouchableOpacity>
               </View>
             </View>

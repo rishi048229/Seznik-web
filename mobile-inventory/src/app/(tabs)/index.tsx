@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -249,6 +249,29 @@ export default function DashboardScreen() {
   // Customers with pending credit balance
   const creditCustomers = (customers || []).filter((c: Customer) => (c.creditBalance || 0) > 0);
   const totalOutstandingCredit = creditCustomers.reduce((acc, c) => acc + (c.creditBalance || 0), 0);
+
+  // Profile Completeness calculation for new/existing merchants
+  const profileStatus = useMemo(() => {
+    const hasName = Boolean(settings?.businessName?.trim() || user?.businessName?.trim() || user?.displayName?.trim());
+    const hasPhone = Boolean(settings?.businessPhone?.trim() || user?.phone?.trim());
+    const hasAddress = Boolean(settings?.businessAddress?.trim());
+    const hasGstin = Boolean(settings?.businessGSTIN?.trim());
+    const hasUpi = Boolean(settings?.upiId?.trim());
+    const hasLogo = Boolean(settings?.businessLogoURL?.trim());
+
+    const items = [
+      { key: 'name', label: 'Store Name', done: hasName },
+      { key: 'phone', label: 'Phone', done: hasPhone },
+      { key: 'address', label: 'Address', done: hasAddress },
+      { key: 'upi', label: 'UPI ID for QR Pay', done: hasUpi },
+      { key: 'logo', label: 'Store Logo', done: hasLogo },
+      { key: 'gstin', label: 'GSTIN', done: hasGstin },
+    ];
+    const completed = items.filter((i) => i.done).length;
+    const percent = Math.round((completed / items.length) * 100);
+    const missing = items.filter((i) => !i.done).map((i) => i.label);
+    return { percent, completed, total: items.length, missing };
+  }, [settings, user]);
 
   // Inventory valuation from server-side aggregate (no need to load full catalog on dashboard).
   const totalCatalogValue = stats.totalStockValue ?? 0;
@@ -548,6 +571,52 @@ export default function DashboardScreen() {
                     )}
                   </TouchableOpacity>
                 </View>
+              )}
+
+              {/* Profile Completion Bar for New / Incomplete Stores */}
+              {profileStatus.percent < 100 && (
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={() => router.push('/settings' as any)}
+                  style={[
+                    styles.profileCompletionCard,
+                    {
+                      backgroundColor: theme.cardBg,
+                      borderColor: theme.borderColor,
+                    },
+                  ]}
+                >
+                  <View style={styles.profileCompletionHeader}>
+                    <View style={[styles.profileCompletionIcon, { backgroundColor: 'rgba(124, 58, 237, 0.12)' }]}>
+                      <Sparkles size={16} color="#7C3AED" />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={[styles.profileCompletionTitle, { color: theme.textPrimary }]}>
+                          Complete Store Profile
+                        </Text>
+                        <Text style={[styles.profileCompletionPercent, { color: BRAND_COLORS.blue600 }]}>
+                          {profileStatus.percent}%
+                        </Text>
+                      </View>
+                      <Text style={[styles.profileCompletionSub, { color: theme.textSecondary }]} numberOfLines={1}>
+                        Add {profileStatus.missing.slice(0, 3).join(', ')}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color={theme.textSecondary} style={{ marginLeft: 6 }} />
+                  </View>
+                  <View style={[styles.progressBarBg, { backgroundColor: theme.isDark ? '#334155' : '#E2E8F0' }]}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        {
+                          width: `${profileStatus.percent}%`,
+                          backgroundColor: profileStatus.percent > 60 ? '#10B981' : BRAND_COLORS.blue600,
+                        },
+                      ]}
+                    />
+                  </View>
+                </TouchableOpacity>
               )}
               {/* Welcome / Catalog Setup Guidance Banner */}
               {totalSkuCount === 0 && (
@@ -1833,5 +1902,35 @@ const styles = StyleSheet.create({
   welcomeSecBtnText: {
     fontSize: 11.5,
     fontWeight: '700',
+  },
+  profileCompletionCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  profileCompletionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  profileCompletionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileCompletionTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  profileCompletionPercent: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  profileCompletionSub: {
+    fontSize: 11.5,
+    marginTop: 2,
   },
 });

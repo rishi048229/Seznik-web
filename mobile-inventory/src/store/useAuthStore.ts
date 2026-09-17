@@ -54,6 +54,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setAuth: async (token: string, user: UserProfile) => {
+    const prevUser = get().user;
+    if (prevUser && prevUser.id !== user.id) {
+      try {
+        const { setStoredSettings } = await import('@/services/secureStore');
+        const { setCachedSettings } = await import('@/hooks/useSettings');
+        const { clearPersistedBusinessLogo } = await import('@/utils/businessLogoStorage');
+        await setStoredSettings(null);
+        setCachedSettings(null);
+        await clearPersistedBusinessLogo();
+      } catch {
+        // ignore
+      }
+    }
     await setAuthToken(token);
     await setStoredUser(user);
     try {
@@ -78,6 +91,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await removeAuthToken();
     await removeStoredUser();
+    try {
+      const { setStoredSettings } = await import('@/services/secureStore');
+      const { setCachedSettings } = await import('@/hooks/useSettings');
+      const { clearPersistedBusinessLogo } = await import('@/utils/businessLogoStorage');
+      await setStoredSettings(null);
+      setCachedSettings(null);
+      await clearPersistedBusinessLogo();
+    } catch {
+      // ignore
+    }
     try {
       const { clearCatalogCache } = await import('@/services/catalogCache');
       await clearCatalogCache();

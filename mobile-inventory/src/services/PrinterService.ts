@@ -10,6 +10,7 @@ import { parseSequencePattern, formatSequenceValue, MAX_SEQUENCE_COUNT } from '.
 import { playPrinterConnectFeedback } from '../utils/printerConnectFeedback';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshLabelElement, JoshLabelSpec } from '../../modules/josh-label-printer';
 import YxLabelPrinter, { isYxPrinterSupported } from '../../modules/yx-label-printer';
+import Td404LabelPrinter, { isTd404PrinterSupported } from '../../modules/td404-label-printer';
 import { getStoredJoshPrinter, setStoredJoshPrinter, getStoredTejPrinter, setStoredTejPrinter } from './secureStore';
 import { getLabelSizeConfig, TEJ_LABEL_SIZES, LabelSizeConfig } from '../constants/labelSizePresets';
 import {
@@ -4005,6 +4006,96 @@ class ThermalPrinterServiceManager {
     } catch {
       return 0;
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // TD-404 / Ninestar SDK (SEZNIK RUDRA & SEZNIK TEJAS)
+  // -------------------------------------------------------------------------
+
+  public isTd404Supported(): boolean {
+    return isTd404PrinterSupported();
+  }
+
+  public async td404GetBondedDevices(): Promise<{ address: string; name: string }[]> {
+    if (!Td404LabelPrinter) return [];
+    try {
+      return await Td404LabelPrinter.getBondedDevices();
+    } catch {
+      return [];
+    }
+  }
+
+  public async td404Connect(address: string, name?: string): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+    try {
+      if (NativeBluetoothManager && typeof NativeBluetoothManager.disconnect === 'function') {
+        await NativeBluetoothManager.disconnect(address).catch(() => {});
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch {}
+    const ok = await Td404LabelPrinter.connect(address, name);
+    if (ok) {
+      const printerName = name || 'TD-404 Printer';
+      this.activeDevice = {
+        id: address,
+        name: printerName,
+        macAddress: address,
+        type: 'dual',
+        connected: true,
+      };
+      this.warningText = '';
+      this.connectionState = 'connected';
+      this.notifyStatusChange('connected', true);
+      playPrinterConnectFeedback();
+      logPrinterConnection({
+        printerName,
+        deviceAddress: address || null,
+        platform: 'mobile',
+        connectionType: 'bluetooth',
+      });
+    }
+    return ok;
+  }
+
+  public async td404Disconnect(): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+    const ok = await Td404LabelPrinter.disconnect();
+    if (this.activeDevice?.macAddress) {
+      this.activeDevice = null;
+      this.connectionState = 'disconnected';
+      this.notifyStatusChange('disconnected', true);
+    }
+    return ok;
+  }
+
+  public async td404IsConnected(): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+    try {
+      return Td404LabelPrinter.isConnected();
+    } catch {
+      return false;
+    }
+  }
+
+  public async td404PrintLabel(
+    base64Png: string,
+    widthMm: number = 50,
+    heightMm: number = 30,
+    gapMm: number = 2,
+    copies: number = 1
+  ): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+    return await Td404LabelPrinter.printLabelBitmap(base64Png, widthMm, heightMm, gapMm, copies);
+  }
+
+  public async td404PrintReceipt(base64Png: string, paperWidthMm: number = 80): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+    return await Td404LabelPrinter.printReceiptBitmap(base64Png, paperWidthMm);
+  }
+
+  public async td404Calibrate(): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+    return await Td404LabelPrinter.calibrate();
   }
 
   /**

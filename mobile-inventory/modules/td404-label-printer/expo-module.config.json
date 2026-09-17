@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["com.seznik.td404labelprinter.Td404LabelPrinterModule"]
+  }
+}

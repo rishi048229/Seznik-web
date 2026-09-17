@@ -1,3 +1,4 @@
+import type { SeznikPrinterModelId } from '@/constants/printerModels';
 import { create } from 'zustand';
 import { playPrinterConnectFeedback } from '@/utils/printerConnectFeedback';
 import { ConnectionState, PrinterDevice } from '../types';
@@ -129,11 +130,11 @@ interface PrinterState {
   /** Reconnects to the default (or most recently used) saved printer. No-op when autoConnect is off. */
   attemptAutoConnect: () => Promise<void>;
   addPairedPrinter: (device: PrinterDevice) => Promise<void>;
-  /** Active SEZNIK printer model: 'tej' | 'dev' | 'veer' | 'josh' | null */
-  connectedPrinterModel: 'josh' | 'dev' | 'veer' | null;
-  setConnectedPrinterModel: (model: 'josh' | 'dev' | 'veer' | null) => void;
-  preferredPrinterModel: 'josh' | 'dev' | 'veer' | null;
-  setPreferredPrinterModel: (model: 'josh' | 'dev' | 'veer' | null) => void;
+  /** Active SEZNIK printer model */
+  connectedPrinterModel: SeznikPrinterModelId | null;
+  setConnectedPrinterModel: (model: SeznikPrinterModelId | null) => void;
+  preferredPrinterModel: SeznikPrinterModelId | null;
+  setPreferredPrinterModel: (model: SeznikPrinterModelId | null) => void;
   setPaperWidth: (width: '58mm' | '80mm') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setReceiptFont: (font: ReceiptFontId) => void;

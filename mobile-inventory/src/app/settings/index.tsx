@@ -441,8 +441,8 @@ export default function SettingsScreen() {
                           <Printer size={18} color={BRAND_COLORS.sky500} />
                         </View>
                         <View style={styles.settingCopy}>
-                          <Text style={[styles.settingTitle, { color: theme.textPrimary }]}>{t('thermalPrinter', 'Thermal Printers')}</Text>
-                          <Text style={[styles.settingSub, { color: theme.textSecondary }]}>Bluetooth pairing, calibration & auto-cut</Text>
+                          <Text style={[styles.settingTitle, { color: theme.textPrimary }]}>{t('printerSettings', 'Printer Settings & Fleet')}</Text>
+                          <Text style={[styles.settingSub, { color: theme.textSecondary }]}>Manage JOSH, DEV, VEER, RUDRA, TEJAS & custom templates</Text>
                         </View>
                         <ChevronRight size={16} color={theme.textSecondary} />
                       </TouchableOpacity>

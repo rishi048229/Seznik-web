@@ -1,0 +1,7 @@
+{
+  "name": "td404-label-printer",
+  "version": "1.0.0",
+  "description": "Native Expo bridge for SEZNIK Rudra & Tejas (TD-404 / Ninestar SDK) Label and Receipt Printers",
+  "main": "index.ts",
+  "types": "index.ts"
+}

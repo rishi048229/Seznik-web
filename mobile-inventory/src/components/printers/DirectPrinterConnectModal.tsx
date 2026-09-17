@@ -43,6 +43,7 @@ import {
 } from '@/constants/printerModels';
 import ThermalPrinterService from '@/services/PrinterService';
 import JoshLabelPrinter, { isJoshPrinterSupported, JoshPrinterDevice } from '../../../modules/josh-label-printer';
+import Td404LabelPrinter, { isTd404PrinterSupported, Td404PrinterDevice } from '../../../modules/td404-label-printer';
 
 interface DirectPrinterConnectModalProps {
   visible: boolean;
@@ -110,6 +111,11 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   const [isJoshScanning, setIsJoshScanning] = useState(false);
   const [joshConnectedDevice, setJoshConnectedDevice] = useState<{ address: string; name: string } | null>(null);
 
+  // TD-404 SDK state (SEZNIK RUDRA & SEZNIK TEJAS)
+  const [td404Devices, setTd404Devices] = useState<Td404PrinterDevice[]>([]);
+  const [isTd404Scanning, setIsTd404Scanning] = useState(false);
+  const [td404ConnectedDevice, setTd404ConnectedDevice] = useState<{ address: string; name: string } | null>(null);
+
   const VISIBLE_DEVICE_LIMIT = 5;
   const [showAllDevices, setShowAllDevices] = useState(false);
 
@@ -135,6 +141,18 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
         setJoshConnectedDevice(null);
       }
     }
+    if (ThermalPrinterService.isTd404Supported()) {
+      try {
+        const isConn = await ThermalPrinterService.td404IsConnected();
+        if (isConn) {
+          setTd404ConnectedDevice({ address: 'connected', name: 'TD-404 Printer' });
+        } else {
+          setTd404ConnectedDevice(null);
+        }
+      } catch {
+        setTd404ConnectedDevice(null);
+      }
+    }
   }, []);
 
   const ensureAndroidPermissions = async (): Promise<boolean> => {
@@ -155,7 +173,6 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   };
 
   const scanJoshDevices = async () => {
-    // 1. Immediately seed paired & scanned Bluetooth devices from store
     const storeDevices = [...(pairedPrinters || []), ...(scannedDevices || [])];
     const initialList: JoshPrinterDevice[] = storeDevices.map((d) => ({ address: d.id, name: d.name }));
     setJoshDevices((prev) => {
@@ -202,15 +219,50 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
+  const scanTd404Devices = async () => {
+    const storeDevices = [...(pairedPrinters || []), ...(scannedDevices || [])];
+    const initialList: Td404PrinterDevice[] = storeDevices.map((d) => ({ address: d.id, name: d.name }));
+    setTd404Devices(initialList);
+
+    if (scanForDevices) {
+      scanForDevices().catch(() => {});
+    }
+
+    if (!ThermalPrinterService.isTd404Supported() || !Td404LabelPrinter) return;
+    const ok = await ensureAndroidPermissions();
+    if (!ok) return;
+    setIsTd404Scanning(true);
+    try {
+      const bonded = await Td404LabelPrinter.getBondedDevices();
+      if (bonded && bonded.length > 0) {
+        setTd404Devices((prev) => {
+          const combined = [...prev];
+          for (const d of bonded) {
+            if (d.address && !combined.some((x) => x.address === d.address)) {
+              combined.push(d);
+            }
+          }
+          return combined;
+        });
+      }
+    } catch (e) {
+      console.log('[TD-404] scan failed:', e);
+    } finally {
+      setIsTd404Scanning(false);
+    }
+  };
+
   useEffect(() => {
     if (visible) {
       refreshAllStatuses();
-      if (selectedModel === 'veer' || selectedModel === 'dev') {
+      if (selectedModel === 'veer' || selectedModel === 'dev' || selectedModel === 'other') {
         if (connectionState !== 'connected') {
           scanForDevices().catch(() => {});
         }
       } else if (selectedModel === 'josh') {
         scanJoshDevices();
+      } else if (selectedModel === 'rudra' || selectedModel === 'tejas') {
+        scanTd404Devices();
       }
     }
   }, [visible, selectedModel]);
@@ -233,13 +285,16 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     };
   }, [refreshAllStatuses]);
 
-  // Connect ESC/POS (VEER / DEV)
-  const handleConnectEscPos = async (device: PhoneBluetoothDevice, modelId: 'dev' | 'veer') => {
+  // Connect ESC/POS (VEER / DEV / OTHER)
+  const handleConnectEscPos = async (device: PhoneBluetoothDevice, modelId: SeznikPrinterModelId) => {
     setConnectingId(device.id);
     try {
       // Clean disconnect conflicting bridges
       if (ThermalPrinterService.isJoshSupported()) {
         ThermalPrinterService.joshDisconnect().catch(() => {});
+      }
+      if (ThermalPrinterService.isTd404Supported()) {
+        ThermalPrinterService.td404Disconnect().catch(() => {});
       }
 
       setConnectedPrinterModel(modelId);
@@ -260,6 +315,41 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
+  // Connect TD-404 (RUDRA / TEJAS)
+  const handleConnectTd404 = async (device: Td404PrinterDevice, modelId: 'rudra' | 'tejas') => {
+    setConnectingId(device.address);
+    try {
+      // Clean disconnect conflicting bridges
+      if (ThermalPrinterService.isJoshSupported()) {
+        ThermalPrinterService.joshDisconnect().catch(() => {});
+      }
+      disconnectDevice().catch(() => {});
+
+      setConnectedPrinterModel(modelId);
+      const ok = await ThermalPrinterService.td404Connect(device.address, device.name);
+      if (!ok) {
+        setConnectedPrinterModel(null as any);
+        throw new Error(
+          `Could not connect to ${SEZNIK_PRINTER_MODELS[modelId].name} (${device.name || device.address}). Please ensure the printer is turned ON and paired in phone Settings > Bluetooth.`
+        );
+      }
+      await refreshAllStatuses();
+      if (onConnected) onConnected();
+      onClose();
+    } catch (e: any) {
+      Alert.alert(
+        'Connection Failed',
+        e?.message || `Could not establish connection to ${SEZNIK_PRINTER_MODELS[modelId].name}. Please check that printer is paired in phone Settings > Bluetooth.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => handleConnectTd404(device, modelId) },
+        ]
+      );
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
   // Connect JOSH (LPAPI)
   const handleConnectJosh = async (device: JoshPrinterDevice) => {
     setConnectingId(device.address);
@@ -267,6 +357,9 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     try {
       // Clean disconnect conflicting bridges
       disconnectDevice().catch(() => {});
+      if (ThermalPrinterService.isTd404Supported()) {
+        ThermalPrinterService.td404Disconnect().catch(() => {});
+      }
 
       // If user tapped a third-party POS / DEV printer while on JOSH tab, route to DEV ESC/POS directly
       if (devName.includes('shakti') || devName.includes('dev') || devName.includes('pos-')) {
@@ -311,6 +404,9 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
       if (selectedModel === 'josh') {
         await ThermalPrinterService.joshDisconnect();
         setJoshConnectedDevice(null);
+      } else if (selectedModel === 'rudra' || selectedModel === 'tejas') {
+        await ThermalPrinterService.td404Disconnect();
+        setTd404ConnectedDevice(null);
       } else {
         await disconnectDevice();
       }
@@ -322,7 +418,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     }
   };
 
-  // --- TEST PRINT handler (asks Receipt or Label for JOSH, Receipt-only for others) ---
+  // --- TEST PRINT handler ---
   const handleTestPrint = () => {
     const modelConfig = SEZNIK_PRINTER_MODELS[selectedModel];
     const supportsLabels = modelConfig.capabilities.labels;
@@ -368,10 +464,12 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   };
 
   const handleScanAgain = () => {
-    if (selectedModel === 'veer' || selectedModel === 'dev') {
+    if (selectedModel === 'veer' || selectedModel === 'dev' || selectedModel === 'other') {
       scanForDevices().catch(() => {});
     } else if (selectedModel === 'josh') {
       scanJoshDevices();
+    } else if (selectedModel === 'rudra' || selectedModel === 'tejas') {
+      scanTd404Devices();
     }
   };
 
@@ -380,7 +478,8 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
   // Helper to determine if selected model is connected
   const isSelectedModelConnected =
     (selectedModel === 'josh' && !!joshConnectedDevice) ||
-    ((selectedModel === 'dev' || selectedModel === 'veer') &&
+    ((selectedModel === 'rudra' || selectedModel === 'tejas') && !!td404ConnectedDevice && connectedPrinterModel === selectedModel) ||
+    ((selectedModel === 'dev' || selectedModel === 'veer' || selectedModel === 'other') &&
       connectionState === 'connected' &&
       (connectedPrinterModel === selectedModel || (!connectedPrinterModel && selectedModel === 'dev')));
 
@@ -417,12 +516,17 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
           </View>
 
           {/* PRINTER MODEL SELECTOR ROW */}
-          <View style={styles.modelSelectorContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.modelSelectorContainer}
+          >
             {PRINTER_MODEL_LIST.map((model) => {
               const isSelected = selectedModel === model.id;
               const isConn =
                 (model.id === 'josh' && !!joshConnectedDevice) ||
-                ((model.id === 'dev' || model.id === 'veer') &&
+                ((model.id === 'rudra' || model.id === 'tejas') && !!td404ConnectedDevice && connectedPrinterModel === model.id) ||
+                ((model.id === 'dev' || model.id === 'veer' || model.id === 'other') &&
                   connectionState === 'connected' &&
                   (connectedPrinterModel === model.id || (!connectedPrinterModel && model.id === 'dev')));
 
@@ -462,7 +566,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                     ]}
                     numberOfLines={1}
                   >
-                    {model.id === 'josh' ? 'SEZNIK JOSH' : model.name.replace('Other Printer (', '').replace(')', '')}
+                    {model.name.replace('Other Printer (', '').replace(')', '')}
                   </Text>
                   <Text
                     style={[
@@ -471,12 +575,12 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                     ]}
                     numberOfLines={1}
                   >
-                    {model.id === 'josh' ? 'Official 2-in-1' : 'Receipt Only'}
+                    {model.typeBadge}
                   </Text>
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
 
           {/* CLEAN MODEL INFO / WARNING BANNER */}
           <View
@@ -565,8 +669,8 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
             contentContainerStyle={{ paddingVertical: 4 }}
             keyboardShouldPersistTaps="handled"
           >
-            {/* ESC/POS (DEV / VEER) LIST */}
-            {(selectedModel === 'dev' || selectedModel === 'veer') && (
+            {/* ESC/POS (DEV / VEER / OTHER) LIST */}
+            {(selectedModel === 'dev' || selectedModel === 'veer' || selectedModel === 'other') && (
               <>
                 {/* PAIRED PRINTERS */}
                 {pairedPrinters.length > 0 ? (
@@ -882,6 +986,127 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                             style={[
                               styles.connectBtnSmall,
                               { backgroundColor: '#7C3AED' },
+                            ]}
+                          >
+                            <Text style={styles.connectBtnSmallText}>Connect</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            )}
+
+            {/* TD-404 (RUDRA / TEJAS) LIST */}
+            {(selectedModel === 'rudra' || selectedModel === 'tejas') && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>
+                    {SEZNIK_PRINTER_MODELS[selectedModel].name.toUpperCase()} PRINTERS ({td404Devices.length})
+                  </Text>
+                  <TouchableOpacity
+                    onPress={scanTd404Devices}
+                    disabled={isTd404Scanning}
+                    style={styles.scanRefreshBtn}
+                  >
+                    <RefreshCw
+                      size={12}
+                      color="#4F46E5"
+                      style={isTd404Scanning ? { transform: [{ rotate: '45deg' }] } : {}}
+                    />
+                    <Text style={[styles.scanRefreshText, { color: '#4F46E5' }]}>
+                      {isTd404Scanning ? 'Scanning...' : 'Scan'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {isTd404Scanning && td404Devices.length === 0 ? (
+                  <View style={styles.scanningPlaceholder}>
+                    <ActivityIndicator size="small" color="#4F46E5" />
+                    <Text
+                      style={[styles.scanningPlaceholderText, { color: theme.textSecondary }]}
+                    >
+                      Searching for nearby {SEZNIK_PRINTER_MODELS[selectedModel].name} printers...
+                    </Text>
+                  </View>
+                ) : td404Devices.length === 0 ? (
+                  <View style={[styles.emptyBox, { borderColor: theme.borderColor }]}>
+                    <Smartphone size={22} color={theme.textSecondary} />
+                    <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                      No {SEZNIK_PRINTER_MODELS[selectedModel].name} printers found. Turn ON printer and pair in phone Bluetooth settings.
+                    </Text>
+                  </View>
+                ) : (
+                  td404Devices.map((d) => {
+                    const isThisConnecting = connectingId === d.address;
+                    const isThisActive = Boolean(
+                      td404ConnectedDevice &&
+                      connectedPrinterModel === selectedModel
+                    );
+
+                    return (
+                      <TouchableOpacity
+                        key={d.address}
+                        activeOpacity={0.8}
+                        onPress={() => handleConnectTd404(d, selectedModel as 'rudra' | 'tejas')}
+                        disabled={isThisConnecting || isThisActive}
+                        style={[
+                          styles.deviceItem,
+                          {
+                            backgroundColor: theme.cardBg,
+                            borderColor: isThisActive ? '#10B981' : theme.borderColor,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.deviceIconBox,
+                            {
+                              backgroundColor: isThisActive
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : 'rgba(79, 70, 229, 0.12)',
+                            },
+                          ]}
+                        >
+                          <Printer
+                            size={18}
+                            color={isThisActive ? '#10B981' : '#4F46E5'}
+                          />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text
+                            style={[styles.deviceName, { color: theme.textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {d.name || `${SEZNIK_PRINTER_MODELS[selectedModel].name}`}
+                          </Text>
+                          <Text style={[styles.deviceMac, { color: theme.textSecondary }]}>
+                            {d.address}
+                          </Text>
+                        </View>
+
+                        {isThisConnecting ? (
+                          <ActivityIndicator size="small" color="#4F46E5" />
+                        ) : isThisActive ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <CheckCircle2 size={16} color="#10B981" />
+                            <Text
+                              style={{
+                                color: '#10B981',
+                                fontSize: 11,
+                                fontWeight: '800',
+                                marginLeft: 4,
+                              }}
+                            >
+                              Ready
+                            </Text>
+                          </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.connectBtnSmall,
+                              { backgroundColor: '#4F46E5' },
                             ]}
                           >
                             <Text style={styles.connectBtnSmallText}>Connect</Text>
