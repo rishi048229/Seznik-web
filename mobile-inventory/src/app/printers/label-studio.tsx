@@ -210,11 +210,19 @@ export default function LabelStudioScreen() {
     const name = (labelPrinter.name || '').toLowerCase();
     return (
       connectedPrinterModel === 'dev' ||
+      connectedPrinterModel === 'rudra' ||
+      connectedPrinterModel === 'tejas' ||
+      connectedPrinterModel === 'josh' ||
+      labelPrinter.kind === 'label' ||
+      labelPrinter.kind === 'dual' ||
       name.includes('2in1') ||
       name.includes('dev') ||
+      name.includes('rudra') ||
+      name.includes('tejas') ||
+      name.includes('josh') ||
       name.includes('seznik')
     );
-  }, [labelPrinter.name, connectedPrinterModel]);
+  }, [labelPrinter.name, labelPrinter.kind, connectedPrinterModel]);
 
   // Opening Label Studio from the Printers screen carries no id param. Previously
   // that always started a brand-new blank template, so the saved/default design was

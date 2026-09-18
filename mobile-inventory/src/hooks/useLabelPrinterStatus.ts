@@ -39,11 +39,18 @@ export function useLabelPrinterStatus(pollWhileVisible = true): LabelPrinterStat
           return;
         }
         try {
-          const info =
-            kind === 'yx'
-              ? await ThermalPrinterService.yxGetPrinterInfo()
-              : await ThermalPrinterService.joshGetPrinterInfo();
-          setJoshName(info?.name || null);
+          let name: string | null = null;
+          if (kind === 'yx') {
+            const info = await ThermalPrinterService.yxGetPrinterInfo();
+            name = info?.name || null;
+          } else if (kind === 'td404') {
+            const model = usePrinterStore.getState().connectedPrinterModel;
+            name = model === 'tejas' ? 'SEZNIK TEJAS' : 'SEZNIK RUDRA';
+          } else {
+            const info = await ThermalPrinterService.joshGetPrinterInfo();
+            name = info?.name || null;
+          }
+          setJoshName(name);
         } catch {
           setJoshName(null);
         }
@@ -52,13 +59,8 @@ export function useLabelPrinterStatus(pollWhileVisible = true): LabelPrinterStat
   }, []);
 
   useEffect(() => {
-    // Kicked off as a promise rather than called straight from the effect body, so
-    // no state update happens synchronously during the effect (cascading render).
     Promise.resolve().then(refresh);
     if (!pollWhileVisible) return;
-    // The native module reports state through its own events rather than the
-    // store, so a light poll keeps a mounted dialog honest without wiring an
-    // extra subscription into every screen that needs the answer.
     const timer = setInterval(refresh, 4000);
     return () => clearInterval(timer);
   }, [refresh, pollWhileVisible]);
@@ -67,15 +69,17 @@ export function useLabelPrinterStatus(pollWhileVisible = true): LabelPrinterStat
   const connectedModel = usePrinterStore.getState().connectedPrinterModel;
   const isDual =
     connectedModel === 'dev' ||
+    connectedModel === 'rudra' ||
+    connectedModel === 'tejas' ||
     (activeDevice?.name || '').toUpperCase().includes('DEV') ||
+    (activeDevice?.name || '').toUpperCase().includes('RUDRA') ||
+    (activeDevice?.name || '').toUpperCase().includes('TEJAS') ||
     (activeDevice?.name || '').toUpperCase().includes('2IN1') ||
     activeDevice?.type === 'dual';
 
   return {
     isConnected: joshConnected || thermalConnected,
-    // A dedicated label printer wins the label: it is the better destination and
-    // the one the user explicitly linked for this purpose.
-    kind: joshConnected ? 'label' : isDual ? 'dual' : thermalConnected ? 'thermal' : null,
+    kind: joshConnected ? (isDual ? 'dual' : 'label') : isDual ? 'dual' : thermalConnected ? 'thermal' : null,
     name: joshConnected ? joshName || 'Label printer' : thermalConnected ? activeDevice?.name || null : null,
     refresh,
   };

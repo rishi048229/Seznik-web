@@ -1,0 +1,13 @@
+node_modules/
+backend/
+frontend/
+admin-panel/
+support-panel/
+android/
+ios/
+.expo/
+.gradle/
+dist/
+build/
+web-build/
+*.log

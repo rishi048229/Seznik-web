@@ -146,6 +146,42 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         ]
       : [];
 
+  const inventoryItems = [
+    ...(hasPermission('canManipulateStock')
+      ? [
+          {
+            id: 'products',
+            label: kotFirst ? catalogLabel : t('products', 'Products & Barcodes'),
+            icon: Package,
+            route: '/products',
+          },
+        ]
+      : []),
+  ];
+
+  const supplierItems = [
+    ...(isFeatureVisible('suppliers') && hasPermission('canAccessSuppliers')
+      ? [{ id: 'suppliers', label: t('suppliers', 'Suppliers Directory'), icon: Truck, route: '/suppliers' }]
+      : []),
+  ];
+
+  const customerItems = [
+    { id: 'customers', label: t('customers', 'Customers & Credit Ledger'), icon: Users, route: '/customers' },
+    { id: 'credits', label: t('dayBook', 'Daybook Cashflow'), icon: BookOpen, route: '/credits' },
+    ...(hasPermission('canAccessExpenses')
+      ? [{ id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: TrendingDown, route: '/expenses' }]
+      : []),
+  ];
+
+  const settingsItems = [
+    ...(hasPermission('canAccessReports')
+      ? [{ id: 'reports', label: t('reports', 'P&L Reports & GST Output'), icon: BarChart3, route: '/reports' }]
+      : []),
+    ...(hasPermission('canManageUsers') || user?.role === 'admin'
+      ? [{ id: 'settings', label: t('settings', 'Settings & Staff Users'), icon: Settings, route: '/settings' }]
+      : []),
+  ];
+
   const navGroups = [
     ...(kotFirst ? kotGroup : []),
     {
@@ -155,21 +191,14 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       items: corePosItems,
     },
     ...(!kotFirst ? kotGroup : []),
-    {
-      title: t('inventoryCatalog', 'INVENTORY & CATALOG'),
-      items: [
-        {
-          id: 'products',
-          label: kotFirst ? catalogLabel : t('products', 'Products & Barcodes'),
-          icon: Package,
-          route: '/products',
-        },
-        // Multi-store implementation temporarily hidden
-        /* ...(isFeatureVisible('stores')
-          ? [{ id: 'stores', label: t('stores', 'Stores & Locations'), icon: LayoutGrid, route: '/stores' }]
-          : []), */
-      ],
-    },
+    ...(inventoryItems.length > 0
+      ? [
+          {
+            title: t('inventoryCatalog', 'INVENTORY & CATALOG'),
+            items: inventoryItems,
+          },
+        ]
+      : []),
     {
       title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
       items: [
@@ -178,29 +207,26 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         { id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, route: '/a4-to-receipt' },
       ],
     },
-    {
-      title: t('suppliers', 'SUPPLIERS & VENDORS'),
-      items: [
-        ...(isFeatureVisible('suppliers')
-          ? [{ id: 'suppliers', label: t('suppliers', 'Suppliers Directory'), icon: Truck, route: '/suppliers' }]
-          : []),
-      ],
-    },
+    ...(supplierItems.length > 0
+      ? [
+          {
+            title: t('suppliers', 'SUPPLIERS & VENDORS'),
+            items: supplierItems,
+          },
+        ]
+      : []),
     {
       title: t('customersDaybook', 'CUSTOMERS & DAYBOOK'),
-      items: [
-        { id: 'customers', label: t('customers', 'Customers & Credit Ledger'), icon: Users, route: '/customers' },
-        { id: 'credits', label: t('dayBook', 'Daybook Cashflow'), icon: BookOpen, route: '/credits' },
-        { id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: TrendingDown, route: '/expenses' },
-      ],
+      items: customerItems,
     },
-    {
-      title: t('analyticsSettings', 'ANALYTICS & SETTINGS'),
-      items: [
-        { id: 'reports', label: t('reports', 'P&L Reports & GST Output'), icon: BarChart3, route: '/reports' },
-        { id: 'settings', label: t('settings', 'Settings & Staff Users'), icon: Settings, route: '/settings' },
-      ],
-    },
+    ...(settingsItems.length > 0
+      ? [
+          {
+            title: t('analyticsSettings', 'ANALYTICS & SETTINGS'),
+            items: settingsItems,
+          },
+        ]
+      : []),
   ].filter((group) => group.items.length > 0);
 
   const handleNavigate = (route: string) => {
@@ -209,6 +235,8 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       router.push(route as any);
     }, 100);
   };
+
+  const isAgent = user?.role === 'agent' || user?.accountType === 'managed';
 
   return (
     <>
@@ -243,15 +271,31 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 12 }}>
               <View style={[styles.profileTile, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <Text style={[styles.profileName, { color: theme.textPrimary }]}>
-                  {user?.displayName || 'Store Admin'}
-                </Text>
-                <Text style={[styles.profileEmail, { color: theme.textSecondary }]}>
-                  {user?.email || 'admin@seznik.com'}
-                </Text>
-                <View style={styles.rolePill}>
-                  <Text style={styles.rolePillText}>{t('role', 'Role')}: {user?.role || 'admin'}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={[styles.profileName, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {user?.displayName || (isAgent ? 'Staff Agent' : 'Store Admin')}
+                    </Text>
+                    <Text style={[styles.profileEmail, { color: theme.textSecondary }]} numberOfLines={1}>
+                      {user?.email || 'user@seznik.com'}
+                    </Text>
+                  </View>
+                  <View style={[styles.rolePill, { backgroundColor: isAgent ? 'rgba(245, 158, 11, 0.15)' : 'rgba(37, 99, 235, 0.15)' }]}>
+                    <Text style={[styles.rolePillText, { color: isAgent ? '#D97706' : BRAND_COLORS.blue600 }]}>
+                      {isAgent ? 'AGENT' : 'ADMIN'}
+                    </Text>
+                  </View>
                 </View>
+
+                <TouchableOpacity
+                  onPress={() => handleNavigate('/(auth)/access-selection')}
+                  style={[styles.switchRoleBtn, { borderColor: theme.borderColor, backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF' }]}
+                  activeOpacity={0.7}
+                >
+                  <Sparkles size={13} color={BRAND_COLORS.blue600} />
+                  <Text style={styles.switchRoleText}>Switch Workstation / Role</Text>
+                  <ChevronRight size={13} color={theme.textSecondary} />
+                </TouchableOpacity>
               </View>
 
               {navGroups.map((group, gIdx) => (
@@ -462,6 +506,22 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     textTransform: 'uppercase',
+  },
+  switchRoleBtn: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+  },
+  switchRoleText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: BRAND_COLORS.blue600,
   },
   navGroup: {
     marginBottom: 16,

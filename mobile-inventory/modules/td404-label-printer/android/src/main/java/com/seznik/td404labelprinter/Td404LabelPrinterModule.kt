@@ -274,7 +274,9 @@ class Td404LabelPrinterModule : Module() {
         tsc.addUserCommand("\r\n")
         tsc.addSize(widthMm.toInt(), heightMm.toInt())
         tsc.addGap(if (gapType == 0) 0 else gapMm.toInt().coerceAtLeast(2))
-        tsc.addDirection(LabelCommand.DIRECTION.FORWARD, LabelCommand.MIRROR.NORMAL)
+        // BACKWARD orientation prints upright as label emerges from printhead
+        val dir = if (finiteInt(spec["direction"], 0) == 1) LabelCommand.DIRECTION.FORWARD else LabelCommand.DIRECTION.BACKWARD
+        tsc.addDirection(dir, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
         tsc.addQueryPrinterStatus(LabelCommand.RESPONSE_MODE.ON)
@@ -332,7 +334,7 @@ class Td404LabelPrinterModule : Module() {
         tsc.addUserCommand("\r\n")
         tsc.addSize(widthMm.toInt(), heightMm.toInt())
         tsc.addGap(if (gapMm > 0) gapMm.toInt() else 2)
-        tsc.addDirection(LabelCommand.DIRECTION.FORWARD, LabelCommand.MIRROR.NORMAL)
+        tsc.addDirection(LabelCommand.DIRECTION.BACKWARD, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
         tsc.addQueryPrinterStatus(LabelCommand.RESPONSE_MODE.ON)
@@ -383,12 +385,12 @@ class Td404LabelPrinterModule : Module() {
         // Calculate height in mm (dots / 8) + margin
         val calculatedHeightMm = ((scaledHeightDots + 7) / 8 + 6).coerceAtLeast(30)
 
-        // 1. TSPL Continuous Mode (GAP 0,0 - Continuous receipt roll)
+        // 1. TSPL Continuous Mode (GAP 0,0 - Single-pass continuous receipt roll)
         val tsc = LabelCommand()
         tsc.addUserCommand("\r\n")
         tsc.addSize(paperWidthMm.toInt(), calculatedHeightMm)
         tsc.addGap(0) // GAP 0 = Continuous roll without gap search
-        tsc.addDirection(LabelCommand.DIRECTION.FORWARD, LabelCommand.MIRROR.NORMAL)
+        tsc.addDirection(LabelCommand.DIRECTION.BACKWARD, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
         tsc.addCls()
@@ -402,12 +404,6 @@ class Td404LabelPrinterModule : Module() {
           sendTsc[i] = tscVector[i]
         }
         pm.writeDataImmediately(sendTsc, false)
-
-        // 2. Also send standard ESC/POS raster bytes as dual-mode fallback
-        try {
-          val escBytes = convertBitmapToEscPosRaster(bitmap)
-          pm.writeDataImmediately(escBytes, false)
-        } catch (_: Throwable) {}
 
         bitmap.recycle()
         promise.resolve(true)
@@ -644,19 +640,23 @@ class Td404LabelPrinterModule : Module() {
 
       "qrcode" -> {
         val value = (el["value"] as? String) ?: ""
-        val side = minOf(w, h).takeIf { it > 0f } ?: maxOf(w, h).takeIf { it > 0f } ?: (20f * dotsPerMm.toFloat())
+        val targetW = if (w > 0f) w else (20f * dotsPerMm.toFloat())
+        val targetH = if (h > 0f) h else (20f * dotsPerMm.toFloat())
+        val side = minOf(targetW, targetH).toInt().coerceAtLeast(24)
         if (value.isNotEmpty()) {
           try {
             val writer = MultiFormatWriter()
             val hints = mapOf(EncodeHintType.MARGIN to 0)
-            val matrix = writer.encode(value, BarcodeFormat.QR_CODE, side.toInt(), side.toInt(), hints)
+            val matrix = writer.encode(value, BarcodeFormat.QR_CODE, side, side, hints)
             val qrBmp = Bitmap.createBitmap(matrix.width, matrix.height, Bitmap.Config.ARGB_8888)
             for (bx in 0 until matrix.width) {
               for (by in 0 until matrix.height) {
                 qrBmp.setPixel(bx, by, if (matrix[bx, by]) Color.BLACK else Color.TRANSPARENT)
               }
             }
-            canvas.drawBitmap(qrBmp, x, y, paint)
+            val drawX = x + (targetW - side) / 2f
+            val drawY = y + (targetH - side) / 2f
+            canvas.drawBitmap(qrBmp, drawX, drawY, paint)
             qrBmp.recycle()
           } catch (e: Throwable) {
             Log.w(TAG, "QR code rendering error: ${e.message}")

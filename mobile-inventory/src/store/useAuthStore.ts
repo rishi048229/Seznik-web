@@ -10,6 +10,7 @@ interface AuthState {
   initializeAuth: () => Promise<void>;
   setAuth: (token: string, user: UserProfile) => Promise<void>;
   updateUser: (user: UserProfile) => Promise<void>;
+  setUserRole: (role: 'admin' | 'agent', password?: string, agentUid?: string) => Promise<void>;
   logout: () => Promise<void>;
   hasPermission: (permission: keyof UserPermissions) => boolean;
 }
@@ -86,6 +87,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updateUser: async (user: UserProfile) => {
     await setStoredUser(user);
     set({ user });
+  },
+
+  setUserRole: async (role: 'admin' | 'agent', password?: string, agentUid?: string) => {
+    const { authApi } = await import('@/api/auth');
+    const res = await authApi.setRole({ role, password, agentUid });
+    if (res?.token && res?.user) {
+      await get().setAuth(res.token, res.user);
+    } else if (res?.user) {
+      await get().updateUser(res.user);
+    }
   },
 
   logout: async () => {

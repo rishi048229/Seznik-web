@@ -122,6 +122,23 @@ export const authApi = {
     });
   },
 
+  getAllUsers: async (adminUid?: string): Promise<UserProfile[]> => {
+    const query = adminUid ? `?adminUid=${adminUid}` : '';
+    return fetchApi<UserProfile[]>(`/auth/users${query}`);
+  },
+
+  setRole: async (payload: {
+    role: 'admin' | 'agent';
+    password?: string;
+    agentUid?: string;
+    name?: string;
+  }): Promise<{ user?: UserProfile; token?: string }> => {
+    return fetchApi<{ user?: UserProfile; token?: string }>('/auth/setRole', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   // Staff sub-accounts. The `:adminUid` URL segment is accepted by the backend for REST shape but
   // not actually used for scoping (it derives the admin from the auth token instead) — the caller's
   // own id is passed for semantic correctness.

@@ -130,7 +130,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
       base64: true,
-      quality: 0.6,
+      quality: 0.95,
     });
 
     if (!result.canceled && result.assets[0]?.uri) {
@@ -148,7 +148,7 @@ export function AiBillToReceiptModal({ visible, onClose }: Props) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       base64: true,
-      quality: 0.6,
+      quality: 0.95,
     });
 
     if (!result.canceled && result.assets[0]?.uri) {

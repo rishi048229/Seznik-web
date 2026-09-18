@@ -7509,6 +7509,22 @@ class ThermalPrinterServiceManager {
       throw error;
     }
   }
+
+  /**
+   * Sends standard ESC/POS pulse command to open the connected cash drawer / cash box.
+   */
+  public async openCashDrawer(): Promise<boolean> {
+    try {
+      if (NativeEscposPrinter && typeof NativeEscposPrinter.openCashBox === 'function') {
+        await NativeEscposPrinter.openCashBox(0, 25, 250);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('[PrinterService] openCashDrawer failed:', e);
+      return false;
+    }
+  }
 }
 
 export const ThermalPrinterService = new ThermalPrinterServiceManager();

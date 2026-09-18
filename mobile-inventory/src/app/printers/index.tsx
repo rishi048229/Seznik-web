@@ -1694,9 +1694,27 @@ export default function PrintersScreen() {
                 </View>
               </View>
 
+              {/* Dynamic Bill QR Code Toggle */}
+              <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Print Digital Bill / Payment QR</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                    Prints UPI or digital invoice QR at the bottom of bills
+                  </Text>
+                </View>
+                <Switch
+                  value={enableBillQrCode}
+                  onValueChange={(v) => {
+                    setEnableBillQrCode(v).catch(() => {});
+                  }}
+                  trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
               {/* Auto-Cut Toggle */}
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <View>
+                <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Auto-Cut After Print</Text>
                   <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Feeds & cuts paper — no-op if printer has no cutter</Text>
                 </View>
@@ -1705,6 +1723,33 @@ export default function PrintersScreen() {
                   onValueChange={setAutoCutVal}
                   trackColor={{ false: '#64748B', true: BRAND_COLORS.blue600 }}
                 />
+              </View>
+
+              {/* Cash Drawer Control */}
+              <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Electronic Cash Drawer</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>Send pulse signal to RJ11/RJ12 drawer port</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={async () => {
+                    const ok = await ThermalPrinterService.openCashDrawer();
+                    if (ok) {
+                      Alert.alert('Drawer Pulse Sent', 'Signal sent to connected cash drawer port.');
+                    } else {
+                      Alert.alert('Drawer Signal', 'Signal sent or printer is not currently connected via ESC/POS.');
+                    }
+                  }}
+                  style={{
+                    backgroundColor: BRAND_COLORS.blue600,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>Test Open</Text>
+                </TouchableOpacity>
               </View>
 
               {/* SAVE CONFIGURATION BUTTON */}
