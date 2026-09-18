@@ -4027,28 +4027,42 @@ class ThermalPrinterServiceManager {
         await new Promise((resolve) => setTimeout(resolve, 150));
       }
     } catch {}
-    const ok = await Td404LabelPrinter.connect(address, name);
-    if (ok) {
-      const printerName = name || 'TD-404 Printer';
-      this.activeDevice = {
-        id: address,
-        name: printerName,
-        macAddress: address,
-        type: 'dual',
-        connected: true,
-      };
-      this.warningText = '';
-      this.connectionState = 'connected';
-      this.notifyStatusChange('connected', true);
-      playPrinterConnectFeedback();
-      logPrinterConnection({
-        printerName,
-        deviceAddress: address || null,
-        platform: 'mobile',
-        connectionType: 'bluetooth',
-      });
+
+    try {
+      const connectPromise = Td404LabelPrinter.connect(address, name);
+      const timeoutPromise = new Promise<boolean>((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timed out. Printer did not respond.')), 12000)
+      );
+      const ok = await Promise.race([connectPromise, timeoutPromise]);
+      if (ok) {
+        const printerName = name || 'TD-404 Printer';
+        this.activeDevice = {
+          id: address,
+          name: printerName,
+          macAddress: address,
+          type: 'dual',
+          connected: true,
+        };
+        this.warningText = '';
+        this.connectionState = 'connected';
+        this.notifyStatusChange('connected', true);
+        try {
+          playPrinterConnectFeedback();
+        } catch {}
+        try {
+          logPrinterConnection({
+            printerName,
+            deviceAddress: address || null,
+            platform: 'mobile',
+            connectionType: 'bluetooth',
+          }).catch(() => {});
+        } catch {}
+      }
+      return Boolean(ok);
+    } catch (err: any) {
+      console.warn('[PrinterService] td404Connect error:', err);
+      return false;
     }
-    return ok;
   }
 
   public async td404Disconnect(): Promise<boolean> {

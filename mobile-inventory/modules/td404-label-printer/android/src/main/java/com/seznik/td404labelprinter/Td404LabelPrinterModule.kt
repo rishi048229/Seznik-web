@@ -88,9 +88,11 @@ class Td404LabelPrinterModule : Module() {
         )
       )
 
-      pendingConnectPromise?.let {
-        it.resolve(true)
-        pendingConnectPromise = null
+      synchronized(this@Td404LabelPrinterModule) {
+        pendingConnectPromise?.let {
+          it.resolve(true)
+          pendingConnectPromise = null
+        }
       }
     }
 
@@ -107,9 +109,11 @@ class Td404LabelPrinterModule : Module() {
         )
       )
 
-      pendingConnectPromise?.let {
-        it.reject(CodedException("ERR_TD404_CONNECT", failure ?: "Failed to connect to printer", null))
-        pendingConnectPromise = null
+      synchronized(this@Td404LabelPrinterModule) {
+        pendingConnectPromise?.let {
+          it.reject(CodedException("ERR_TD404_CONNECT", failure ?: "Failed to connect to printer. Please check power and Bluetooth pairing.", null))
+          pendingConnectPromise = null
+        }
       }
     }
 
@@ -176,15 +180,19 @@ class Td404LabelPrinterModule : Module() {
             promise.resolve(true)
             return@AsyncFunction
           }
-          portManager?.closePort()
+          try {
+            portManager?.closePort()
+          } catch (e: Throwable) {}
           portManager = null
-          Thread.sleep(200)
+          Thread.sleep(150)
         }
 
         lastState = "connecting"
         sendEvent("onPrinterStateChange", bundleOf("state" to "connecting", "address" to address, "name" to (name ?: address)))
 
-        pendingConnectPromise = promise
+        synchronized(this@Td404LabelPrinterModule) {
+          pendingConnectPromise = promise
+        }
 
         val dev = PrinterDevices.Build()
           .setDeviceType(DeviceType.BLUETOOTH)
@@ -201,9 +209,11 @@ class Td404LabelPrinterModule : Module() {
             portManager?.openPort()
           } catch (t: Throwable) {
             Log.e(TAG, "openPort error: ${t.message}")
-            pendingConnectPromise?.let {
-              it.reject(CodedException("ERR_TD404_CONNECT_OPEN", t.message ?: "Failed to open port", t))
-              pendingConnectPromise = null
+            synchronized(this@Td404LabelPrinterModule) {
+              pendingConnectPromise?.let {
+                it.reject(CodedException("ERR_TD404_CONNECT_OPEN", t.message ?: "Failed to open Bluetooth port", t))
+                pendingConnectPromise = null
+              }
             }
           }
         }

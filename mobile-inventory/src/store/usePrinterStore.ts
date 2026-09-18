@@ -722,20 +722,24 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       labelGapMm: config.labelGapMm,
       labelOffsetMm: typeof config.labelOffsetMm === 'number' ? config.labelOffsetMm : get().labelOffsetMm,
     }).catch(() => {});
-    await settingsApi.updatePrinterConfig({
-      paperWidth: config.paperWidth,
-      paperSize: config.paperWidth,
-      printDensity: config.printDensity,
-      topMargin: config.topMargin,
-      autoCut: config.autoCut,
-      printCopies: config.printCopies,
-      fontSize: config.fontSize,
-      receiptFont: config.receiptFont || get().receiptFont,
-      labelPaperMode: config.labelPaperMode,
-      labelWidthMm: config.labelWidthMm,
-      labelHeightMm: config.labelHeightMm,
-      labelGapMm: config.labelGapMm,
-    });
+    try {
+      await settingsApi.updatePrinterConfig({
+        paperWidth: config.paperWidth,
+        paperSize: config.paperWidth,
+        printDensity: config.printDensity,
+        topMargin: config.topMargin,
+        autoCut: config.autoCut,
+        printCopies: config.printCopies,
+        fontSize: config.fontSize,
+        receiptFont: config.receiptFont || get().receiptFont,
+        labelPaperMode: config.labelPaperMode,
+        labelWidthMm: config.labelWidthMm,
+        labelHeightMm: config.labelHeightMm,
+        labelGapMm: config.labelGapMm,
+      });
+    } catch (err) {
+      console.warn('[usePrinterStore] Could not sync printer calibration to cloud:', err);
+    }
     if (config.receiptLogoSize || config.receiptQrSize) {
       try {
         await settingsApi.updateReceiptConfig({
