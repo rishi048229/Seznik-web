@@ -55,12 +55,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setAuth: async (token: string, user: UserProfile) => {
     const prevUser = get().user;
-    if (prevUser && prevUser.id !== user.id) {
+    if (!prevUser || prevUser.id !== user.id) {
       try {
-        const { setStoredSettings } = await import('@/services/secureStore');
+        const { removeStoredSettings } = await import('@/services/secureStore');
         const { setCachedSettings } = await import('@/hooks/useSettings');
         const { clearPersistedBusinessLogo } = await import('@/utils/businessLogoStorage');
-        await setStoredSettings(null);
+        await removeStoredSettings();
         setCachedSettings(null);
         await clearPersistedBusinessLogo();
       } catch {

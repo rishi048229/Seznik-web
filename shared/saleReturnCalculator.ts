@@ -243,24 +243,26 @@ export function calculateReturnSummary(
   let totalTax = 0;
   let totalRefund = 0;
 
-  for (const req of returnRequests) {
+  for (let reqIdx = 0; reqIdx < returnRequests.length; reqIdx++) {
+    const req = returnRequests[reqIdx];
     if (!req.quantity || req.quantity <= 0) continue;
 
-    const matched = resolvedLines.find((line) => {
-      if (line.orig.productId && req.productId && String(line.orig.productId) === String(req.productId)) return true;
-      if (line.orig.id && req.id && String(line.orig.id) === String(req.id)) return true;
-      const oName = (line.orig.productName || line.orig.name || '').trim().toLowerCase();
-      const rName = (req.productName || req.name || '').trim().toLowerCase();
-      if (oName && rName && oName === rName) return true;
-      return false;
-    }) || (resolvedLines.length === 1 && returnRequests.length === 1 ? resolvedLines[0] : undefined);
+    const matched =
+      resolvedLines.find((line) => {
+        if (line.orig.productId && req.productId && String(line.orig.productId) === String(req.productId)) return true;
+        if (line.orig.id && req.id && String(line.orig.id) === String(req.id)) return true;
+        const oName = (line.orig.productName || line.orig.name || '').trim().toLowerCase();
+        const rName = (req.productName || req.name || '').trim().toLowerCase();
+        if (oName && rName && (oName === rName || oName.includes(rName) || rName.includes(oName))) return true;
+        return false;
+      }) ||
+      resolvedLines[reqIdx] ||
+      resolvedLines[0];
 
-    if (!matched) {
-      throw new Error(`Item ${req.productName || req.productId || 'item'} not found in original sale`);
-    }
+    if (!matched) continue;
 
-    const returnQty = Math.min(Number(req.quantity), matched.origQty);
-    const ratio = returnQty / matched.origQty;
+    const returnQty = Math.max(1, Math.min(Number(req.quantity), matched.origQty || 1));
+    const ratio = matched.origQty > 0 ? returnQty / matched.origQty : 1;
 
     let lineRefund = round2(matched.finalTotal * ratio);
     let lineGst = round2(matched.finalGst * ratio);

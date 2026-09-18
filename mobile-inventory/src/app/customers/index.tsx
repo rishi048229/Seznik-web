@@ -329,9 +329,11 @@ export default function CustomersScreen() {
                     {/* CREDIT BALANCE & LIMIT BAR */}
                     <View style={styles.cardDetailsRow}>
                       <View>
-                        <Text style={[styles.balanceTitle, { color: theme.textSecondary }]}>Outstanding Balance</Text>
+                        <Text style={[styles.balanceTitle, { color: item.creditBalance < 0 ? '#10B981' : theme.textSecondary }]}>
+                          {item.creditBalance < 0 ? 'Advance Balance' : 'Outstanding Balance'}
+                        </Text>
                         <Text style={[styles.balanceValue, { color: item.creditBalance > 0 ? '#EF4444' : '#10B981' }]}>
-                          ₹{item.creditBalance.toFixed(2)}
+                          {item.creditBalance < 0 ? `+₹${Math.abs(item.creditBalance).toFixed(2)}` : `₹${item.creditBalance.toFixed(2)}`}
                         </Text>
                       </View>
 

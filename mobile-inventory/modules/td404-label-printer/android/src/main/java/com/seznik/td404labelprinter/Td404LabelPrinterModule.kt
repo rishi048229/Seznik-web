@@ -548,8 +548,11 @@ class Td404LabelPrinterModule : Module() {
     val type = el["type"] as? String ?: return
     val xMm = finite(el["x"], 0.0) * fit
     val yMm = finite(el["y"], 0.0) * fit
-    val wMm = finite(el["width"], 0.0) * fit
-    val hMm = finite(el["height"], 0.0) * fit
+    val rawWMm = finite(el["width"], 0.0)
+    val rawHMm = finite(el["height"], 0.0)
+    val rawSizeMm = finite(el["size"], 0.0)
+    val wMm = (if (rawWMm > 0.0) rawWMm else rawSizeMm) * fit
+    val hMm = (if (rawHMm > 0.0) rawHMm else rawSizeMm) * fit
 
     val x = (xMm * dotsPerMm).toFloat()
     val y = (yMm * dotsPerMm).toFloat()

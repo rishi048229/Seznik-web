@@ -666,9 +666,26 @@ export async function getStoredSettings<T = any>(): Promise<T | null> {
   }
 }
 
+export async function removeStoredSettings(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
+      }
+    } else {
+      await SecureStore.deleteItemAsync(SETTINGS_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.error('Error removing stored settings:', error);
+  }
+}
+
 export async function setStoredSettings(settings: any): Promise<void> {
   try {
-    if (!settings) return;
+    if (!settings) {
+      await removeStoredSettings();
+      return;
+    }
     const json = JSON.stringify(settings);
     if (Platform.OS === 'web') {
       if (typeof window !== 'undefined') {

@@ -46,6 +46,7 @@ import {
 } from '@/hooks/useCredits';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useSettings } from '@/hooks/useSettings';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { settingsApi } from '@/api/settings';
 import { buildBillReminderMessage, buildBalanceReminderMessage } from '@/utils/reminderMessage';
 import type { ReminderDue } from '@/api/credits';
@@ -207,6 +208,8 @@ export default function CreditsDaybookScreen() {
     }
   };
 
+  const storeProfile = useStoreProfile();
+
   const handleCloseRegister = async () => {
     if (!countedCashInput.trim()) return;
     try {
@@ -219,12 +222,52 @@ export default function CreditsDaybookScreen() {
   };
 
   const handleShareDaybook = () => {
-    const text =
-      `*Seznik POS Daybook Ledger*\nMoney In: ₹${moneyIn.toFixed(2)}\nMoney Out: ₹${moneyOut.toFixed(2)}\n` +
-      `Net Cashflow: ₹${netCash.toFixed(2)}\nCredit Given Today: ₹${creditGiven.toFixed(2)}\n` +
-      `Credit Collected Today: ₹${creditCollectedToday.toFixed(2)}\n` +
-      (gst ? `GST Collected: ₹${gst.total.toFixed(2)} (CGST ₹${gst.cgst.toFixed(2)} + SGST ₹${gst.sgst.toFixed(2)})\n` : '') +
-      `Reminders Sent Today: ${daybook?.remindersSentToday || 0}`;
+    const storeName = storeProfile.storeName || 'Our Store';
+    const totalCreditDue = (customers || []).reduce((acc, c) => acc + (c.creditBalance > 0 ? c.creditBalance : 0), 0);
+    const todayStr = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timeStr = new Date().toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    const lines: string[] = [
+      `📊 *DAYBOOK FINANCIAL SUMMARY*`,
+      `🏢 *${storeName}*`,
+      `📅 Date: ${todayStr} • ⏰ ${timeStr}`,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      ``,
+      `💰 *CASH FLOW OVERVIEW*`,
+      `• Money In:  *₹${moneyIn.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*`,
+      `• Money Out: *₹${moneyOut.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*`,
+      `• *Net Cashflow:* *₹${netCash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*`,
+      ``,
+      `🤝 *CREDIT & UDHAAR ACTIVITY*`,
+      `• Credit Given Today:     *₹${creditGiven.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*`,
+      `• Credit Collected Today: *₹${creditCollectedToday.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*`,
+      `• Total Outstanding Dues: *₹${totalCreditDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*`,
+    ];
+
+    if (gst && gst.total > 0) {
+      lines.push(
+        ``,
+        `🏛️ *TAX BREAKDOWN*`,
+        `• Total GST: *₹${gst.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*`,
+        `  (CGST: ₹${gst.cgst.toFixed(2)} | SGST: ₹${gst.sgst.toFixed(2)})`
+      );
+    }
+
+    lines.push(
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `✨ _Automated report generated via Seznik POS_`
+    );
+
+    const text = lines.join('\n');
     Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`);
   };
 

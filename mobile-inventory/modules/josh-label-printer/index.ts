@@ -33,7 +33,7 @@ export type JoshLabelElement =
       barcodeType?: number;
       align?: 0 | 1 | 2;
     }
-  | { type: 'qrcode'; value: string; x: number; y: number; size?: number; align?: 0 | 1 | 2; rotation?: number }
+  | { type: 'qrcode'; value: string; x: number; y: number; size?: number; width?: number; height?: number; align?: 0 | 1 | 2; rotation?: number }
   | {
       type: 'image';
       /** Local file path, file:// URI, or base64 data URI. */

@@ -3746,21 +3746,21 @@ class ThermalPrinterServiceManager {
     const pad = 1.0;
     const innerWidth = Math.max(10, Math.min(widthMm - pad * 2, sizeConfig.printableWidthMm));
 
-    // Dynamic vertical sizing starting flush from the top (y = 0.4mm to 1.0mm)
-    const isTiny = heightMm <= 18; // 50x15
-    const isCompact = heightMm <= 25; // 50x25
-    const isStandard = heightMm <= 35; // 50x30
-    const isTall = heightMm >= 50; // 50x50, 50x75, 50x100
+    // Dynamic vertical sizing proportionally tuned for label dimensions
+    const isTiny = heightMm <= 18; // 50x15, 30x15
+    const isCompact = heightMm <= 25; // 50x25, 38x25
+    const isStandard = heightMm <= 35; // 50x30, 40x30, 38x28
+    const isTall = heightMm >= 45; // 50x50, 60x60, 50x75, 80mm
 
-    const nameY = isTiny ? 0.4 : isCompact ? 0.6 : isStandard ? 0.8 : 1.2;
-    const nameHeight = isTiny ? 1.8 : isCompact ? 2.2 : isStandard ? 2.6 : 3.2;
+    const nameY = isTiny ? 0.4 : isCompact ? 0.8 : isStandard ? 1.0 : isTall ? 2.0 : 1.4;
+    const nameHeight = isTiny ? 1.8 : isCompact ? 2.4 : isStandard ? 3.0 : isTall ? 4.2 : 3.4;
 
-    const priceY = nameY + nameHeight + (isTiny ? 0.2 : 0.3);
-    const priceHeight = isTiny ? 1.8 : isCompact ? 2.2 : isStandard ? 2.6 : 3.2;
+    const priceY = nameY + nameHeight + (isTiny ? 0.2 : isCompact ? 0.4 : isTall ? 0.8 : 0.5);
+    const priceHeight = isTiny ? 1.8 : isCompact ? 2.4 : isStandard ? 2.8 : isTall ? 3.8 : 3.2;
 
-    const codeZoneY = priceY + priceHeight + (isTiny ? 0.2 : 0.4);
-    const bottomSafePad = isTiny ? 0.8 : isCompact ? 1.2 : 1.5;
-    const availableCodeH = Math.max(4.0, heightMm - codeZoneY - bottomSafePad);
+    const codeZoneY = priceY + priceHeight + (isTiny ? 0.2 : isCompact ? 0.5 : isTall ? 1.0 : 0.6);
+    const bottomSafePad = isTiny ? 0.8 : isCompact ? 1.2 : isTall ? 2.0 : 1.4;
+    const availableCodeH = Math.max(5.0, heightMm - codeZoneY - bottomSafePad);
 
     const elements: JoshLabelElement[] = [
       {
@@ -3788,30 +3788,29 @@ class ThermalPrinterServiceManager {
     ];
 
     if (format === 'qr') {
-      const qrCap = isTiny ? 8.5 : isCompact ? 15.0 : isStandard ? 18.0 : 26.0;
-      const qrSize = Math.min(availableCodeH, innerWidth, qrCap);
-      const qrX = pad + Math.max(0, (innerWidth - qrSize) / 2);
-      // Top-flush right below price: NO vertical centering formula pushing it into the gap!
-      const qrY = codeZoneY;
+      const qrCap = isTiny ? 9.0 : isCompact ? 16.0 : isStandard ? 24.0 : 42.0;
+      const qrSize = Math.min(availableCodeH * 0.95, innerWidth * 0.9, qrCap);
+      const qrX = Math.max(pad, (widthMm - qrSize) / 2);
+      const qrY = codeZoneY + Math.max(0, (availableCodeH - qrSize) / 2);
       elements.push({
         type: 'qrcode',
         value: rawCode,
         x: qrX,
         y: qrY,
+        width: qrSize,
+        height: qrSize,
         size: qrSize,
       });
     } else {
       const digits = rawCode.replace(/\D/g, '');
       const useEan13 = format === 'ean13' && (digits.length === 12 || digits.length === 13);
-      const barCap = isTiny ? 7.0 : isCompact ? 13.0 : isStandard ? 17.0 : 25.0;
-      const totalBoxH = Math.min(availableCodeH, barCap);
-      const textHeight = Math.min(2.4, Math.max(1.4, totalBoxH * 0.22));
-      const barHeight = Math.max(3.5, totalBoxH - textHeight);
+      const barCap = isTiny ? 7.0 : isCompact ? 14.0 : isStandard ? 20.0 : 32.0;
+      const totalBoxH = Math.min(availableCodeH * 0.9, barCap);
+      const textHeight = Math.min(2.8, Math.max(1.4, totalBoxH * 0.22));
 
-      const barWidth = useEan13 ? Math.min(innerWidth, 35.625) : Math.min(innerWidth, 38.0);
-      const barX = pad + Math.max(0, (innerWidth - barWidth) / 2);
-      // Top-flush right below price: NO vertical centering formula pushing it into the gap!
-      const barY = codeZoneY;
+      const barWidth = useEan13 ? Math.min(innerWidth * 0.92, 42.0) : Math.min(innerWidth * 0.92, 45.0);
+      const barX = Math.max(pad, (widthMm - barWidth) / 2);
+      const barY = codeZoneY + Math.max(0, (availableCodeH - totalBoxH) / 2);
 
       elements.push({
         type: 'barcode',
@@ -4112,12 +4111,12 @@ class ThermalPrinterServiceManager {
     const is80 = paperWidth === '80mm';
     const printableWidth = is80 ? 72 : 48;
     const elements: JoshLabelElement[] = [];
-    let y = 4;
+    let y = is80 ? 5 : 4;
 
     // 1. Store Logo
     const logoUrl = data.storeLogoUrl || options.storeLogoUrl;
     if (logoUrl) {
-      const logoW = Math.min(printableWidth * 0.55, 30);
+      const logoW = Math.min(printableWidth * 0.65, is80 ? 46 : 30);
       const logoH = logoW * 0.65;
       elements.push({
         type: 'image',
@@ -4127,7 +4126,7 @@ class ThermalPrinterServiceManager {
         width: logoW,
         height: logoH,
       });
-      y += logoH + 2;
+      y += logoH + (is80 ? 3 : 2);
     }
 
     // 2. Generate formatted receipt text
@@ -4140,7 +4139,7 @@ class ThermalPrinterServiceManager {
     for (const rawLine of lines) {
       const trimmed = rawLine.trim();
       if (!trimmed) {
-        y += 2.0;
+        y += is80 ? 2.4 : 2.0;
         continue;
       }
       if (/^[=-]{8,}$/.test(trimmed)) {
@@ -4151,13 +4150,13 @@ class ThermalPrinterServiceManager {
           x: 0,
           y,
           width: printableWidth,
-          fontHeight: 2.2,
+          fontHeight: is80 ? 2.4 : 2.0,
           bold: false,
           align: 1,
           fontFamily: 'monospace',
           monospace: true,
         });
-        y += 3.0;
+        y += is80 ? 3.4 : 3.0;
         continue;
       }
 
@@ -4166,14 +4165,14 @@ class ThermalPrinterServiceManager {
         const leftPart = colMatch[1];
         const rightPart = colMatch[2];
         const isTotalLine = /^(total|grand\s*total|net\s*payable|amount\s*paid|balance)/i.test(leftPart.trim());
-        const fontH = isTotalLine ? 3.6 : (options.fontSize === 'large' ? 3.4 : 2.8);
+        const fontH = isTotalLine ? (is80 ? 4.2 : 3.6) : (options.fontSize === 'large' ? (is80 ? 3.6 : 3.2) : (is80 ? 3.0 : 2.7));
 
         elements.push({
           type: 'text',
           value: leftPart.trim(),
           x: 0,
           y,
-          width: printableWidth * 0.65,
+          width: printableWidth * (is80 ? 0.70 : 0.65),
           fontHeight: fontH,
           bold: isTotalLine,
           align: 0,
@@ -4192,13 +4191,13 @@ class ThermalPrinterServiceManager {
           fontFamily: 'monospace',
           monospace: true,
         });
-        y += fontH + 1.2;
+        y += fontH + (is80 ? 1.4 : 1.2);
         continue;
       }
 
       const isCentered = rawLine.startsWith('    ') || rawLine.startsWith('\t');
-      const isHeader = y < 25 && /^[A-Z0-9\s.,&-]{4,}$/.test(trimmed);
-      const fontH = isHeader ? 3.8 : (options.fontSize === 'large' ? 3.2 : 2.7);
+      const isHeader = y < 35 && /^[A-Z0-9\s.,&-]{4,}$/.test(trimmed);
+      const fontH = isHeader ? (is80 ? 4.2 : 3.8) : (options.fontSize === 'large' ? (is80 ? 3.6 : 3.2) : (is80 ? 3.0 : 2.7));
 
       elements.push({
         type: 'text',
@@ -4212,19 +4211,21 @@ class ThermalPrinterServiceManager {
         fontFamily: 'monospace',
         monospace: true,
       });
-      y += fontH + 1.0;
+      y += fontH + (is80 ? 1.2 : 1.0);
     }
 
     // 3. Payment QR Code (UPI)
     const upiPayload = this.upiPayPayload(data);
     if (upiPayload && (options as any).enableBillQrCode !== false) {
-      const qrSide = Math.min(28, printableWidth * 0.5);
+      const qrSide = Math.min(is80 ? 36 : 28, printableWidth * 0.55);
       y += 2;
       elements.push({
         type: 'qrcode',
         value: upiPayload,
         x: (printableWidth - qrSide) / 2,
         y,
+        width: qrSide,
+        height: qrSide,
         size: qrSide,
       });
       y += qrSide + 2;
@@ -4234,7 +4235,7 @@ class ThermalPrinterServiceManager {
         x: 0,
         y,
         width: printableWidth,
-        fontHeight: 2.3,
+        fontHeight: is80 ? 2.6 : 2.3,
         bold: true,
         align: 1,
         fontFamily: 'monospace',
@@ -6124,7 +6125,11 @@ class ThermalPrinterServiceManager {
     const effectiveAutoCut =
       options.autoCut !== undefined ? options.autoCut : printerState.autoCut;
     const effectiveCopies = Math.max(1, options.copies || printerState.printCopies || 1);
-    const effectivePaperWidth = paperWidth || printerState.paperWidth || '58mm';
+    const currentModel = printerState.connectedPrinterModel;
+    const is80Model = currentModel === 'rudra' || currentModel === 'tejas';
+    const effectivePaperWidth = (paperWidth && paperWidth === '80mm')
+      ? '80mm'
+      : (printerState.paperWidth === '80mm' || is80Model ? '80mm' : (paperWidth || '58mm'));
 
     const effectiveOptions: ReceiptPrintOptions = {
       ...options,

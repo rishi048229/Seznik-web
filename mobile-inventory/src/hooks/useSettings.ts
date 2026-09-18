@@ -55,6 +55,8 @@ export function useSettings() {
       const settings = await settingsApi.getSettings();
       if (!settings) {
         cachedTrackStockSetting = undefined;
+        cachedSettings = null;
+        setStoredSettings(null).catch(() => {});
         return null;
       }
       cachedTrackStockSetting = settings.trackStock;

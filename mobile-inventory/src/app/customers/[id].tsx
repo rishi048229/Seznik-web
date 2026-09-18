@@ -470,13 +470,15 @@ export default function CustomerAccountScreen() {
             </View>
           </View>
 
-          {/* 2. OUTSTANDING DUES CARD */}
-          <View style={styles.outstandingCard}>
+          {/* 2. OUTSTANDING DUES / ADVANCE CREDIT CARD */}
+          <View style={[styles.outstandingCard, creditBalance < 0 && { borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
             {/* Header row */}
             <View style={styles.cardHeaderRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={styles.redStatusDot} />
-                <Text style={styles.outstandingHeading}>OUTSTANDING DUES</Text>
+                <View style={[styles.redStatusDot, creditBalance < 0 && { backgroundColor: '#10B981' }]} />
+                <Text style={[styles.outstandingHeading, creditBalance < 0 && { color: '#10B981' }]}>
+                  {creditBalance < 0 ? 'ADVANCE STORE CREDIT' : 'OUTSTANDING DUES'}
+                </Text>
               </View>
               <TouchableOpacity onPress={openEditModal} style={styles.settingsIconBtn}>
                 <Settings size={17} color="#94A3B8" />
@@ -484,10 +486,19 @@ export default function CustomerAccountScreen() {
             </View>
 
             {/* Big Amount */}
-            <Text style={styles.outstandingAmountText}>₹{creditBalance.toFixed(2)}</Text>
+            <Text style={[styles.outstandingAmountText, creditBalance < 0 && { color: '#10B981' }]}>
+              {creditBalance < 0 ? `+₹${Math.abs(creditBalance).toFixed(2)}` : `₹${creditBalance.toFixed(2)}`}
+            </Text>
 
-            {/* Ageing Badge */}
-            {customer.ageingBucket || customer.daysOverdue ? (
+            {/* Ageing / Advance Badge */}
+            {creditBalance < 0 ? (
+              <View style={[styles.ageingPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                <CheckCircle2 size={12} color="#10B981" />
+                <Text style={[styles.ageingPillText, { color: '#10B981', fontWeight: '700' }]}>
+                  Store Wallet Credit • Available for future billing
+                </Text>
+              </View>
+            ) : customer.ageingBucket || customer.daysOverdue ? (
               <View style={styles.ageingPill}>
                 <Clock size={12} color="#F59E0B" />
                 <Text style={styles.ageingPillText}>
@@ -512,19 +523,27 @@ export default function CustomerAccountScreen() {
             {/* Credit Limit Progress */}
             <View style={styles.creditLimitBox}>
               <View style={styles.limitHeaderRow}>
-                <Text style={styles.limitLabel}>Credit Limit Utilized ({limitPercent}%)</Text>
+                <Text style={styles.limitLabel}>
+                  {creditBalance < 0 ? 'Credit Limit Status' : `Credit Limit Utilized (${limitPercent}%)`}
+                </Text>
                 <Text style={styles.limitRatio}>
-                  ₹{creditBalance.toFixed(0)} / ₹{creditLimit.toFixed(0)}
+                  {creditBalance < 0
+                    ? `₹0 / ₹${creditLimit.toFixed(0)}`
+                    : `₹${creditBalance.toFixed(0)} / ₹${creditLimit.toFixed(0)}`}
                 </Text>
               </View>
 
               {/* Visual Progress Bar */}
               <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: `${limitPercent}%` }]} />
+                <View style={[styles.progressBarFill, { width: `${creditBalance < 0 ? 0 : limitPercent}%` }]} />
               </View>
 
               <View style={styles.limitFooterRow}>
-                <Text style={styles.availableLimitText}>₹{availableLimit.toFixed(0)} Available Limit</Text>
+                <Text style={styles.availableLimitText}>
+                  {creditBalance < 0
+                    ? `₹${creditLimit.toFixed(0)} Limit + ₹${Math.abs(creditBalance).toFixed(0)} Advance`
+                    : `₹${availableLimit.toFixed(0)} Available Limit`}
+                </Text>
                 <TouchableOpacity onPress={openEditModal}>
                   <Text style={styles.changeLimitLink}>Change Limit</Text>
                 </TouchableOpacity>
