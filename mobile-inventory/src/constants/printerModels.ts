@@ -7,7 +7,7 @@ export interface SeznikPrinterModel {
   typeBadge: 'Receipt + Label' | 'Receipt Only';
   driver: string;
   driverType: 'escpos' | 'josh' | 'td404';
-  image: any;
+  image?: any;
   isNonSeznik?: boolean;
   capabilities: {
     receipts: boolean;
@@ -97,7 +97,7 @@ export const SEZNIK_PRINTER_MODELS: Record<SeznikPrinterModelId, SeznikPrinterMo
     typeBadge: 'Receipt Only',
     driver: 'Generic ESC/POS Driver',
     driverType: 'escpos',
-    image: require('@/assets/images/printers/printer_dev.jpg'),
+    image: null,
     isNonSeznik: true,
     capabilities: {
       receipts: true,

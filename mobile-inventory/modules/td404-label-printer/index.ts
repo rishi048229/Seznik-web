@@ -27,8 +27,10 @@ declare class Td404LabelPrinterNativeModule extends NativeModule<Td404LabelPrint
   connect(address: string, name?: string): Promise<boolean>;
   disconnect(): Promise<boolean>;
   printRawBytes(base64Data: string): Promise<boolean>;
+  printLabel(spec: any): Promise<boolean>;
   printLabelBitmap(base64Png: string, widthMm: number, heightMm: number, gapMm: number, copies: number): Promise<boolean>;
   printReceiptBitmap(base64Png: string, paperWidthMm: number): Promise<boolean>;
+  printReceiptText(text: string, is80mm: boolean): Promise<boolean>;
   calibrate(): Promise<boolean>;
 }
 

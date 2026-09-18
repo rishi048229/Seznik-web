@@ -3466,10 +3466,13 @@ class ThermalPrinterServiceManager {
    * and should never be routed to LPAPI/YX SDK.
    * When standalone JOSH or YX is active, returns 'josh' or 'yx' respectively.
    */
-  public async getConnectedLabelPrinterKind(): Promise<'josh' | 'yx' | null> {
+  public async getConnectedLabelPrinterKind(): Promise<'josh' | 'yx' | 'td404' | null> {
     try {
       const { usePrinterStore } = require('../store/usePrinterStore');
       const model = usePrinterStore.getState().connectedPrinterModel;
+      if (model === 'rudra' || model === 'tejas') {
+        if (this.isTd404Supported() && (await this.td404IsConnected())) return 'td404';
+      }
       if (model === 'tej') {
         if (this.isYxLabelPrinterAvailable() && (await YxLabelPrinter?.isConnected())) return 'yx';
       }
@@ -3479,6 +3482,7 @@ class ThermalPrinterServiceManager {
       if (model === 'josh' && this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) return 'josh';
     } catch {}
 
+    if (this.isTd404Supported() && (await this.td404IsConnected())) return 'td404';
     if (this.isYxLabelPrinterAvailable() && (await YxLabelPrinter?.isConnected())) return 'yx';
     if (await this.isSocketConnected()) return null;
     if (this.isJoshLabelPrinterAvailable() && (await this.joshIsConnected())) return 'josh';
@@ -3518,24 +3522,15 @@ class ThermalPrinterServiceManager {
   /**
    * Sends an already-built label spec to whichever label printer is connected.
    *
-   * This is the single hand-off point where the two vendors diverge: LPAPI turns the
-   * elements into draw commands, the YX SDK rasterizes them to a bitmap natively. Both
-   * accept the same spec object, so nothing upstream has to branch. Neither path resizes
-   * or rewrites the spec beyond the user's own explicit Vertical Trim (see
-   * adaptSpecForYxPrinter) — positioning is left entirely to each printer's own
-   * firmware-level gap sensor, not to a JS-side guess about its hardware geometry.
+   * This is the single hand-off point where the vendors diverge: LPAPI turns the
+   * elements into draw commands, YX rasterizes them, and TD-404 uses pixel-perfect TSPL canvas.
    */
   private async printSpecOnLabelPrinter(spec: JoshLabelSpec): Promise<boolean> {
     const kind = await this.getConnectedLabelPrinterKind();
+    if (kind === 'td404' && Td404LabelPrinter) {
+      return await Td404LabelPrinter.printLabel(spec);
+    }
     if (kind === 'yx' && YxLabelPrinter) {
-      // Restored to the actual YX vendor SDK. A third-party app (Flashlabel Pro, Play
-      // Store) was tested directly against this same physical printer and prints
-      // correctly-aligned labels with zero calibration — decisive proof the hardware and
-      // this SDK family are fine, and that the ESC/POS-raster bypass this line used to
-      // route through (a guessed feed distance, no real positioning at all) was solving
-      // the wrong problem. The native module's own build sequence (nextPrint in
-      // YxLabelPrinterModule.kt) has been stripped back to a plain, faithful port of the
-      // vendor's verified reference flow — see its comment for what was removed and why.
       const adaptedSpec = this.adaptSpecForYxPrinter(spec);
       return await YxLabelPrinter.printLabel(adaptedSpec);
     }
@@ -4093,9 +4088,175 @@ class ThermalPrinterServiceManager {
     return await Td404LabelPrinter.printReceiptBitmap(base64Png, paperWidthMm);
   }
 
+  public async td404PrintReceiptText(text: string, is80mm: boolean = true): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+    return await Td404LabelPrinter.printReceiptText(text, is80mm);
+  }
+
   public async td404Calibrate(): Promise<boolean> {
     if (!Td404LabelPrinter) return false;
     return await Td404LabelPrinter.calibrate();
+  }
+
+  /**
+   * Prints a formatted thermal sale receipt on a connected TD-404 printer (SEZNIK RUDRA / TEJAS)
+   * in continuous roll mode (gapType: 0), supporting 80mm & 58mm widths.
+   */
+  public async printReceiptViaTd404(
+    data: PrintSaleData,
+    paperWidth: '58mm' | '80mm' = '80mm',
+    options: ReceiptPrintOptions = {}
+  ): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+
+    const is80 = paperWidth === '80mm';
+    const printableWidth = is80 ? 72 : 48;
+    const elements: JoshLabelElement[] = [];
+    let y = 4;
+
+    // 1. Store Logo
+    const logoUrl = data.storeLogoUrl || options.storeLogoUrl;
+    if (logoUrl) {
+      const logoW = Math.min(printableWidth * 0.55, 30);
+      const logoH = logoW * 0.65;
+      elements.push({
+        type: 'image',
+        uri: logoUrl,
+        x: (printableWidth - logoW) / 2,
+        y,
+        width: logoW,
+        height: logoH,
+      });
+      y += logoH + 2;
+    }
+
+    // 2. Generate formatted receipt text
+    const receiptText = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
+    const lines = receiptText.split(/\r?\n/);
+    const colsTarget = is80 ? 48 : 32;
+    const dividerDouble = '='.repeat(colsTarget);
+    const dividerSingle = '-'.repeat(colsTarget);
+
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) {
+        y += 2.0;
+        continue;
+      }
+      if (/^[=-]{8,}$/.test(trimmed)) {
+        const isDouble = trimmed.startsWith('=');
+        elements.push({
+          type: 'text',
+          value: isDouble ? dividerDouble : dividerSingle,
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: 2.2,
+          bold: false,
+          align: 1,
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+        y += 3.0;
+        continue;
+      }
+
+      const colMatch = rawLine.match(/^(\s*\S(?:.*?\S)?)\s{2,}(\S.*)$/);
+      if (colMatch) {
+        const leftPart = colMatch[1];
+        const rightPart = colMatch[2];
+        const isTotalLine = /^(total|grand\s*total|net\s*payable|amount\s*paid|balance)/i.test(leftPart.trim());
+        const fontH = isTotalLine ? 3.6 : (options.fontSize === 'large' ? 3.4 : 2.8);
+
+        elements.push({
+          type: 'text',
+          value: leftPart.trim(),
+          x: 0,
+          y,
+          width: printableWidth * 0.65,
+          fontHeight: fontH,
+          bold: isTotalLine,
+          align: 0,
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+        elements.push({
+          type: 'text',
+          value: rightPart.trim(),
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: fontH,
+          bold: isTotalLine,
+          align: 2,
+          fontFamily: 'monospace',
+          monospace: true,
+        });
+        y += fontH + 1.2;
+        continue;
+      }
+
+      const isCentered = rawLine.startsWith('    ') || rawLine.startsWith('\t');
+      const isHeader = y < 25 && /^[A-Z0-9\s.,&-]{4,}$/.test(trimmed);
+      const fontH = isHeader ? 3.8 : (options.fontSize === 'large' ? 3.2 : 2.7);
+
+      elements.push({
+        type: 'text',
+        value: trimmed,
+        x: 0,
+        y,
+        width: printableWidth,
+        fontHeight: fontH,
+        bold: isHeader,
+        align: isCentered || isHeader ? 1 : 0,
+        fontFamily: 'monospace',
+        monospace: true,
+      });
+      y += fontH + 1.0;
+    }
+
+    // 3. Payment QR Code (UPI)
+    const upiPayload = this.upiPayPayload(data);
+    if (upiPayload && (options as any).enableBillQrCode !== false) {
+      const qrSide = Math.min(28, printableWidth * 0.5);
+      y += 2;
+      elements.push({
+        type: 'qrcode',
+        value: upiPayload,
+        x: (printableWidth - qrSide) / 2,
+        y,
+        size: qrSide,
+      });
+      y += qrSide + 2;
+      elements.push({
+        type: 'text',
+        value: 'Scan & Pay via UPI',
+        x: 0,
+        y,
+        width: printableWidth,
+        fontHeight: 2.3,
+        bold: true,
+        align: 1,
+        fontFamily: 'monospace',
+        monospace: true,
+      });
+      y += 4;
+    }
+
+    const totalHeightMm = Math.max(30, Math.ceil(y + 8));
+
+    // Send to TD-404 in Continuous Mode (gapType: 0)
+    return await Td404LabelPrinter.printLabel({
+      widthMm: is80 ? 80 : 58,
+      heightMm: totalHeightMm,
+      rotation: 0,
+      copies: Math.max(1, options.copies || 1),
+      gapMm: 0,
+      gapType: 0, // 0 = continuous roll
+      speed: 5,
+      darkness: 15,
+      elements,
+    });
   }
 
   /**
@@ -5992,9 +6153,25 @@ class ThermalPrinterServiceManager {
     };
 
     try {
-      // 1. Direct Josh Printer support (LPAPI / continuous roll)
+      // 1. Direct TD-404 (SEZNIK RUDRA / TEJAS) continuous roll printing
       const currentModel = require('../store/usePrinterStore').usePrinterStore.getState().connectedPrinterModel;
-      if (currentModel === 'josh' || (currentModel !== 'dev' && currentModel !== 'veer' && (await this.joshIsConnected()))) {
+      if (currentModel === 'rudra' || currentModel === 'tejas' || (currentModel !== 'dev' && currentModel !== 'veer' && currentModel !== 'other' && currentModel !== 'josh' && (await this.td404IsConnected()))) {
+        try {
+          const ok = await this.printReceiptViaTd404(saleData, effectivePaperWidth, {
+            ...effectiveOptions,
+            copies,
+          });
+          if (ok) return true;
+        } catch (td404Err: any) {
+          console.error('TD-404 receipt print error:', td404Err);
+          if (currentModel === 'rudra' || currentModel === 'tejas') {
+            throw td404Err;
+          }
+        }
+      }
+
+      // 2. Direct Josh Printer support (LPAPI / continuous roll)
+      if (currentModel === 'josh' || (currentModel !== 'dev' && currentModel !== 'veer' && currentModel !== 'other' && (await this.joshIsConnected()))) {
         if (await this.joshEnsureConnected()) {
           try {
             const ok = await this.printReceiptViaJosh(saleData, effectivePaperWidth, {

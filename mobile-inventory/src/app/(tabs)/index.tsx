@@ -189,6 +189,7 @@ export default function DashboardScreen() {
   const [showAiImportModal, setShowAiImportModal] = useState(false);
   const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
   const [joshConnected, setJoshConnected] = useState(false);
+  const [td404Connected, setTd404Connected] = useState(false);
 
   const initialModel: SeznikPrinterModelId =
     preferredPrinterModel ||
@@ -207,9 +208,8 @@ export default function DashboardScreen() {
       try {
         const joshOn = await ThermalPrinterService.joshIsConnected();
         setJoshConnected(joshOn);
-        if (joshOn) {
-          setConnectedPrinterModel('josh');
-        }
+        const td404On = await ThermalPrinterService.td404IsConnected();
+        setTd404Connected(td404On);
       } catch {}
     };
     refreshSdkStates();
@@ -218,11 +218,13 @@ export default function DashboardScreen() {
   }, []);
 
   const isPrinterConnected =
-    connectionState === 'connected' || Boolean(activeDevice) || joshConnected;
+    connectionState === 'connected' || Boolean(activeDevice) || joshConnected || td404Connected;
   const activePrinterDisplayName =
     activeDevice?.name ||
     (joshConnected
       ? 'SEZNIK JOSH'
+      : (td404Connected && connectedPrinterModel)
+      ? (connectedPrinterModel === 'rudra' ? 'SEZNIK RUDRA' : 'SEZNIK TEJAS')
       : connectedPrinterModel
       ? (connectedPrinterModel === 'josh' ? 'SEZNIK JOSH' : `Other Printer (${connectedPrinterModel.toUpperCase()})`)
       : 'Connected Printer');
@@ -932,15 +934,23 @@ export default function DashboardScreen() {
                   </View>
                 </View>
 
-                {/* PRINTER MODEL SELECTOR ROW */}
-                <View style={styles.dashboardModelSelectorContainer}>
+                {/* PRINTER MODEL SELECTOR ROW (Horizontal Smooth Fleet Flow) */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dashboardModelScrollContainer}
+                  style={{ marginBottom: 12 }}
+                >
                   {PRINTER_MODEL_LIST.map((model) => {
                     const isSelected = selectedPrinterModalModel === model.id;
                     const isConn =
                       (model.id === 'josh' && joshConnected) ||
-                      ((model.id === 'dev' || model.id === 'veer') &&
+                      ((model.id === 'rudra' || model.id === 'tejas') &&
+                        td404Connected &&
+                        connectedPrinterModel === model.id) ||
+                      ((model.id === 'dev' || model.id === 'veer' || model.id === 'other') &&
                         connectionState === 'connected' &&
-                        (connectedPrinterModel === model.id || (!connectedPrinterModel && model.id === 'dev')));
+                        connectedPrinterModel === model.id);
 
                     return (
                       <TouchableOpacity
@@ -967,7 +977,11 @@ export default function DashboardScreen() {
                         ]}
                       >
                         <View style={styles.dashboardTabImageWrap}>
-                          <Image source={model.image} style={styles.dashboardTabImage} resizeMode="contain" />
+                          {model.image ? (
+                            <Image source={model.image} style={styles.dashboardTabImage} resizeMode="contain" />
+                          ) : (
+                            <Printer size={22} color={theme.isDark ? '#F59E0B' : '#D97706'} />
+                          )}
                           {isConn && (
                             <View style={styles.dashboardConnectedDotBadge}>
                               <View style={styles.dashboardConnectedDot} />
@@ -989,16 +1003,16 @@ export default function DashboardScreen() {
                         <Text
                           style={[
                             styles.dashboardTabType,
-                            { color: model.id === 'veer' ? '#D97706' : '#10B981' },
+                            { color: model.isNonSeznik ? '#D97706' : (model.id === 'veer' ? '#D97706' : '#10B981') },
                           ]}
                           numberOfLines={1}
                         >
-                          {model.id === 'veer' ? 'Receipt Only' : '2-in-1'}
+                          {model.typeBadge}
                         </Text>
                       </TouchableOpacity>
                     );
                   })}
-                </View>
+                </ScrollView>
 
                 <Text style={[styles.printerCardSub, { color: theme.textSecondary }]}>
                   {isPrinterConnected 
@@ -1669,17 +1683,16 @@ const styles = StyleSheet.create({
   paperToggleTextActive: {
     color: '#FFFFFF',
   },
-  dashboardModelSelectorContainer: {
+  dashboardModelScrollContainer: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 2,
-    marginBottom: 12,
+    paddingVertical: 2,
   },
   dashboardModelTab: {
-    flex: 1,
+    width: 92,
     borderRadius: 14,
     paddingVertical: 8,
-    paddingHorizontal: 3,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },

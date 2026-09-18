@@ -96,12 +96,8 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
       return 'disconnected';
     }
     // veer, dev, other use ESC/POS
-    if (connectionState === 'connected') {
-      if (connectedPrinterModel === model.id) return 'connected';
-      if (!connectedPrinterModel) {
-        // default escpos to dev if unspecified
-        return model.id === 'dev' ? 'connected' : 'disconnected';
-      }
+    if (connectionState === 'connected' && connectedPrinterModel === model.id) {
+      return 'connected';
     }
     return 'disconnected';
   };
@@ -256,11 +252,15 @@ export const SeznikPrinterGrid: React.FC<SeznikPrinterGridProps> = ({
               style={styles.cardHeader}
             >
               <View style={[styles.imageContainer, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-                <Image
-                  source={model.image}
-                  style={styles.printerImage}
-                  resizeMode="contain"
-                />
+                {model.image ? (
+                  <Image
+                    source={model.image}
+                    style={styles.printerImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Printer size={34} color={isDark ? '#F59E0B' : '#D97706'} />
+                )}
               </View>
 
               <View style={styles.infoContainer}>

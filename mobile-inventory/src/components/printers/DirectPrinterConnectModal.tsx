@@ -481,7 +481,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
     ((selectedModel === 'rudra' || selectedModel === 'tejas') && !!td404ConnectedDevice && connectedPrinterModel === selectedModel) ||
     ((selectedModel === 'dev' || selectedModel === 'veer' || selectedModel === 'other') &&
       connectionState === 'connected' &&
-      (connectedPrinterModel === selectedModel || (!connectedPrinterModel && selectedModel === 'dev')));
+      connectedPrinterModel === selectedModel);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -528,7 +528,7 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                 ((model.id === 'rudra' || model.id === 'tejas') && !!td404ConnectedDevice && connectedPrinterModel === model.id) ||
                 ((model.id === 'dev' || model.id === 'veer' || model.id === 'other') &&
                   connectionState === 'connected' &&
-                  (connectedPrinterModel === model.id || (!connectedPrinterModel && model.id === 'dev')));
+                  connectedPrinterModel === model.id);
 
               return (
                 <TouchableOpacity
@@ -549,7 +549,11 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                   ]}
                 >
                   <View style={styles.tabImageWrap}>
-                    <Image source={model.image} style={styles.tabImage} resizeMode="contain" />
+                    {model.image ? (
+                      <Image source={model.image} style={styles.tabImage} resizeMode="contain" />
+                    ) : (
+                      <Printer size={26} color={theme.isDark ? '#F59E0B' : '#D97706'} />
+                    )}
                     {isConn && (
                       <View style={styles.connectedDotBadge}>
                         <View style={styles.connectedDot} />
