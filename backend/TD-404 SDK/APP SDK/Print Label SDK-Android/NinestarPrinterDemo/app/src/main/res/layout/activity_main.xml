@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/tvState"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:text="未连接" />
+
+    <Button
+        android:id="@+id/blueToothDevices"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="蓝牙" />
+
+    <Button
+        android:id="@+id/wifiDevices"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="以太网设备" />
+
+    <Button
+        android:id="@+id/disconnect"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="断开拦截"
+        android:textColor="@android:color/holo_red_light" />
+
+    <TextView
+        android:textColor="@android:color/holo_blue_light"
+        android:textSize="18sp"
+        android:layout_margin="5dp"
+        android:text="打印"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <Button
+        android:id="@+id/printBitmap"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="打印图片" />
+
+    <Button
+        android:id="@+id/printPrn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="打印prn 尺寸105x76" />
+
+</LinearLayout>
