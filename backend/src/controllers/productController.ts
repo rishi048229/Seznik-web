@@ -24,6 +24,8 @@ const PRODUCT_LIST_SELECT = {
   unit: true,
   isActive: true,
   isAvailable: true,
+  discountType: true,
+  discountValue: true,
   userId: true,
   createdAt: true,
   updatedAt: true,
@@ -47,7 +49,47 @@ const PRODUCT_CATALOG_SELECT = {
   unit: true,
   isActive: true,
   isAvailable: true,
+  discountType: true,
+  discountValue: true,
 } as const;
+
+/**
+ * Every Product column a client is allowed to write. Requests are filtered through this instead
+ * of spreading req.body straight into Prisma: an unknown key (a field a newer app build sends
+ * before the server knows about it) used to make Prisma throw and fail the whole create with a
+ * 500 — which is exactly how `discountType` broke product creation in production.
+ */
+const WRITABLE_PRODUCT_FIELDS = [
+  'name',
+  'sku',
+  'barcode',
+  'barcodeType',
+  'categoryId',
+  'supplierId',
+  'imageURL',
+  'costPrice',
+  'sellingPrice',
+  'taxRate',
+  'priceIncludesGst',
+  'currentStock',
+  'lowStockThreshold',
+  'unit',
+  'isActive',
+  'isAvailable',
+  'discountType',
+  'discountValue',
+  'brand',
+  'description',
+  'expiryDate',
+] as const;
+
+function pickWritableProductFields(source: Record<string, any>): Record<string, any> {
+  const picked: Record<string, any> = {};
+  for (const field of WRITABLE_PRODUCT_FIELDS) {
+    if (source[field] !== undefined) picked[field] = source[field];
+  }
+  return picked;
+}
 
 // Tried in order for every AI document/invoice call — keeping this in one place means a bad
 // model name never silently kills a whole feature: later entries still get a chance.
@@ -281,24 +323,28 @@ export const createProduct = async (req: Request, res: Response) => {
       }
     }
 
-    // Strip unknown fields that Prisma doesn't recognize
-    delete rest.imageURL;
-    delete rest.category;
-    delete rest.isFoodItem;
+    // Only real Product columns reach Prisma — anything else the client sent is ignored rather
+    // than blowing up the whole create.
+    const data = pickWritableProductFields(rest);
+
+    const name = typeof data.name === 'string' ? data.name.trim() : '';
+    if (!name) {
+      return res.status(400).json({ error: 'Product name is required' });
+    }
 
     const tracksStock = await userTracksStock(userId);
-    if (rest.currentStock === undefined || rest.currentStock === null) {
-      rest.currentStock = 0;
+    if (data.currentStock === undefined || data.currentStock === null) {
+      data.currentStock = 0;
     }
-    if (rest.lowStockThreshold === undefined || rest.lowStockThreshold === null) {
-      rest.lowStockThreshold = tracksStock ? 5 : 0;
+    if (data.lowStockThreshold === undefined || data.lowStockThreshold === null) {
+      data.lowStockThreshold = tracksStock ? 5 : 0;
     }
-    if (rest.isAvailable === undefined) {
-      rest.isAvailable = true;
+    if (data.isAvailable === undefined) {
+      data.isAvailable = true;
     }
 
     const product = await prisma.product.create({
-      data: { ...rest, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
+      data: { ...data, name, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
     });
     res.status(201).json(product);
   } catch (error) {
@@ -309,7 +355,7 @@ export const createProduct = async (req: Request, res: Response) => {
 
 export const updateProduct = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { id } = req.params;
     const { imageUrl, ...rest } = req.body;
 
@@ -317,16 +363,12 @@ export const updateProduct = async (req: Request, res: Response) => {
     if (imageUrl !== undefined) {
       rest.imageURL = imageUrl;
     }
-    // Strip unknown fields
-    delete rest.category;
-    delete rest.id;
-    delete rest.createdAt;
-    delete rest.updatedAt;
-    delete rest.userId;
+    // Same allowlist as create — id/userId/timestamps and any unknown key can never be written.
+    const data = pickWritableProductFields(rest);
 
     const product = await prisma.product.updateMany({
       where: { id: String(id), userId },
-      data: rest,
+      data,
     });
     res.json({ success: true, count: product.count });
   } catch (error) {
@@ -337,7 +379,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
 export const softDeleteProduct = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { id } = req.params;
     
     await prisma.product.updateMany({
@@ -352,7 +394,7 @@ export const softDeleteProduct = async (req: Request, res: Response) => {
 
 export const bulkSoftDeleteProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { productIds } = req.body; // array of ids
     
     await prisma.product.updateMany({
@@ -416,7 +458,7 @@ export const adjustStock = async (req: Request, res: Response) => {
 
 export const getProductByBarcode = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const rawBarcode = String(req.params.barcode || '').trim();
     const cleanDigits = rawBarcode.replace(/[^0-9]/g, '');
 
@@ -452,7 +494,7 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
 
 export const batchBarcodeStockUpdate = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { entries } = req.body; // array of { productId, qtyToAdd, barcode }
 
     await prisma.$transaction(
@@ -1040,7 +1082,7 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
 
 export const getExpiringProducts = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const days = Number(req.query.days) || 30;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);

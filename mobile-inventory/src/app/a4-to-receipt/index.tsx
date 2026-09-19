@@ -19,7 +19,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import {
   ArrowLeft,
   Scan,
@@ -45,7 +44,7 @@ import {
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { useUtilityBills } from '@/hooks/useUtilityBills';
-import { UtilityBill, UtilityBillExtractResult } from '@/types/utilityBill';
+import { UtilityBill } from '@/types/utilityBill';
 import {
   UtilityReceiptSlip,
   formatUtilityWhatsAppMessage,
@@ -97,7 +96,6 @@ export default function A4ToReceiptScreen() {
     refetchStats,
     createBill,
     deleteBill,
-    extractBill,
   } = useUtilityBills({
     search: searchQuery,
     billType: selectedTypeFilter === 'ALL' ? undefined : selectedTypeFilter,
@@ -106,7 +104,7 @@ export default function A4ToReceiptScreen() {
   // Scanner & Converter modal state
   const [converterModalVisible, setConverterModalVisible] = useState(false);
   const [scannerStep, setScannerStep] = useState<'source' | 'processing' | 'edit' | 'success'>('source');
-  const [extractingMsg, setExtractingMsg] = useState('Extracting bill details with AI...');
+  const [extractingMsg, setExtractingMsg] = useState('Reading the bill on your phone…');
   const [isPrinting, setIsPrinting] = useState(false);
 
   // Form Fields
@@ -163,69 +161,46 @@ export default function A4ToReceiptScreen() {
     setConverterModalVisible(true);
   };
 
-  // Extract bill fields from a photographed/picked page. Offline, on-device ML Kit OCR
-  // (modules/offline-bill-ocr, already built into this app but never wired up here) plus
-  // a deterministic regex parser (UtilityBillParser) — no cloud round-trip, no per-scan AI
-  // cost, and no dependency on a model name / API key / network call ever succeeding. The
-  // previous version of this function called the backend's Gemini-based /extract endpoint,
-  // which is why the "click the image and it fills out" step wasn't working: that endpoint
-  // chains up to 4 Gemini model attempts at up to 35s each, but the request here only waited
-  // 40s total — a slow or failing model made the whole call time out client-side before the
-  // backend could ever finish or fall back on its own. The offline path runs entirely on the
-  // phone and typically finishes in well under a second. Gemini is kept as a fallback only
-  // for platforms where the native OCR module isn't available (iOS, web).
+  // Extraction is 100% on-device: ML Kit OCR (modules/offline-bill-ocr) plus a deterministic
+  // parser. No cloud round-trip, no API key, no per-scan cost, and nothing that can time out.
+  // The Gemini path that used to back this was removed outright, not just demoted: it chained up
+  // to four model attempts at up to 35s each while this screen only waited 40s in total, so a slow
+  // model made the whole scan fail client-side before the server could even answer.
   const processImageOrPdf = async (uri: string, mimeType: string) => {
     try {
       setScannerStep('processing');
       const isPdf = mimeType.toLowerCase().includes('pdf');
 
-      if (isOfflineOcrSupported()) {
-        setExtractingMsg('Scanning bill offline (on-device OCR)...');
-        const ocrResult = isPdf ? await recognizeBillFromPdf(uri) : await recognizeBillFromImage(uri);
-
-        setExtractingMsg('Reading consumer & billing fields...');
-        const parsed = parseUtilityBillText(ocrResult.fullText);
-
-        setBillType(detectUtilityBillType(parsed.providerName, ocrResult.fullText));
-        setProvider(parsed.providerName || '');
-        setConsumerNumber(parsed.consumerNo || '');
-        setConsumerName(parsed.consumerName || '');
-        setDueDate(parsed.dueDate || '');
-        setUnitsConsumed(parsed.unitsConsumed || '');
-        setBillAmount(parsed.billAmount > 0 ? parsed.billAmount.toString() : '');
-
-        setScannerStep('edit');
+      if (!isOfflineOcrSupported()) {
+        Alert.alert(
+          'Scanning Not Available Here',
+          'Automatic bill reading runs on your phone and needs the Android app build. You can still type the bill details in and print the receipt.',
+          [{ text: 'Enter Manually', onPress: () => setScannerStep('edit') }]
+        );
         return;
       }
 
-      // Fallback for platforms without the native OCR module (iOS / web dev builds).
-      setExtractingMsg('Analyzing A4 bill structure...');
-      const base64Data = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      setExtractingMsg('Reading the bill on your phone…');
+      const ocrResult = isPdf ? await recognizeBillFromPdf(uri) : await recognizeBillFromImage(uri);
 
-      setExtractingMsg('Extracting consumer & billing fields...');
-      const extracted: UtilityBillExtractResult = await extractBill({
-        imageBase64: base64Data,
-        mimeType,
-      });
+      setExtractingMsg('Picking out the bill details…');
+      const parsed = parseUtilityBillText(ocrResult.fullText);
 
-      // Strict population: if missing, keep empty ("")
-      setBillType(extracted.billType || 'ELECTRICITY');
-      setProvider(extracted.provider || '');
-      setConsumerNumber(extracted.consumerNumber || '');
-      setConsumerName(extracted.consumerName || '');
-      setDueDate(extracted.dueDate || '');
-      setUnitsConsumed(extracted.unitsConsumed || '');
-      setBillAmount(extracted.billAmount > 0 ? extracted.billAmount.toString() : '');
+      setBillType(detectUtilityBillType(parsed.providerName, ocrResult.fullText));
+      setProvider(parsed.providerName || '');
+      setConsumerNumber(parsed.consumerNo || '');
+      setConsumerName(parsed.consumerName || '');
+      setDueDate(parsed.dueDate || '');
+      setUnitsConsumed(parsed.unitsConsumed || '');
+      setBillAmount(parsed.billAmount > 0 ? parsed.billAmount.toString() : '');
 
       setScannerStep('edit');
     } catch (err: any) {
       console.error('Extraction error:', err);
       Alert.alert(
-        'Extraction Note',
-        err?.message || 'Could not parse bill automatically. You can fill in the fields manually.',
-        [{ text: 'Continue Manually', onPress: () => setScannerStep('edit') }]
+        'Could Not Read This Bill',
+        'The photo may be blurry or cut off. Try again in better light with the whole bill in frame — or type the details in yourself.',
+        [{ text: 'Enter Manually', onPress: () => setScannerStep('edit') }]
       );
     }
   };
@@ -746,7 +721,7 @@ export default function A4ToReceiptScreen() {
             </View>
           )}
 
-          {/* STEP 2: PROCESSING / AI EXTRACTION */}
+          {/* STEP 2: ON-DEVICE OCR EXTRACTION */}
           {scannerStep === 'processing' && (
             <View style={styles.processingContainer}>
               <ActivityIndicator size="large" color={BRAND_COLORS.navyInk} />
@@ -765,7 +740,7 @@ export default function A4ToReceiptScreen() {
               <View style={styles.reviewBanner}>
                 <Sparkles size={18} color="#3B82F6" />
                 <Text style={styles.reviewBannerText}>
-                  Fields populated strictly from bill. Check and adjust if needed:
+                  Filled in from the bill. Please check the amounts before printing:
                 </Text>
               </View>
 

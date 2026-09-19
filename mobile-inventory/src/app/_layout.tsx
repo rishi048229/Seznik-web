@@ -163,7 +163,12 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    // The workstation chooser lives in the (auth) group but is a signed-in screen: you pick Admin
+    // or Agent *after* authenticating. Without this exemption the redirect below threw every
+    // authenticated user straight back to the tabs, which made both the post-login step and the
+    // sidebar's "Switch Workstation / Role" impossible to reach.
+    const onAccessSelection = segments[0] === '(auth)' && segments[1] === 'access-selection';
+    const inAuthGroup = segments[0] === '(auth)' && !onAccessSelection;
     const onOnboarding = segments[0] === 'onboarding';
     const needsOnboarding =
       isAuthenticated &&
@@ -176,12 +181,17 @@ function RootLayoutNav() {
       !user?.businessType;
     const needsSetup = needsOnboarding || needsBusinessType;
 
-    if (!isAuthenticated && !inAuthGroup) {
+    if (!isAuthenticated && !inAuthGroup && !onAccessSelection) {
       router.replace('/(auth)/login' as any);
     } else if (isAuthenticated && needsSetup && !onOnboarding) {
       router.replace('/onboarding' as any);
     } else if (isAuthenticated && (inAuthGroup || onOnboarding) && !needsSetup) {
-      router.replace('/(tabs)' as any);
+      // Being authenticated while still sitting on a login/register screen only happens right
+      // after signing in — a cold start with a saved session never lands in this group. That's
+      // the moment to offer the workstation choice, the same as the web app does. Staff accounts
+      // skip it: their role is already fixed by the admin, so there is nothing to choose.
+      const canChooseWorkstation = user?.accountType !== 'managed';
+      router.replace((canChooseWorkstation ? '/(auth)/access-selection' : '/(tabs)') as any);
     }
 
     SplashScreen.hideAsync().catch(() => {});

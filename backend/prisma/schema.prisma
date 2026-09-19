@@ -223,6 +223,11 @@ model Product {
   isActive          Boolean   @default(true)
   isAvailable       Boolean   @default(true)
 
+  // Per-product default discount the mobile POS applies when the item is added to a cart.
+  // Nullable: most products have no standing discount.
+  discountType      String?   // 'flat' | 'percent'
+  discountValue     Float?
+
   brand       String?
   description String?   @db.Text
   expiryDate  DateTime?

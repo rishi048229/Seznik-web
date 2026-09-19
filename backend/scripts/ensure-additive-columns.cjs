@@ -23,6 +23,82 @@ const STATEMENTS = [
   'ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "labelConfig" JSONB',
   'ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "locationConfig" JSONB',
   'ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "kotConfig" JSONB',
+
+  // Per-product default discount used by the mobile POS. Missing in production is what made
+  // every product create fail with `Unknown argument discountType`.
+  'ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "discountType" TEXT',
+  'ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "discountValue" DOUBLE PRECISION',
+
+  // Remote Printing — a sale keeps a permanent flag once its receipt was printed remotely.
+  'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "isRemotePrint" BOOLEAN NOT NULL DEFAULT false',
+  'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "lastRemotePrintJobId" TEXT',
+  'CREATE INDEX IF NOT EXISTS "Sale_userId_isRemotePrint_idx" ON "Sale"("userId", "isRemotePrint")',
+
+  // Remote Printing — per-login push target, so a job can reach one specific agent's phone.
+  `CREATE TABLE IF NOT EXISTS "DeviceToken" (
+     "id" TEXT NOT NULL,
+     "ownerUserId" TEXT NOT NULL,
+     "actorId" TEXT NOT NULL,
+     "actorName" TEXT NOT NULL,
+     "actorIsManagedUser" BOOLEAN NOT NULL DEFAULT false,
+     "expoPushToken" TEXT NOT NULL,
+     "platform" TEXT NOT NULL DEFAULT 'android',
+     "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     CONSTRAINT "DeviceToken_pkey" PRIMARY KEY ("id"),
+     CONSTRAINT "DeviceToken_ownerUserId_fkey" FOREIGN KEY ("ownerUserId")
+       REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+   )`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS "DeviceToken_expoPushToken_key" ON "DeviceToken"("expoPushToken")',
+  'CREATE INDEX IF NOT EXISTS "DeviceToken_ownerUserId_idx" ON "DeviceToken"("ownerUserId")',
+  'CREATE INDEX IF NOT EXISTS "DeviceToken_actorId_idx" ON "DeviceToken"("actorId")',
+
+  // Remote Printing — the request itself.
+  `CREATE TABLE IF NOT EXISTS "PrintJob" (
+     "id" TEXT NOT NULL,
+     "userId" TEXT NOT NULL,
+     "saleId" TEXT NOT NULL,
+     "requestedById" TEXT NOT NULL,
+     "requestedByName" TEXT NOT NULL,
+     "targetAgentId" TEXT,
+     "targetAgentName" TEXT,
+     "targetLocationId" TEXT,
+     "targetLocationName" TEXT,
+     "paperWidth" TEXT NOT NULL DEFAULT '58mm',
+     "copies" INTEGER NOT NULL DEFAULT 1,
+     "status" TEXT NOT NULL DEFAULT 'queued',
+     "failureReason" TEXT,
+     "acceptedByAgentId" TEXT,
+     "acceptedByAgentName" TEXT,
+     "expiresAt" TIMESTAMP(3) NOT NULL,
+     "respondedAt" TIMESTAMP(3),
+     "completedAt" TIMESTAMP(3),
+     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     CONSTRAINT "PrintJob_pkey" PRIMARY KEY ("id"),
+     CONSTRAINT "PrintJob_userId_fkey" FOREIGN KEY ("userId")
+       REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+     CONSTRAINT "PrintJob_saleId_fkey" FOREIGN KEY ("saleId")
+       REFERENCES "Sale"("id") ON DELETE CASCADE ON UPDATE CASCADE
+   )`,
+  'CREATE INDEX IF NOT EXISTS "PrintJob_userId_status_idx" ON "PrintJob"("userId", "status")',
+  'CREATE INDEX IF NOT EXISTS "PrintJob_userId_createdAt_idx" ON "PrintJob"("userId", "createdAt")',
+  'CREATE INDEX IF NOT EXISTS "PrintJob_targetAgentId_status_idx" ON "PrintJob"("targetAgentId", "status")',
+  'CREATE INDEX IF NOT EXISTS "PrintJob_targetLocationId_status_idx" ON "PrintJob"("targetLocationId", "status")',
+  'CREATE INDEX IF NOT EXISTS "PrintJob_saleId_idx" ON "PrintJob"("saleId")',
+
+  // Remote Printing — status-transition audit trail.
+  `CREATE TABLE IF NOT EXISTS "PrintJobEvent" (
+     "id" TEXT NOT NULL,
+     "printJobId" TEXT NOT NULL,
+     "status" TEXT NOT NULL,
+     "note" TEXT,
+     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     CONSTRAINT "PrintJobEvent_pkey" PRIMARY KEY ("id"),
+     CONSTRAINT "PrintJobEvent_printJobId_fkey" FOREIGN KEY ("printJobId")
+       REFERENCES "PrintJob"("id") ON DELETE CASCADE ON UPDATE CASCADE
+   )`,
+  'CREATE INDEX IF NOT EXISTS "PrintJobEvent_printJobId_idx" ON "PrintJobEvent"("printJobId")',
 ]
 
 async function main() {
@@ -51,6 +127,25 @@ async function main() {
     ORDER BY column_name
   `)
   console.log('Settings columns now present:', cols.map((c) => c.column_name).join(', '))
+
+  const productCols = await prisma.$queryRawUnsafe(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'Product'
+      AND column_name IN ('discountType', 'discountValue')
+    ORDER BY column_name
+  `)
+  console.log('Product discount columns now present:', productCols.map((c) => c.column_name).join(', ') || 'NONE — product create will fail')
+
+  const tables = await prisma.$queryRawUnsafe(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name IN ('DeviceToken', 'PrintJob', 'PrintJobEvent')
+    ORDER BY table_name
+  `)
+  console.log('Remote print tables now present:', tables.map((t) => t.table_name).join(', ') || 'NONE — remote printing will fail')
 }
 
 main()

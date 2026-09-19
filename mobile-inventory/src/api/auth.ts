@@ -122,9 +122,14 @@ export const authApi = {
     });
   },
 
+  /**
+   * The staff roster for this business — used by the workstation chooser to list agent accounts.
+   * Hits the same endpoint the web app uses; `/auth/users` was never a real route, so this call
+   * always 404'd and the Agent workstation silently showed up as "no agent accounts".
+   * The `:adminUid` segment is REST shape only — the backend resolves the business from the token.
+   */
   getAllUsers: async (adminUid?: string): Promise<UserProfile[]> => {
-    const query = adminUid ? `?adminUid=${adminUid}` : '';
-    return fetchApi<UserProfile[]>(`/auth/users${query}`);
+    return fetchApi<UserProfile[]>(`/auth/managed-users/${adminUid || 'me'}`);
   },
 
   setRole: async (payload: {

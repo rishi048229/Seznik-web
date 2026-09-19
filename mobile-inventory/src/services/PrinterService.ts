@@ -6171,13 +6171,39 @@ class ThermalPrinterServiceManager {
   }
 
   /**
+   * Picks the paper width a receipt is actually rendered for.
+   *
+   * Order matters, and getting it wrong is visible on paper:
+   *  1. What the caller explicitly asked for. A 58mm receipt has to stay 58mm even on a printer
+   *     whose paper is normally 80mm — previously an 80mm-capable model overrode this, so 2-inch
+   *     receipts were impossible on Rudra/Tejas.
+   *  2. A width the merchant actually chose (saved calibration / synced settings).
+   *  3. The printer's own hardware default. Rudra/Tejas are 80mm machines; falling through to the
+   *     store's generic '58mm' starting value made them render 48mm-wide content centred on 80mm
+   *     paper, which reads as "the print came out small and off to one side".
+   */
+  private resolvePaperWidth(
+    requested: '58mm' | '80mm' | undefined,
+    model: string | null | undefined,
+    savedWidth: '58mm' | '80mm',
+    savedWidthSource: 'default' | 'user'
+  ): '58mm' | '80mm' {
+    if (requested === '58mm' || requested === '80mm') return requested;
+    if (savedWidthSource === 'user') return savedWidth;
+    if (model === 'rudra' || model === 'tejas') return '80mm';
+    return savedWidth;
+  }
+
+  /**
    * Helper alias for printReceipt accepting options object with optional paperWidth
    */
   public async printSaleReceipt(
     data: PrintSaleData,
     options: ReceiptPrintOptions & { paperWidth?: '58mm' | '80mm' } = {}
   ): Promise<boolean> {
-    const { paperWidth = '58mm', ...restOptions } = options;
+    // No default here on purpose — "caller said nothing" has to stay distinguishable from
+    // "caller asked for 58mm", otherwise resolvePaperWidth can never apply the printer's own default.
+    const { paperWidth, ...restOptions } = options;
     return this.printReceipt(data, paperWidth, restOptions);
   }
 
@@ -6185,7 +6211,7 @@ class ThermalPrinterServiceManager {
    * Direct in-app thermal printing via Native Bluetooth ESC/POS module or system fallback.
    * Prints `options.copies` times sequentially (default 1) — e.g. customer + merchant copy.
    */
-  public async printReceipt(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
+  public async printReceipt(data: PrintSaleData, paperWidth?: '58mm' | '80mm', options: ReceiptPrintOptions = {}): Promise<boolean> {
     const printerState = require('../store/usePrinterStore').usePrinterStore.getState();
     const effectiveLogoSize: ReceiptSizeChip =
       options.receiptLogoSize || printerState.receiptLogoSize || 'medium';
@@ -6204,10 +6230,12 @@ class ThermalPrinterServiceManager {
       options.autoCut !== undefined ? options.autoCut : printerState.autoCut;
     const effectiveCopies = Math.max(1, options.copies || printerState.printCopies || 1);
     const currentModel = printerState.connectedPrinterModel;
-    const is80Model = currentModel === 'rudra' || currentModel === 'tejas';
-    const effectivePaperWidth = (paperWidth && paperWidth === '80mm')
-      ? '80mm'
-      : (printerState.paperWidth === '80mm' || is80Model ? '80mm' : (paperWidth || '58mm'));
+    const effectivePaperWidth = this.resolvePaperWidth(
+      paperWidth,
+      currentModel,
+      printerState.paperWidth,
+      printerState.paperWidthSource
+    );
 
     const effectiveOptions: ReceiptPrintOptions = {
       ...options,

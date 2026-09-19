@@ -58,6 +58,12 @@ interface PrinterState {
   warningText: string;
   nativeModuleAvailable: boolean;
   paperWidth: '58mm' | '80mm';
+  /**
+   * Whether `paperWidth` above is a real choice or just the store's starting value. Without this
+   * an unconfigured 80mm printer (Rudra/Tejas) is indistinguishable from one the merchant
+   * deliberately set to 58mm, so receipts printed 48mm-wide content onto 80mm paper.
+   */
+  paperWidthSource: 'default' | 'user';
   autoConnect: boolean;
   fontSize: 'small' | 'medium' | 'large';
   /** Shared receipt font library id — synced with web via printerConfig.receiptFont. */
@@ -197,6 +203,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   warningText: '',
   nativeModuleAvailable: PrinterService.isNativeModuleAvailable(),
   paperWidth: '58mm',
+  paperWidthSource: 'default',
   autoConnect: true,
   fontSize: 'medium',
   receiptFont: DEFAULT_RECEIPT_FONT,
@@ -497,7 +504,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     await get().connectDevice(device.id, device.name);
   },
 
-  setPaperWidth: (paperWidth) => set({ paperWidth }),
+  setPaperWidth: (paperWidth) => set({ paperWidth, paperWidthSource: 'user' }),
   setFontSize: (fontSize) => set({ fontSize }),
   setReceiptFont: (receiptFont) => set({ receiptFont: resolveReceiptFontId(receiptFont) }),
   setAutoConnect: (autoConnect) => {
@@ -705,7 +712,8 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   },
 
   savePrinterCalibration: async (config) => {
-    set(config);
+    // Saving calibration is an explicit choice, so the width stops being treated as a default.
+    set({ ...config, paperWidthSource: 'user' });
     setStoredPrinterCalibration({
       paperWidth: config.paperWidth,
       printDensity: config.printDensity,
@@ -815,6 +823,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         activeLabelTemplateId: localActiveLabelId !== undefined ? localActiveLabelId : get().activeLabelTemplateId,
         ...(localCalibration ? {
           paperWidth: localCalibration.paperWidth || get().paperWidth,
+          ...(localCalibration.paperWidth ? { paperWidthSource: 'user' as const } : {}),
           printDensity: typeof localCalibration.printDensity === 'number' ? localCalibration.printDensity : get().printDensity,
           topMargin: typeof localCalibration.topMargin === 'number' ? localCalibration.topMargin : get().topMargin,
           autoCut: typeof localCalibration.autoCut === 'boolean' ? localCalibration.autoCut : get().autoCut,
@@ -924,6 +933,12 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       }
       await setStoredActiveLabelTemplate(effectiveActiveLabelId);
 
+      const configHasPaperWidth =
+        printerConfig.paperWidth === '80mm' ||
+        printerConfig.paperSize === '80mm' ||
+        printerConfig.paperWidth === '58mm' ||
+        printerConfig.paperSize === '58mm';
+
       const paperFromConfig =
         printerConfig.paperWidth === '80mm' || printerConfig.paperSize === '80mm'
           ? '80mm'
@@ -943,6 +958,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
 
       set({
         paperWidth: paperFromConfig,
+        ...(configHasPaperWidth ? { paperWidthSource: 'user' as const } : {}),
         printDensity: typeof printerConfig.printDensity === 'number' ? printerConfig.printDensity : get().printDensity,
         topMargin: typeof printerConfig.topMargin === 'number' ? printerConfig.topMargin : get().topMargin,
         autoCut: typeof printerConfig.autoCut === 'boolean' ? printerConfig.autoCut : get().autoCut,

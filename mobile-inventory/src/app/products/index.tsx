@@ -1,11 +1,16 @@
-import React, { useDeferredValue, useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useRef, useState } from 'react';
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   View,
   Text,
   ScrollView,
   TextInput,
   TouchableOpacity,
-  FlatList,
   Modal,
   ActivityIndicator,
   Alert,
@@ -665,6 +670,173 @@ export default function ProductsScreen() {
 
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 14;
 
+  // The stats/categories/search block scrolls away with the grid (it is the list's header), so a
+  // compact Search button slides back in once you scroll up — otherwise search would be stranded
+  // far above the fold on a long catalog.
+  const listRef = useRef<any>(null);
+  const searchInputRef = useRef<TextInput>(null);
+  const lastScrollY = useSharedValue(0);
+  const searchBtnY = useSharedValue(-90);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      const y = event.contentOffset.y;
+      const scrolledPastHeader = y > 200;
+      const scrollingUp = y < lastScrollY.value - 2;
+      const scrollingDown = y > lastScrollY.value + 2;
+
+      if (scrolledPastHeader && scrollingUp) {
+        searchBtnY.value = withTiming(0, { duration: 200 });
+      } else if (!scrolledPastHeader || scrollingDown) {
+        searchBtnY.value = withTiming(-90, { duration: 200 });
+      }
+      lastScrollY.value = y;
+    },
+  });
+
+  const floatingSearchStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: searchBtnY.value }],
+    opacity: searchBtnY.value === 0 ? 1 : 1 + searchBtnY.value / 90,
+  }));
+
+  const handleJumpToSearch = () => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    setTimeout(() => searchInputRef.current?.focus(), 350);
+  };
+
+  // Passed as an element, never as a function component: a new component identity on every
+  // keystroke would remount the search TextInput and drop the keyboard mid-typing.
+  const listHeaderElement = (
+    <View>
+      <Text style={[styles.title, { color: theme.textPrimary }]}>
+        {kotFirst
+          ? t('menuPageTitle', 'Menu')
+          : t('productsPageTitle', 'Products & Inventory')}
+      </Text>
+
+      {/* Stat Cards 2*2 Grid */}
+      <View style={styles.statGridContainer}>
+        <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+          <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalItems', 'Total Items')}</Text>
+          <Text style={[styles.statValue, { color: theme.textPrimary }]}>{products.length}</Text>
+        </View>
+
+        {trackStock ? (
+          <>
+            <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('outOfStock', 'Out of Stock')}</Text>
+              <Text style={[styles.statValue, { color: outOfStockCount > 0 ? '#EF4444' : '#10B981' }]}>{outOfStockCount}</Text>
+            </View>
+
+            <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
+              <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#F59E0B' : '#10B981' }]}>{lowStockCount}</Text>
+            </View>
+
+            <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalStockValue', 'Total Stock Value')}</Text>
+              <Text style={[styles.statValue, { color: theme.textPrimary }]}>₹{totalStockValue.toFixed(2)}</Text>
+            </View>
+          </>
+        ) : (
+          <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('unavailable', 'Unavailable')}</Text>
+            <Text style={[styles.statValue, { color: unavailableCount > 0 ? '#EF4444' : '#10B981' }]}>
+              {unavailableCount}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Category Pills - Expandable Section */}
+      <View style={styles.categorySection}>
+        <View style={styles.categoryHeaderRow}>
+          <Text style={[styles.categorySectionTitle, { color: theme.textSecondary }]}>
+            {t('categories', 'Categories')} ({categories.length + 1})
+          </Text>
+          {categories.length > 3 && (
+            <TouchableOpacity
+              onPress={() => setCategoriesExpanded(!categoriesExpanded)}
+              style={styles.expandCategoryBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.expandCategoryBtnText, { color: BRAND_COLORS.blue600 }]}>
+                {categoriesExpanded ? t('showLess', 'Show Less') : `${t('allCategories', 'Show All')} (${categories.length + 1})`}
+              </Text>
+              {categoriesExpanded ? (
+                <ChevronUp size={13} color={BRAND_COLORS.blue600} />
+              ) : (
+                <ChevronDown size={13} color={BRAND_COLORS.blue600} />
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.categoryWrapContainer}>
+          <TouchableOpacity
+            onPress={() => setSelectedCategoryId(null)}
+            style={[
+              styles.catPill,
+              {
+                backgroundColor: !selectedCategoryId ? BRAND_COLORS.blue600 : theme.cardBg,
+                borderColor: !selectedCategoryId ? BRAND_COLORS.blue600 : theme.borderColor,
+              },
+            ]}
+          >
+            <Text style={[styles.catPillText, { color: !selectedCategoryId ? '#FFFFFF' : theme.textPrimary }]}>
+              {t('allItems', 'All Items')} ({products.length})
+            </Text>
+          </TouchableOpacity>
+
+          {(categoriesExpanded ? categories : categories.slice(0, 3)).map((c) => {
+            const selected = selectedCategoryId === c.id;
+            const count = products.filter((p) => p.categoryId === c.id).length;
+            return (
+              <TouchableOpacity
+                key={c.id}
+                onPress={() => setSelectedCategoryId(c.id)}
+                style={[
+                  styles.catPill,
+                  {
+                    backgroundColor: selected ? BRAND_COLORS.blue600 : theme.cardBg,
+                    borderColor: selected ? BRAND_COLORS.blue600 : theme.borderColor,
+                  },
+                ]}
+              >
+                <Text style={[styles.catPillText, { color: selected ? '#FFFFFF' : theme.textPrimary }]}>
+                  {c.name} {count > 0 ? `(${count})` : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Search & Camera Barcode Bar */}
+      <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+        <Search size={18} color={theme.textSecondary} />
+        <TextInput
+          ref={searchInputRef}
+          style={[styles.searchInput, { color: theme.textPrimary }]}
+          placeholder={t('searchProducts', 'Search name, barcode or SKU...')}
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        <TouchableOpacity
+          onPress={async () => {
+            if (!permission?.granted) await requestPermission();
+            setShowScanner(true);
+          }}
+          style={styles.cameraBtn}
+        >
+          <Camera size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <ScreenBackground color={theme.bg}>
     <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: topPadding }]}>
@@ -742,163 +914,50 @@ export default function ProductsScreen() {
           </ScrollView>
         </View>
 
-        <Text style={[styles.title, { color: theme.textPrimary }]}>
-          {kotFirst
-            ? t('menuPageTitle', 'Menu')
-            : t('productsPageTitle', 'Products & Inventory')}
-        </Text>
-
-        {/* Stat Cards 2*2 Grid */}
-        <View style={styles.statGridContainer}>
-          <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalItems', 'Total Items')}</Text>
-            <Text style={[styles.statValue, { color: theme.textPrimary }]}>{products.length}</Text>
-          </View>
-
-          {trackStock ? (
-            <>
-              <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('outOfStock', 'Out of Stock')}</Text>
-                <Text style={[styles.statValue, { color: outOfStockCount > 0 ? '#EF4444' : '#10B981' }]}>{outOfStockCount}</Text>
-              </View>
-
-              <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('lowStock', 'Low Stock')}</Text>
-                <Text style={[styles.statValue, { color: lowStockCount > 0 ? '#F59E0B' : '#10B981' }]}>{lowStockCount}</Text>
-              </View>
-
-              <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('totalStockValue', 'Total Stock Value')}</Text>
-                <Text style={[styles.statValue, { color: theme.textPrimary }]}>₹{totalStockValue.toFixed(2)}</Text>
-              </View>
-            </>
-          ) : (
-            <View style={[styles.statGridCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{t('unavailable', 'Unavailable')}</Text>
-              <Text style={[styles.statValue, { color: unavailableCount > 0 ? '#EF4444' : '#10B981' }]}>
-                {unavailableCount}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Category Pills - Expandable Section */}
-        <View style={styles.categorySection}>
-          <View style={styles.categoryHeaderRow}>
-            <Text style={[styles.categorySectionTitle, { color: theme.textSecondary }]}>
-              {t('categories', 'Categories')} ({categories.length + 1})
-            </Text>
-            {categories.length > 3 && (
-              <TouchableOpacity
-                onPress={() => setCategoriesExpanded(!categoriesExpanded)}
-                style={styles.expandCategoryBtn}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.expandCategoryBtnText, { color: BRAND_COLORS.blue600 }]}>
-                  {categoriesExpanded ? t('showLess', 'Show Less') : `${t('allCategories', 'Show All')} (${categories.length + 1})`}
-                </Text>
-                {categoriesExpanded ? (
-                  <ChevronUp size={13} color={BRAND_COLORS.blue600} />
-                ) : (
-                  <ChevronDown size={13} color={BRAND_COLORS.blue600} />
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.categoryWrapContainer}>
-            <TouchableOpacity
-              onPress={() => setSelectedCategoryId(null)}
-              style={[
-                styles.catPill,
-                {
-                  backgroundColor: !selectedCategoryId ? BRAND_COLORS.blue600 : theme.cardBg,
-                  borderColor: !selectedCategoryId ? BRAND_COLORS.blue600 : theme.borderColor,
-                },
-              ]}
-            >
-              <Text style={[styles.catPillText, { color: !selectedCategoryId ? '#FFFFFF' : theme.textPrimary }]}>
-                {t('allItems', 'All Items')} ({products.length})
-              </Text>
-            </TouchableOpacity>
-
-            {(categoriesExpanded ? categories : categories.slice(0, 3)).map((c) => {
-              const selected = selectedCategoryId === c.id;
-              const count = products.filter((p) => p.categoryId === c.id).length;
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  onPress={() => setSelectedCategoryId(c.id)}
-                  style={[
-                    styles.catPill,
-                    {
-                      backgroundColor: selected ? BRAND_COLORS.blue600 : theme.cardBg,
-                      borderColor: selected ? BRAND_COLORS.blue600 : theme.borderColor,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.catPillText, { color: selected ? '#FFFFFF' : theme.textPrimary }]}>
-                    {c.name} {count > 0 ? `(${count})` : ''}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Search & Camera Barcode Bar */}
-        <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-          <Search size={18} color={theme.textSecondary} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.textPrimary }]}
-            placeholder={t('searchProducts', 'Search name, barcode or SKU...')}
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <TouchableOpacity
-            onPress={async () => {
-              if (!permission?.granted) await requestPermission();
-              setShowScanner(true);
-            }}
-            style={styles.cameraBtn}
-          >
-            <Camera size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
         {/* Product Cards List (2*2 Grid) */}
         {isInitialLoading ? (
-          <ScreenLoadingState
-            message={t('loadingProducts', 'Loading products...')}
-            hint={t('loadingProductsHint', 'Fetching your inventory from the server')}
-            skeleton={<ProductsListSkeleton count={6} />}
-          />
+          <ScrollView>
+            {listHeaderElement}
+            <ScreenLoadingState
+              message={t('loadingProducts', 'Loading products...')}
+              hint={t('loadingProductsHint', 'Fetching your inventory from the server')}
+              skeleton={<ProductsListSkeleton count={6} />}
+            />
+          </ScrollView>
         ) : !contentReady ? (
-          <ProductsListSkeleton count={6} />
+          <ScrollView>
+            {listHeaderElement}
+            <ProductsListSkeleton count={6} />
+          </ScrollView>
         ) : isError ? (
-          <View style={{ padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: theme.textPrimary, fontWeight: '800', fontSize: 15, textAlign: 'center' }}>
-              Could not load products from server
-            </Text>
-            <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8, textAlign: 'center', lineHeight: 18 }}>
-              {(error as Error)?.message || 'Check that the backend is running and your phone is on the same network.'}
-            </Text>
-            <TouchableOpacity
-              onPress={() => refetchProducts()}
-              style={{ marginTop: 16, backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 }}
-            >
-              <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Retry</Text>
-            </TouchableOpacity>
-          </View>
+          <ScrollView>
+            {listHeaderElement}
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <Text style={{ color: theme.textPrimary, fontWeight: '800', fontSize: 15, textAlign: 'center' }}>
+                Could not load products from server
+              </Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8, textAlign: 'center', lineHeight: 18 }}>
+                {(error as Error)?.message || 'Check that the backend is running and your phone is on the same network.'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => refetchProducts()}
+                style={{ marginTop: 16, backgroundColor: BRAND_COLORS.blue600, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 }}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         ) : (
-          <FlatList
+          <Animated.FlatList
             key="products-2col-grid"
+            ref={listRef}
             data={filteredProducts}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item: any) => item.id}
             numColumns={2}
             columnWrapperStyle={styles.gridColumnWrapper}
+            ListHeaderComponent={listHeaderElement}
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
             initialNumToRender={10}
             maxToRenderPerBatch={10}
             windowSize={5}
@@ -1027,6 +1086,23 @@ export default function ProductsScreen() {
           />
         )}
       </View>
+
+      {/* Slides back in when you scroll up, so search is always one tap away on a long catalog */}
+      <Animated.View style={[styles.floatingSearchWrap, { top: topPadding + 4 }, floatingSearchStyle]} pointerEvents="box-none">
+        <TouchableOpacity
+          onPress={handleJumpToSearch}
+          activeOpacity={0.9}
+          style={[styles.floatingSearchBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+        >
+          <Search size={16} color={theme.textSecondary} />
+          <Text style={[styles.floatingSearchText, { color: theme.textSecondary }]} numberOfLines={1}>
+            {searchQuery ? searchQuery : t('searchProducts', 'Search name, barcode or SKU...')}
+          </Text>
+          <View style={styles.floatingSearchCamera}>
+            <Camera size={14} color="#FFFFFF" />
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* SCAN TO UPDATE STOCK HUD MODAL */}
       <Modal visible={showStockScanMode && trackStock} animationType="slide">
@@ -2125,6 +2201,23 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14 },
   cameraBtn: { backgroundColor: BRAND_COLORS.sky500, padding: 8, borderRadius: 10 },
+  floatingSearchWrap: { position: 'absolute', left: 16, right: 16, zIndex: 40 },
+  floatingSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  floatingSearchText: { flex: 1, fontSize: 13.5 },
+  floatingSearchCamera: { backgroundColor: BRAND_COLORS.sky500, padding: 6, borderRadius: 9 },
   gridColumnWrapper: { gap: 10, marginBottom: 10 },
   compactCard: {
     flex: 1,

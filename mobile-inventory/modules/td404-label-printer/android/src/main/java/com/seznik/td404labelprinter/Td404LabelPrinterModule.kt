@@ -269,12 +269,24 @@ class Td404LabelPrinterModule : Module() {
         val gapType = finiteInt(spec["gapType"], 2) // 0 = continuous, 2 = gap
         val copies = finiteInt(spec["copies"], 1).coerceAtLeast(1)
 
-        val bmp = buildLabelBitmap(spec, widthMm, heightMm)
+        // addSize/addGap are whole-millimetre only in this SDK, so a fractional label size can
+        // never be sent as-is. Round once here and rasterize the bitmap to the SAME rounded
+        // numbers: if the canvas were built from the raw value while the firmware was told the
+        // rounded one, every label would be off by that difference and the error would compound
+        // down the roll, which is exactly how die-cut labels drift out of alignment.
+        val isContinuous = gapType == 0
+        val tscWidthMm = if (isContinuous && widthMm >= 75.0) 72
+          else if (isContinuous && widthMm >= 55.0) 48
+          else widthMm.roundToInt().coerceAtLeast(1)
+        val tscHeightMm = heightMm.roundToInt().coerceAtLeast(1)
+        val tscGapMm = if (isContinuous) 0 else gapMm.roundToInt().coerceAtLeast(2)
+
+        // The canvas is rasterized to exactly the geometry the firmware is told about.
+        val bmp = buildLabelBitmap(spec, tscWidthMm.toDouble(), tscHeightMm.toDouble(), canvasIsResolved = true)
         val tsc = LabelCommand()
         tsc.addUserCommand("\r\n")
-        val tscWidthMm = if (gapType == 0 && widthMm >= 75.0) 72 else if (gapType == 0 && widthMm >= 55.0) 48 else widthMm.toInt()
-        tsc.addSize(tscWidthMm, heightMm.toInt())
-        tsc.addGap(if (gapType == 0) 0 else gapMm.toInt().coerceAtLeast(2))
+        tsc.addSize(tscWidthMm, tscHeightMm)
+        tsc.addGap(tscGapMm)
         // Default FORWARD orientation prints upright feed without 180-degree flipping
         val dir = if (finiteInt(spec["direction"], 0) == 1) LabelCommand.DIRECTION.BACKWARD else LabelCommand.DIRECTION.FORWARD
         tsc.addDirection(dir, LabelCommand.MIRROR.NORMAL)
@@ -510,14 +522,23 @@ class Td404LabelPrinterModule : Module() {
   // ---------------------------------------------------------------------------------------
   // Label Spec Canvas Rasterizer (Pixel-Perfect Alignment at 203 DPI)
   // ---------------------------------------------------------------------------------------
+  /**
+   * @param canvasIsResolved true when the caller already resolved `widthMm` to the exact printable
+   *   width it told the firmware about (see printLabel). Passing an already-resolved 72mm back
+   *   through the continuous branches below would re-match the `>= 55` rule and silently halve an
+   *   80mm receipt to 48mm, so a resolved width must be used verbatim.
+   */
   private fun buildLabelBitmap(
     spec: Map<String, Any?>,
     widthMm: Double,
     heightMm: Double,
-    headMm: Double = 80.0
+    headMm: Double = 80.0,
+    canvasIsResolved: Boolean = false
   ): Bitmap {
     val isContinuous = finiteInt(spec["gapType"], 2) == 0
-    val printWmm = if (isContinuous && widthMm >= 75.0) {
+    val printWmm = if (canvasIsResolved) {
+      minOf(widthMm, headMm)
+    } else if (isContinuous && widthMm >= 75.0) {
       72.0 // 576 dots active head for 80mm roll
     } else if (isContinuous && widthMm >= 55.0) {
       48.0 // 384 dots active head for 58mm roll
@@ -525,7 +546,9 @@ class Td404LabelPrinterModule : Module() {
       minOf(widthMm, headMm)
     }
     val printHmm = heightMm
-    val fit = if (widthMm > 0 && !isContinuous) (minOf(widthMm, headMm) / widthMm) else 1.0
+    // Only scale when the stock is genuinely wider than the print head; a label that already fits
+    // must be drawn 1:1 or every coordinate lands slightly short of where it was authored.
+    val fit = if (!isContinuous && widthMm > headMm) (headMm / widthMm) else 1.0
 
     val wPx = (printWmm * DOTS_PER_MM).toInt().coerceAtLeast(64)
     val alignedWPx = (wPx + 7) / 8 * 8
