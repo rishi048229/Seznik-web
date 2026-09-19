@@ -35,6 +35,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { SidebarDrawer } from '@/components/ui/SidebarDrawer';
 import { SalesListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
+import { RemoteSaleBadge } from '@/components/ui/RemoteSaleBadge';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
@@ -202,6 +203,7 @@ export default function SalesHistoryTabScreen() {
                           {formatPayment(item.paymentMethod)}
                         </Text>
                       </View>
+                      {item.isRemotePrint ? <RemoteSaleBadge compact /> : null}
                     </View>
 
                     {item.customerName && item.customerName !== 'Walk-in Customer' && (

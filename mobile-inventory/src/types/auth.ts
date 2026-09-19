@@ -6,6 +6,7 @@ export interface UserPermissions {
   canAccessReports?: boolean;
   canManageUsers?: boolean;
   canAccessKOT?: boolean;
+  canSendRemotePrint?: boolean;
   [key: string]: boolean | undefined;
 }
 
@@ -46,6 +47,8 @@ export interface LoginPayload {
 
 /** A staff sub-account created by an admin — serializeManagedUser's shape in authController.ts. */
 export interface ManagedUser {
+  /** Primary key — matches the JWT subject id this staff member logs in with. */
+  id: string;
   uid: string;
   displayName?: string | null;
   email?: string | null;

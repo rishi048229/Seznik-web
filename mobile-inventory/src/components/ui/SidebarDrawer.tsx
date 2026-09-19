@@ -36,6 +36,7 @@ import {
   FileText,
   MessageSquareHeart,
   Sparkles,
+  Send,
 } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -205,6 +206,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
         { id: 'quick-print', label: t('quickPrint', 'Text to Thermal Print'), icon: FileText, route: '/printers/quick-print' },
         { id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, route: '/a4-to-receipt' },
+        { id: 'print-jobs', label: t('remotePrint', 'Remote Print Requests'), icon: Send, route: '/print-jobs' },
       ],
     },
     ...(supplierItems.length > 0

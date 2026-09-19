@@ -80,6 +80,7 @@ export interface DaybookTransaction {
   isCredit: boolean;
   description: string;
   createdAt: string;
+  isRemotePrint?: boolean;
 }
 
 export interface GstProductDetail {

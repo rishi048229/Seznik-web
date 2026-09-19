@@ -4113,7 +4113,7 @@ class ThermalPrinterServiceManager {
 
   /**
    * Prints a formatted thermal sale receipt on a connected TD-404 printer (SEZNIK RUDRA / TEJAS)
-   * in continuous roll mode (gapType: 0), supporting 80mm & 58mm widths.
+   * in continuous roll mode (gapType: 0), supporting 80mm (48-col / 576 dots) & 58mm (32-col / 384 dots) widths.
    */
   public async printReceiptViaTd404(
     data: PrintSaleData,
@@ -4123,15 +4123,15 @@ class ThermalPrinterServiceManager {
     if (!Td404LabelPrinter) return false;
 
     const is80 = paperWidth === '80mm';
-    const printableWidth = is80 ? 72 : 48;
+    const printableWidth = is80 ? 72 : 48; // 72mm active head (576 dots) for 80mm, 48mm active head (384 dots) for 58mm
     const elements: JoshLabelElement[] = [];
-    let y = is80 ? 5 : 4;
+    let y = is80 ? 4 : 3;
 
     // 1. Store Logo
     const logoUrl = data.storeLogoUrl || options.storeLogoUrl;
     if (logoUrl) {
-      const logoW = Math.min(printableWidth * 0.65, is80 ? 46 : 30);
-      const logoH = logoW * 0.65;
+      const logoW = Math.min(printableWidth * 0.65, is80 ? 48 : 32);
+      const logoH = logoW * 0.6;
       elements.push({
         type: 'image',
         uri: logoUrl,
@@ -4140,7 +4140,7 @@ class ThermalPrinterServiceManager {
         width: logoW,
         height: logoH,
       });
-      y += logoH + (is80 ? 3 : 2);
+      y += logoH + (is80 ? 2.5 : 2.0);
     }
 
     // 2. Generate formatted receipt text
@@ -4149,11 +4149,13 @@ class ThermalPrinterServiceManager {
     const colsTarget = is80 ? 48 : 32;
     const dividerDouble = '='.repeat(colsTarget);
     const dividerSingle = '-'.repeat(colsTarget);
+    // Base font height: 2.5mm = 20px at 203 DPI, exactly 12.0 dots per monospace char (48 * 12 = 576 dots / 72mm)
+    const baseFontH = 2.5;
 
     for (const rawLine of lines) {
       const trimmed = rawLine.trim();
       if (!trimmed) {
-        y += is80 ? 2.4 : 2.0;
+        y += is80 ? 2.0 : 1.8;
         continue;
       }
       if (/^[=-]{8,}$/.test(trimmed)) {
@@ -4164,13 +4166,13 @@ class ThermalPrinterServiceManager {
           x: 0,
           y,
           width: printableWidth,
-          fontHeight: is80 ? 2.4 : 2.0,
+          fontHeight: baseFontH,
           bold: false,
-          align: 1,
+          align: 1, // Center
           fontFamily: 'monospace',
           monospace: true,
         });
-        y += is80 ? 3.4 : 3.0;
+        y += is80 ? 3.0 : 2.8;
         continue;
       }
 
@@ -4179,14 +4181,14 @@ class ThermalPrinterServiceManager {
         const leftPart = colMatch[1];
         const rightPart = colMatch[2];
         const isTotalLine = /^(total|grand\s*total|net\s*payable|amount\s*paid|balance)/i.test(leftPart.trim());
-        const fontH = isTotalLine ? (is80 ? 4.2 : 3.6) : (options.fontSize === 'large' ? (is80 ? 3.6 : 3.2) : (is80 ? 3.0 : 2.7));
+        const fontH = isTotalLine ? (is80 ? 3.6 : 3.2) : baseFontH;
 
         elements.push({
           type: 'text',
           value: leftPart.trim(),
           x: 0,
           y,
-          width: printableWidth * (is80 ? 0.70 : 0.65),
+          width: printableWidth * 0.65,
           fontHeight: fontH,
           bold: isTotalLine,
           align: 0,
@@ -4205,13 +4207,13 @@ class ThermalPrinterServiceManager {
           fontFamily: 'monospace',
           monospace: true,
         });
-        y += fontH + (is80 ? 1.4 : 1.2);
+        y += fontH + (is80 ? 1.2 : 1.0);
         continue;
       }
 
       const isCentered = rawLine.startsWith('    ') || rawLine.startsWith('\t');
       const isHeader = y < 35 && /^[A-Z0-9\s.,&-]{4,}$/.test(trimmed);
-      const fontH = isHeader ? (is80 ? 4.2 : 3.8) : (options.fontSize === 'large' ? (is80 ? 3.6 : 3.2) : (is80 ? 3.0 : 2.7));
+      const fontH = isHeader ? (is80 ? 3.8 : 3.4) : (options.fontSize === 'large' ? 3.2 : baseFontH);
 
       elements.push({
         type: 'text',
@@ -4225,13 +4227,13 @@ class ThermalPrinterServiceManager {
         fontFamily: 'monospace',
         monospace: true,
       });
-      y += fontH + (is80 ? 1.2 : 1.0);
+      y += fontH + (is80 ? 1.1 : 0.9);
     }
 
     // 3. Payment QR Code (UPI)
     const upiPayload = this.upiPayPayload(data);
     if (upiPayload && (options as any).enableBillQrCode !== false) {
-      const qrSide = Math.min(is80 ? 36 : 28, printableWidth * 0.55);
+      const qrSide = Math.min(is80 ? 32 : 24, printableWidth * 0.52);
       y += 2;
       elements.push({
         type: 'qrcode',
@@ -4245,11 +4247,11 @@ class ThermalPrinterServiceManager {
       y += qrSide + 2;
       elements.push({
         type: 'text',
-        value: 'Scan & Pay via UPI',
+        value: 'SCAN TO PAY VIA UPI',
         x: 0,
         y,
         width: printableWidth,
-        fontHeight: is80 ? 2.6 : 2.3,
+        fontHeight: is80 ? 2.5 : 2.2,
         bold: true,
         align: 1,
         fontFamily: 'monospace',
@@ -4272,6 +4274,41 @@ class ThermalPrinterServiceManager {
       darkness: 15,
       elements,
     });
+  }
+
+  /**
+   * Universal Receipt Alignment Self-Test Pattern for Rudra / 80mm & 58mm Thermal Printers.
+   * Prints full outer boundary, millimeter ruler, 32/48-col grid alignment, and UPI QR verification.
+   */
+  public async printCalibrationReceiptTest(paperWidth: '58mm' | '80mm' = '80mm'): Promise<boolean> {
+    const is80 = paperWidth === '80mm';
+    const printableWidth = is80 ? 72 : 48;
+    const cols = is80 ? 48 : 32;
+
+    const dummyData: PrintSaleData = {
+      invoiceNumber: 'CALIB-80MM-001',
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      storeName: 'SEZNIK RUDRA CALIBRATION',
+      storeAddress: 'Standard 80mm & 58mm Thermal Receipt Test',
+      storePhone: '+91 98765 43210',
+      storeGstin: '27AAAAA0000A1Z5',
+      customerName: 'Self-Test Pass',
+      items: [
+        { productName: 'Printhead Width Full Span', quantity: 1, unit: 'Pc', unitPrice: 100.0, total: 100.0, gstRate: 18 },
+        { productName: '48-Column Monospace Grid', quantity: 1, unit: 'Pc', unitPrice: 250.0, total: 250.0, gstRate: 18 },
+      ],
+      subtotal: 350.0,
+      totalDiscount: 0,
+      totalTax: 63.0,
+      grandTotal: 413.0,
+      amountPaid: 413.0,
+      changeReturned: 0,
+      paymentMethod: 'CASH',
+      footerMessage: 'Alignment Verified: Edge-to-Edge Grid OK',
+    };
+
+    return await this.printReceipt(dummyData, paperWidth, { copies: 1, includeBillQr: true });
   }
 
   /**
@@ -5120,6 +5157,20 @@ class ThermalPrinterServiceManager {
   public async printLabelFromTemplate(product: Product, template: LabelTemplate, copies: number = 1, labelGapMm: number = 2): Promise<boolean> {
     const labelKind = await this.getConnectedLabelPrinterKind();
     console.log(`[PATH] printLabelFromTemplate: labelKind=${labelKind}`);
+    if (labelKind === 'td404') {
+      console.log('[PATH] -> printSpecOnLabelPrinter (TD404 TSPL bridge)');
+      const elements = await this.buildJoshElementsForTemplate(product, template, 1);
+      const spec: JoshLabelSpec = {
+        widthMm: this.safeMm(template.widthMm, 50),
+        heightMm: this.safeMm(template.heightMm, 30),
+        rotation: 0,
+        copies,
+        gapMm: this.safeMm(labelGapMm, 2),
+        gapType: this.getLabelPaperMode() === 'continuous' ? 0 : 2,
+        elements,
+      };
+      return await this.printSpecOnLabelPrinter(spec);
+    }
     if (labelKind === 'josh') {
       console.log('[PATH] -> printLabelViaJosh (LPAPI)');
       return await this.printLabelViaJosh(product, template, copies, labelGapMm);
@@ -5614,6 +5665,19 @@ class ThermalPrinterServiceManager {
 
     // Check for dedicated label printers
     const labelKind = await this.getConnectedLabelPrinterKind();
+    if (labelKind === 'td404') {
+      const spec = this.buildAutoLabelSpec(
+        product,
+        rawCode,
+        format,
+        labelWidthMm,
+        labelHeightMm,
+        labelGapMm,
+        safeCopies,
+        this.getLabelPaperMode() === 'continuous' ? 0 : 2
+      );
+      return await this.printSpecOnLabelPrinter(spec);
+    }
     if (labelKind === 'josh') {
       return await this.printAutoLabelViaJosh(
         product,
@@ -6173,8 +6237,8 @@ class ThermalPrinterServiceManager {
 
     try {
       // 1. Direct TD-404 (SEZNIK RUDRA / TEJAS) continuous roll printing
-      const currentModel = require('../store/usePrinterStore').usePrinterStore.getState().connectedPrinterModel;
-      if (currentModel === 'rudra' || currentModel === 'tejas' || (currentModel !== 'dev' && currentModel !== 'veer' && currentModel !== 'other' && currentModel !== 'josh' && (await this.td404IsConnected()))) {
+      const isTd404Active = currentModel === 'rudra' || currentModel === 'tejas' || (await this.td404IsConnected());
+      if (isTd404Active) {
         try {
           const ok = await this.printReceiptViaTd404(saleData, effectivePaperWidth, {
             ...effectiveOptions,
@@ -6183,10 +6247,9 @@ class ThermalPrinterServiceManager {
           if (ok) return true;
         } catch (td404Err: any) {
           console.error('TD-404 receipt print error:', td404Err);
-          if (currentModel === 'rudra' || currentModel === 'tejas') {
-            throw td404Err;
-          }
+          throw td404Err;
         }
+        return false;
       }
 
       // 2. Direct Josh Printer support (LPAPI / continuous roll)
@@ -6985,6 +7048,11 @@ class ThermalPrinterServiceManager {
     // linked label printer, a TSPL test would "pass" on the receipt printer while
     // telling the user nothing about the device their labels actually go to.
     const labelKind = await this.getConnectedLabelPrinterKind();
+    if (labelKind === 'td404') {
+      const rawCode = item.barcode || '8901234567890';
+      const spec = this.buildAutoLabelSpec(item, rawCode, format, labelWidthMm, labelHeightMm, labelGapMm);
+      return await this.printSpecOnLabelPrinter(spec);
+    }
     if (labelKind === 'josh') {
       return await this.printAutoLabelViaJosh(
         item,

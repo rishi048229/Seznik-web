@@ -41,6 +41,8 @@ import printerLogRoutes from './routes/printerLogRoutes';
 import saleReturnRoutes from './routes/saleReturnRoutes';
 import saleExchangeRoutes from './routes/saleExchangeRoutes';
 import purchaseReturnRoutes from './routes/purchaseReturnRoutes';
+import deviceTokenRoutes from './routes/deviceTokenRoutes';
+import printJobRoutes from './routes/printJobRoutes';
 import { trackApiUsage } from './middlewares/apiUsageMiddleware';
 const app = express();
 
@@ -129,6 +131,8 @@ app.use('/api/printer-logs', printerLogRoutes);
 app.use('/api/sale-returns', saleReturnRoutes);
 app.use('/api/sale-exchanges', saleExchangeRoutes);
 app.use('/api/purchase-returns', purchaseReturnRoutes);
+app.use('/api/device-tokens', deviceTokenRoutes);
+app.use('/api/print-jobs', printJobRoutes);
 app.use(publicReceiptRoutes);
 
 // 5. Comprehensive Server & Database Health Check Endpoint

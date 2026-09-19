@@ -51,6 +51,10 @@ export interface Sale {
   returnStatus?: 'none' | 'partial' | 'full';
   totalRefunded?: number;
 
+  /** True once this sale's receipt has been fulfilled at least once via Remote Print. */
+  isRemotePrint?: boolean;
+  lastRemotePrintJobId?: string | null;
+
   // Delivery & Fulfillment fields
   orderType?: OrderType;
   deliveryAddress?: string | null;

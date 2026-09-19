@@ -86,6 +86,8 @@ import {
   subscribeToNotificationResponses,
   handleNotificationNavigation,
 } from '@/services/notificationService';
+import { registerPushTokenWithBackend } from '@/services/pushRegistration';
+import { IncomingPrintRequestBanner } from '@/components/printers/IncomingPrintRequestBanner';
 
 
 function AppDataPrefetcher() {
@@ -151,7 +153,10 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isAuthenticated) {
       usePrinterStore.getState().hydrateFromSettings().catch(() => {});
-
+      // Registers this device's Expo push token so it can actually receive pushes (Remote Print
+      // requests, low-stock alerts, etc.) — must run on every login, not just once ever, since a
+      // fresh install or a different account on the same phone needs its own registration.
+      registerPushTokenWithBackend().catch(() => {});
     }
   }, [isAuthenticated]);
 
@@ -206,6 +211,8 @@ function RootLayoutNav() {
       </Stack>
       {/* Global custom themed alert popup matching app design system */}
       <CustomAlertModal />
+      {/* Surfaces an incoming remote print request from any screen, in case the push didn't land */}
+      {isAuthenticated && <IncomingPrintRequestBanner />}
     </ThemeProvider>
   );
 }

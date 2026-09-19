@@ -56,6 +56,17 @@ export async function registerPushTokenWithBackend(): Promise<string | null> {
               method: 'POST',
               body: JSON.stringify({ pushToken }),
             });
+            // Per-login device registration (works for ManagedUser/agent logins too, unlike the
+            // Settings-based broadcast pool above) — used to target Remote Print jobs at exactly
+            // one agent's phone. Additive: failure here must never break the broadcast path.
+            try {
+              await fetchApi('/device-tokens/register', {
+                method: 'POST',
+                body: JSON.stringify({ expoPushToken: pushToken, platform: Platform.OS }),
+              });
+            } catch (_deviceTokenErr) {
+              // Non-fatal — Remote Print delivery to this device just won't work until it succeeds.
+            }
             isRegistered = true;
             lastRegisteredToken = pushToken;
           }

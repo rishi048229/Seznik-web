@@ -57,6 +57,7 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { DaybookSkeleton, RemindersListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
+import { RemoteSaleBadge } from '@/components/ui/RemoteSaleBadge';
 import { useLanguageStore } from '@/store/useLanguageStore';
 
 type AgeingBucket = '0-7' | '8-15' | '16-30' | '30+';
@@ -602,7 +603,10 @@ export default function CreditsDaybookScreen() {
               daybook!.transactions.map((tx, idx) => (
                 <View key={idx} style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.txTitle, { color: theme.textPrimary }]}>{tx.description}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                      <Text style={[styles.txTitle, { color: theme.textPrimary }]}>{tx.description}</Text>
+                      {tx.isRemotePrint ? <RemoteSaleBadge compact /> : null}
+                    </View>
                     <Text style={[styles.txDate, { color: theme.textSecondary }]}>
                       {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>

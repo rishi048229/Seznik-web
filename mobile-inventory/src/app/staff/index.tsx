@@ -113,6 +113,15 @@ const PERMISSION_FIELDS: {
     chipKey: 'chipKot',
     chip: 'KOT',
   },
+  {
+    key: 'canSendRemotePrint',
+    labelKey: 'permSendRemotePrint',
+    label: 'Send remote print requests',
+    hintKey: 'permSendRemotePrintHint',
+    hint: 'Send a receipt to another staff member\'s phone to print',
+    chipKey: 'chipRemotePrint',
+    chip: 'Remote Print',
+  },
 ];
 
 const EMPTY_PERMISSIONS: UserPermissions = {
@@ -123,6 +132,7 @@ const EMPTY_PERMISSIONS: UserPermissions = {
   canAccessReports: false,
   canManageUsers: false,
   canAccessKOT: false,
+  canSendRemotePrint: false,
 };
 
 const FULL_PERMISSIONS: UserPermissions = {
@@ -133,6 +143,7 @@ const FULL_PERMISSIONS: UserPermissions = {
   canAccessReports: true,
   canManageUsers: true,
   canAccessKOT: true,
+  canSendRemotePrint: true,
 };
 
 function staffInitials(name: string | null | undefined) {

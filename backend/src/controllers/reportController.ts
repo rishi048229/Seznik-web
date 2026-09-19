@@ -798,6 +798,7 @@ export const getDaybook = async (req: Request, res: Response) => {
       isCredit: boolean;
       description: string;
       createdAt: string;
+      isRemotePrint?: boolean;
     }> = [];
 
     sales.forEach((s: any) => {
@@ -807,6 +808,7 @@ export const getDaybook = async (req: Request, res: Response) => {
         isCredit: s.paymentMethod === 'credit',
         description: `Sale ${s.invoiceNumber || ''} (${s.paymentMethod.toUpperCase()})`,
         createdAt: s.createdAt.toISOString(),
+        isRemotePrint: !!s.isRemotePrint,
       });
     });
 

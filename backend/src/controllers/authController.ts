@@ -952,6 +952,11 @@ export const updateBusinessType = async (req: Request, res: Response) => {
 // managed users are configuration only (role + permission flags + password).
 
 const serializeManagedUser = (m: any) => ({
+  // The primary key — this is what generateToken() signs as the JWT subject at login, and what
+  // Remote Print's targetAgentId must match. `uid` below is a separate, older field (originally
+  // for Firebase migration) that every other existing caller of this roster already keys off of —
+  // kept as-is, `id` is purely additive.
+  id: m.id,
   uid: m.uid,
   displayName: m.displayName,
   email: m.email,

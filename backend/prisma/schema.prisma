@@ -58,6 +58,8 @@ model User {
   saleExchanges         SaleExchange[]
   purchaseReturns       PurchaseReturn[]
   supplierTransactions  SupplierTransaction[]
+  deviceTokens          DeviceToken[]
+  printJobs             PrintJob[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -297,12 +299,21 @@ model Sale {
   paymentStatus         String    @default("paid") // 'paid' | 'pending' | 'partial'
   paymentDueDate        DateTime?
 
+  // Set true the first time any PrintJob against this sale reaches 'completed'. A simple,
+  // permanent "this receipt was fulfilled via remote printing at least once" flag for the Sales
+  // page / Daybook badge — deliberately not trying to track every reprint's own state here;
+  // printJobs below has the full history if that's ever needed.
+  isRemotePrint         Boolean   @default(false)
+  lastRemotePrintJobId  String?
+  printJobs             PrintJob[]
+
   createdAt      DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, customerId])
   @@index([userId, orderType, deliveryStatus])
   @@index([userId, paymentStatus])
+  @@index([userId, isRemotePrint])
 }
 
 model Location {
@@ -790,6 +801,94 @@ model PurchaseReturn {
   @@index([userId, createdAt])
   @@index([purchaseId])
   @@index([supplierId])
+}
+
+/// One row per logged-in device/person that can receive a push notification — deliberately
+/// separate from Settings.notificationConfig.pushTokens, which is ONE shared pool per business
+/// (max 5 tokens, no distinction between the owner and any staff/ManagedUser login) and was never
+/// built to target a specific person. Settings.userId also has a strict FK to User, so a
+/// ManagedUser (the model real field agents already use) registering a token there hits a foreign
+/// key violation today. This table is additive: existing broadcast-style pushes (low stock, credit
+/// due, etc.) keep using Settings untouched; only remote-print targeting uses this.
+model DeviceToken {
+  id                 String   @id @default(uuid())
+  ownerUserId        String   // business scope (getOwnerUserId) — lets the owner list "all agent devices at this business"
+  owner              User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  actorId            String   // raw JWT subject id — a User.id (owner) or a ManagedUser.id (agent/staff), whichever actually owns this device
+  actorName          String   // snapshotted display name, so history/UI reads correctly even if the account is later renamed
+  actorIsManagedUser Boolean  @default(false)
+  expoPushToken      String   @unique
+  platform           String   @default("android") // 'android' | 'ios'
+  lastSeenAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  @@index([ownerUserId])
+  @@index([actorId])
+}
+
+/// A request to print an already-created Sale's receipt on a field agent's printer, sent by an
+/// admin (owner or a permitted ManagedUser) from anywhere. See PrintJobEvent for the full
+/// status-transition audit trail.
+model PrintJob {
+  id                  String          @id @default(uuid())
+  userId              String          // business scope (getOwnerUserId)
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  saleId              String
+  sale                Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  // Plain string ids, not a Prisma relation, matching Sale.locationId's existing convention —
+  // either side can be a User (owner) or ManagedUser (agent/staff) id, which Prisma can't express
+  // as a single FK. Names are snapshotted at creation for stable history.
+  requestedById       String
+  requestedByName     String
+
+  targetAgentId       String?
+  targetAgentName     String?
+  targetLocationId    String?
+  targetLocationName  String?
+
+  paperWidth          String          @default("58mm") // '58mm' | '80mm' — matches PrinterService's paperWidth type
+  copies              Int             @default(1)
+
+  // 'queued' | 'delivered' | 'accepted' | 'rejected' | 'printer_connect_pending' | 'printing'
+  // | 'completed' | 'failed' | 'expired' | 'cancelled'
+  status              String          @default("queued")
+  failureReason       String?
+
+  // Which specific agent actually accepted — relevant when targetLocationId was used instead of
+  // a specific targetAgentId (first-accept-wins across everyone at that location).
+  acceptedByAgentId   String?
+  acceptedByAgentName String?
+
+  expiresAt           DateTime        // createdAt + response window; checked lazily at read time, not a background timer (see Step 6 reasoning: PM2 cluster mode would run a setInterval on every worker redundantly)
+  respondedAt         DateTime?
+  completedAt         DateTime?
+
+  events              PrintJobEvent[]
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@index([targetAgentId, status])
+  @@index([targetLocationId, status])
+  @@index([saleId])
+}
+
+/// Full audit history of a PrintJob's status transitions — a real child table rather than a JSON
+/// blob on PrintJob, matching how StockHistory/CreditTransaction already record change history
+/// elsewhere in this schema, and so it stays queryable/exportable for the audit trail Step 7 asks for.
+model PrintJobEvent {
+  id         String   @id @default(uuid())
+  printJobId String
+  printJob   PrintJob @relation(fields: [printJobId], references: [id], onDelete: Cascade)
+  status     String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([printJobId])
 }
 
 

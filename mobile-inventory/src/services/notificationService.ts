@@ -147,6 +147,16 @@ export async function initializeNotificationChannel(): Promise<void> {
       enableVibrate: true,
       showBadge: true,
     });
+    await Notifications.setNotificationChannelAsync('remote-print', {
+      name: 'Remote Print Requests',
+      description: 'A receipt was sent to this phone to print — tap to accept or decline.',
+      importance: Notifications.AndroidImportance?.MAX ?? 5,
+      vibrationPattern: [0, 300, 150, 300],
+      lightColor: '#2563EB',
+      enableLights: true,
+      enableVibrate: true,
+      showBadge: true,
+    });
     isChannelInitialized = true;
   } catch (err) {
     console.warn('[NotificationService] Failed to set Android notification channel:', err);

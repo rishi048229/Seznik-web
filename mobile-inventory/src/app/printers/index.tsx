@@ -534,6 +534,54 @@ export default function PrintersScreen() {
     }
   };
 
+  const [isCalibratingReceipt, setIsCalibratingReceipt] = useState(false);
+  const handlePrintReceiptCalibration = async () => {
+    try {
+      setIsCalibratingReceipt(true);
+      const width = paperWidthVal === 80 ? '80mm' : '58mm';
+      const ok = await ThermalPrinterService.printCalibrationReceiptTest(width);
+      if (ok) {
+        Alert.alert('Calibration Test Sent', `Printed ${width} receipt alignment test slip.`);
+      } else {
+        Alert.alert('Print Error', 'Could not send test print to printer. Ensure printer is connected.');
+      }
+    } catch (e: any) {
+      Alert.alert('Calibration Error', e?.message || 'Could not print calibration slip.');
+    } finally {
+      setIsCalibratingReceipt(false);
+    }
+  };
+
+  const [isCalibratingLabel, setIsCalibratingLabel] = useState(false);
+  const handlePrintLabelCalibration = async () => {
+    try {
+      setIsCalibratingLabel(true);
+      const ok = await ThermalPrinterService.printAlignmentSelfTest(3, labelWidthMm, labelHeightMm, labelGapMm);
+      if (ok) {
+        Alert.alert('Label Test Sent', `Printed 3 calibration labels (${labelWidthMm}x${labelHeightMm}mm) with ruler & border box.`);
+      } else {
+        Alert.alert('Print Error', 'Could not send test print. Ensure label printer is connected.');
+      }
+    } catch (e: any) {
+      Alert.alert('Calibration Error', e?.message || 'Could not print label calibration pattern.');
+    } finally {
+      setIsCalibratingLabel(false);
+    }
+  };
+
+  const handleLabelHardwareCalibrate = async () => {
+    try {
+      const ok = await ThermalPrinterService.td404Calibrate();
+      if (ok) {
+        Alert.alert('Sensor Calibrated', 'Printer gap sensor calibration triggered.');
+      } else {
+        Alert.alert('Calibrate Failed', 'Could not trigger hardware calibration.');
+      }
+    } catch (e: any) {
+      Alert.alert('Calibration Error', e?.message || 'Hardware calibration failed.');
+    }
+  };
+
   const printOptions: ReceiptPrintOptions = buildTestReceiptPrintOptions({
     activeTemplateId,
     customTemplates,
@@ -1331,11 +1379,49 @@ export default function PrintersScreen() {
                 </>
               ) : null}
 
+              {/* LABEL ALIGNMENT SELF-TEST & SENSOR CALIBRATION CARD */}
+              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: BRAND_COLORS.blue600, borderWidth: 1.5, marginTop: 14, padding: 14 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Sparkles size={18} color={BRAND_COLORS.blue600} style={{ marginRight: 8 }} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: theme.textPrimary }}>
+                    Label Calibration & Alignment Test
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11.5, color: theme.textSecondary, marginBottom: 12, lineHeight: 16 }}>
+                  Prints 3 calibration labels with 1mm die-cut border box, center crosshairs, mm-ruler, and 203 DPI pitch verification.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={handlePrintLabelCalibration}
+                    disabled={isCalibratingLabel}
+                    style={[styles.primaryAction, { flex: 1, backgroundColor: BRAND_COLORS.blue600, paddingVertical: 10 }]}
+                    activeOpacity={0.85}
+                  >
+                    {isCalibratingLabel ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800', textAlign: 'center' }}>
+                        Print Test Pattern (3x)
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleLabelHardwareCalibrate}
+                    style={[styles.primaryAction, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: BRAND_COLORS.blue600, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 12 }]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ color: BRAND_COLORS.blue600, fontSize: 12, fontWeight: '800' }}>
+                      Auto Sensor
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* SAVE CONFIGURATION BUTTON */}
               <TouchableOpacity
                 onPress={handleSavePrinterSettings}
                 disabled={isSavingSettings}
-                style={[styles.saveSettingsBtn, { marginTop: 16 }]}
+                style={[styles.saveSettingsBtn, { marginTop: 14 }]}
               >
                 {isSavingSettings ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
@@ -1752,11 +1838,38 @@ export default function PrintersScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* RECEIPT ALIGNMENT SELF-TEST CARD */}
+              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: '#10B981', borderWidth: 1.5, marginTop: 14, padding: 14 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Receipt size={18} color="#10B981" style={{ marginRight: 8 }} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: theme.textPrimary }}>
+                    Receipt Alignment & Width Self-Test ({paperWidthVal}mm)
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11.5, color: theme.textSecondary, marginBottom: 12, lineHeight: 16 }}>
+                  Prints a full-width alignment test slip across the active {paperWidthVal === 80 ? '48-column (576 dots / 72mm)' : '32-column (384 dots / 48mm)'} printhead grid with tax breakdown and UPI QR verification.
+                </Text>
+                <TouchableOpacity
+                  onPress={handlePrintReceiptCalibration}
+                  disabled={isCalibratingReceipt}
+                  style={[styles.primaryAction, { backgroundColor: '#10B981', paddingVertical: 10 }]}
+                  activeOpacity={0.85}
+                >
+                  {isCalibratingReceipt ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800', textAlign: 'center' }}>
+                      Print {paperWidthVal}mm Alignment Test Slip
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
               {/* SAVE CONFIGURATION BUTTON */}
               <TouchableOpacity
                 onPress={handleSavePrinterSettings}
                 disabled={isSavingSettings}
-                style={[styles.saveSettingsBtn, { marginTop: 16 }]}
+                style={[styles.saveSettingsBtn, { marginTop: 14 }]}
               >
                 {isSavingSettings ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />

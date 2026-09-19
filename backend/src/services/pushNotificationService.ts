@@ -9,6 +9,56 @@ export interface PushMessagePayload {
   channelId?: string;
 }
 
+/** Shared "hand these tokens + this payload to Expo" call — both the existing broadcast-style
+ *  send below and the new per-agent send use this, so there is one place that talks to the Expo
+ *  API rather than two copies that could drift. Behavior is unchanged from before this was
+ *  extracted; sendPushNotificationToUser calls it with exactly the same messages it built inline. */
+async function sendExpoMessages(
+  tokens: string[],
+  payload: PushMessagePayload
+): Promise<{ success: boolean; sentCount: number; error?: string }> {
+  const validTokens = tokens.filter(
+    (token) =>
+      typeof token === 'string' &&
+      (token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken['))
+  );
+
+  if (validTokens.length === 0) {
+    return { success: true, sentCount: 0 };
+  }
+
+  const messages = validTokens.map((token) => ({
+    to: token,
+    sound: payload.sound || 'default',
+    priority: payload.priority || 'high',
+    channelId: payload.channelId || 'inventory-alerts',
+    title: payload.title,
+    body: payload.body,
+    data: {
+      ...(payload.data || {}),
+      timestamp: new Date().toISOString(),
+    },
+  }));
+
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Accept-encoding': 'gzip, deflate',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(messages),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.warn('[PushNotification] Expo API responded with error:', errText);
+    return { success: false, sentCount: 0, error: errText };
+  }
+
+  return { success: true, sentCount: messages.length };
+}
+
 /**
  * Sends a push notification to all registered devices for a given user via Expo Push API.
  */
@@ -25,49 +75,51 @@ export async function sendPushNotificationToUser(
     const config = (settings?.notificationConfig as Record<string, any>) || {};
     const tokens: string[] = Array.isArray(config.pushTokens) ? config.pushTokens : [];
 
-    // Filter valid Expo Push Tokens
-    const validTokens = tokens.filter(
-      (token) =>
-        typeof token === 'string' &&
-        (token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken['))
-    );
-
-    if (validTokens.length === 0) {
-      return { success: true, sentCount: 0 };
-    }
-
-    const messages = validTokens.map((token) => ({
-      to: token,
-      sound: payload.sound || 'default',
-      priority: payload.priority || 'high',
-      channelId: payload.channelId || 'inventory-alerts',
-      title: payload.title,
-      body: payload.body,
-      data: {
-        ...(payload.data || {}),
-        timestamp: new Date().toISOString(),
-      },
-    }));
-
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn('[PushNotification] Expo API responded with error:', errText);
-      return { success: false, sentCount: 0, error: errText };
-    }
-
-    return { success: true, sentCount: messages.length };
+    return await sendExpoMessages(tokens, payload);
   } catch (err: any) {
     console.error('[PushNotification] Error sending push notification:', err);
+    return { success: false, sentCount: 0, error: err?.message || 'Failed to dispatch push' };
+  }
+}
+
+/**
+ * Sends a push notification to ONE specific person's registered device(s) — an owner or a
+ * ManagedUser (agent), addressed by their raw JWT subject id via the DeviceToken table (see
+ * deviceTokenController.ts for why this exists separately from the Settings-based broadcast pool
+ * above). Used for remote-print job delivery, where the notification must reach exactly the
+ * targeted agent, never the whole business.
+ */
+export async function sendPushToActor(
+  actorId: string,
+  payload: PushMessagePayload
+): Promise<{ success: boolean; sentCount: number; error?: string }> {
+  try {
+    const devices = await prisma.deviceToken.findMany({
+      where: { actorId },
+      select: { expoPushToken: true },
+    });
+    return await sendExpoMessages(devices.map((d) => d.expoPushToken), payload);
+  } catch (err: any) {
+    console.error('[PushNotification] Error sending push to actor:', err);
+    return { success: false, sentCount: 0, error: err?.message || 'Failed to dispatch push' };
+  }
+}
+
+/** Same as sendPushToActor, but for every device registered at a location — used for
+ *  "first-accept-wins" jobs targeted at a location rather than one named agent. */
+export async function sendPushToActors(
+  actorIds: string[],
+  payload: PushMessagePayload
+): Promise<{ success: boolean; sentCount: number; error?: string }> {
+  try {
+    if (actorIds.length === 0) return { success: true, sentCount: 0 };
+    const devices = await prisma.deviceToken.findMany({
+      where: { actorId: { in: actorIds } },
+      select: { expoPushToken: true },
+    });
+    return await sendExpoMessages(devices.map((d) => d.expoPushToken), payload);
+  } catch (err: any) {
+    console.error('[PushNotification] Error sending push to actors:', err);
     return { success: false, sentCount: 0, error: err?.message || 'Failed to dispatch push' };
   }
 }

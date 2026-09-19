@@ -31,6 +31,7 @@ import {
   Download,
   FileText,
   Bluetooth,
+  Send,
 } from 'lucide-react-native';
 import { useSales } from '@/hooks/useSales';
 import { Sale } from '@/types/sale';
@@ -50,9 +51,12 @@ import { usePrinterStore } from '@/store/usePrinterStore';
 import { useShallow } from 'zustand/react/shallow';
 import ThermalPrinterService from '@/services/PrinterService';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal';
+import { RemoteSaleBadge } from '@/components/ui/RemoteSaleBadge';
 import { A4InvoicePreviewModal } from '@/components/ui/A4InvoicePreviewModal';
 import { printInvoiceA4, downloadInvoicePdf, shareInvoicePdf } from '@/utils/invoiceActions';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function SalesHistoryScreen() {
   const router = useRouter();
@@ -66,8 +70,10 @@ export default function SalesHistoryScreen() {
     }))
   );
   const { sales, isLoading, isRefetching, isError, refetch, deleteSale } = useSales();
+  const canSendRemotePrint = useAuthStore((s) => s.hasPermission('canSendRemotePrint'));
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
+  const [remotePrintSale, setRemotePrintSale] = useState<Sale | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
@@ -352,6 +358,7 @@ export default function SalesHistoryScreen() {
                           {getPaymentIcon(item.paymentMethod)}
                           <Text style={styles.paymentBadgeText}>{item.paymentMethod.toUpperCase()}</Text>
                         </View>
+                        {item.isRemotePrint ? <RemoteSaleBadge compact /> : null}
                       </View>
                       <Text style={[styles.saleAmount, { color: BRAND_COLORS.blue600 }]}>
                         {formatCurrency(item.grandTotal)}
@@ -392,6 +399,17 @@ export default function SalesHistoryScreen() {
                       <Printer size={14} color="#FFFFFF" />
                       <Text style={[styles.saleActionBtnText, { color: '#FFFFFF' }]}>Print</Text>
                     </TouchableOpacity>
+
+                    {canSendRemotePrint && (
+                      <TouchableOpacity
+                        onPress={() => setRemotePrintSale(item)}
+                        style={[styles.saleActionBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}
+                        activeOpacity={0.7}
+                      >
+                        <Send size={14} color={BRAND_COLORS.blue600} />
+                        <Text style={[styles.saleActionBtnText, { color: BRAND_COLORS.blue600 }]}>Remote</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               )}
@@ -424,6 +442,11 @@ export default function SalesHistoryScreen() {
                           {getPaymentIcon(selectedSale.paymentMethod)}
                           <Text style={styles.paymentBadgeText}>{selectedSale.paymentMethod.toUpperCase()}</Text>
                         </View>
+                        {selectedSale.isRemotePrint ? (
+                          <View style={{ marginLeft: 8 }}>
+                            <RemoteSaleBadge compact />
+                          </View>
+                        ) : null}
                       </View>
                       <Text style={[styles.detailDate, { color: theme.textSecondary }]}>
                         {new Date(selectedSale.createdAt).toLocaleString()} • {selectedSale.customerName || 'Walk-in Customer'}
@@ -539,6 +562,18 @@ export default function SalesHistoryScreen() {
                         <Trash2 size={16} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
+
+                    {canSendRemotePrint && (
+                      <TouchableOpacity
+                        onPress={() => setRemotePrintSale(selectedSale)}
+                        style={[styles.actionBtnSecondary, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: 'rgba(37, 99, 235, 0.25)' }]}
+                      >
+                        <Send size={15} color={BRAND_COLORS.blue600} />
+                        <Text style={[styles.actionBtnSecondaryText, { color: BRAND_COLORS.blue600 }]} numberOfLines={1}>
+                          Send to Print Remotely
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </>
               ) : null}
@@ -556,6 +591,17 @@ export default function SalesHistoryScreen() {
           visible={!!pdfPreviewSale}
           sale={pdfPreviewSale}
           onClose={() => setPdfPreviewSale(null)}
+        />
+
+        <RemotePrintSendModal
+          visible={!!remotePrintSale}
+          sale={remotePrintSale}
+          onClose={() => setRemotePrintSale(null)}
+          onSent={(job) => {
+            setRemotePrintSale(null);
+            setSelectedSale(null);
+            router.push(`/print-jobs/${job.id}` as any);
+          }}
         />
       </View>
     </ScreenBackground>

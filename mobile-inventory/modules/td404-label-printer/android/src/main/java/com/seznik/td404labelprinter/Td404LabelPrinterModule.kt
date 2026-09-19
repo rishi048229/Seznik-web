@@ -272,10 +272,11 @@ class Td404LabelPrinterModule : Module() {
         val bmp = buildLabelBitmap(spec, widthMm, heightMm)
         val tsc = LabelCommand()
         tsc.addUserCommand("\r\n")
-        tsc.addSize(widthMm.toInt(), heightMm.toInt())
+        val tscWidthMm = if (gapType == 0 && widthMm >= 75.0) 72 else if (gapType == 0 && widthMm >= 55.0) 48 else widthMm.toInt()
+        tsc.addSize(tscWidthMm, heightMm.toInt())
         tsc.addGap(if (gapType == 0) 0 else gapMm.toInt().coerceAtLeast(2))
-        // BACKWARD orientation prints upright as label emerges from printhead
-        val dir = if (finiteInt(spec["direction"], 0) == 1) LabelCommand.DIRECTION.FORWARD else LabelCommand.DIRECTION.BACKWARD
+        // Default FORWARD orientation prints upright feed without 180-degree flipping
+        val dir = if (finiteInt(spec["direction"], 0) == 1) LabelCommand.DIRECTION.BACKWARD else LabelCommand.DIRECTION.FORWARD
         tsc.addDirection(dir, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
@@ -334,7 +335,7 @@ class Td404LabelPrinterModule : Module() {
         tsc.addUserCommand("\r\n")
         tsc.addSize(widthMm.toInt(), heightMm.toInt())
         tsc.addGap(if (gapMm > 0) gapMm.toInt() else 2)
-        tsc.addDirection(LabelCommand.DIRECTION.BACKWARD, LabelCommand.MIRROR.NORMAL)
+        tsc.addDirection(LabelCommand.DIRECTION.FORWARD, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
         tsc.addQueryPrinterStatus(LabelCommand.RESPONSE_MODE.ON)
@@ -377,6 +378,7 @@ class Td404LabelPrinterModule : Module() {
 
         // 80mm = 576 dots printable (72mm); 58mm = 384 dots printable (48mm)
         val targetWidthDots = if (paperWidthMm >= 75) 576 else 384
+        val printWidthMm = if (paperWidthMm >= 75) 72 else 48
         val scale = targetWidthDots.toFloat() / rawBitmap.width.toFloat()
         val scaledHeightDots = (rawBitmap.height * scale).toInt().coerceAtLeast(64)
         val bitmap = Bitmap.createScaledBitmap(rawBitmap, targetWidthDots, scaledHeightDots, true)
@@ -388,9 +390,9 @@ class Td404LabelPrinterModule : Module() {
         // 1. TSPL Continuous Mode (GAP 0,0 - Single-pass continuous receipt roll)
         val tsc = LabelCommand()
         tsc.addUserCommand("\r\n")
-        tsc.addSize(paperWidthMm.toInt(), calculatedHeightMm)
+        tsc.addSize(printWidthMm, calculatedHeightMm)
         tsc.addGap(0) // GAP 0 = Continuous roll without gap search
-        tsc.addDirection(LabelCommand.DIRECTION.BACKWARD, LabelCommand.MIRROR.NORMAL)
+        tsc.addDirection(LabelCommand.DIRECTION.FORWARD, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
         tsc.addCls()
@@ -514,9 +516,16 @@ class Td404LabelPrinterModule : Module() {
     heightMm: Double,
     headMm: Double = 80.0
   ): Bitmap {
-    val printWmm = minOf(widthMm, headMm)
+    val isContinuous = finiteInt(spec["gapType"], 2) == 0
+    val printWmm = if (isContinuous && widthMm >= 75.0) {
+      72.0 // 576 dots active head for 80mm roll
+    } else if (isContinuous && widthMm >= 55.0) {
+      48.0 // 384 dots active head for 58mm roll
+    } else {
+      minOf(widthMm, headMm)
+    }
     val printHmm = heightMm
-    val fit = if (widthMm > 0) printWmm / widthMm else 1.0
+    val fit = if (widthMm > 0 && !isContinuous) (minOf(widthMm, headMm) / widthMm) else 1.0
 
     val wPx = (printWmm * DOTS_PER_MM).toInt().coerceAtLeast(64)
     val alignedWPx = (wPx + 7) / 8 * 8
