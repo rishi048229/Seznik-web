@@ -136,14 +136,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) return false;
 
-    // Admin role has all permissions by default
-    if (user.role === 'admin' || user.accountType === 'user') {
+    // Store Owner with Admin role has all permissions by default
+    if (user.role === 'admin' && user.accountType !== 'managed') {
       return true;
     }
 
     // ManagedUser (agent) relies on granular permissions object
-    if (user.permissions && typeof user.permissions[permission] === 'boolean') {
-      return !!user.permissions[permission];
+    let perms = user.permissions;
+    if (typeof perms === 'string') {
+      try {
+        perms = JSON.parse(perms);
+      } catch {
+        perms = null;
+      }
+    }
+
+    if (perms && typeof (perms as any)[permission] === 'boolean') {
+      return !!(perms as any)[permission];
     }
 
     return false;

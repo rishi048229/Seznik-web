@@ -716,16 +716,7 @@ export const setRole = async (req: Request, res: Response) => {
       // Generate new token for the managed user
       const token = generateToken(managedUser.id, managedUser.role || 'agent');
       return res.json({
-        user: {
-          id: managedUser.id,
-          uid: managedUser.uid,
-          email: managedUser.email,
-          displayName: managedUser.displayName,
-          role: managedUser.role || 'agent',
-          permissions: managedUser.permissions,
-          accountType: 'managed',
-          onboardingCompleted: true,
-        },
+        user: await serializeManagedAuthUser(managedUser),
         token,
       });
     }
@@ -743,8 +734,7 @@ export const setRole = async (req: Request, res: Response) => {
         where: { id: userId },
         data: { role: role || user.role || 'admin' },
       });
-      const { password: _, ...userWithoutPassword } = updatedUser;
-      return res.json({ user: userWithoutPassword });
+      return res.json({ user: serializeOwnerAuthUser(updatedUser) });
     }
 
     let managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
@@ -762,8 +752,14 @@ export const setRole = async (req: Request, res: Response) => {
         where: { id: userId },
         data: { role: role || managedUser.role || 'agent' },
       });
-      const { password: _, ...userWithoutPassword } = updatedManaged;
-      return res.json({ user: userWithoutPassword });
+      // Was previously a bare spread of the ManagedUser row (minus password) — no accountType,
+      // businessType or onboardingCompleted at all. The client's "is this a staff account"
+      // check is `accountType !== 'managed'`, so an agent confirming their OWN "Agent Access"
+      // card here (as opposed to being picked from an owner's dropdown, the other branch above,
+      // which already serializes correctly) got accountType: undefined, which reads as "not
+      // managed" and routed them straight into the owner onboarding wizard — where submitting
+      // then 500'd, since completeOnboarding updates a User row that a ManagedUser id has none of.
+      return res.json({ user: await serializeManagedAuthUser(updatedManaged) });
     }
 
     return res.status(404).json({ error: 'User not found' });
@@ -806,6 +802,15 @@ export const updateManagedUserPassword = async (req: Request, res: Response) => 
 export const completeOnboarding = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
+
+    const isManagedAccount = await prisma.managedUser.findUnique({ where: { id: userId } });
+    if (isManagedAccount) {
+      return res.json({
+        success: true,
+        user: await serializeManagedAuthUser(isManagedAccount),
+      });
+    }
+
     const businessName = String(req.body.businessName || '').trim();
     const businessAddress = String(req.body.businessAddress || '').trim();
     const phone = String(req.body.phone || '').trim();

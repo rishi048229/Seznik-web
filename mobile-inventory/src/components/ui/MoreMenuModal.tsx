@@ -168,6 +168,10 @@ export function MoreMenuModal({ visible, onClose }: MoreMenuModalProps) {
   const visibleMenuItems = menuItems.filter((item) => {
     if (item.feature && !isNavFeatureVisible(user?.businessType, item.feature)) return false;
     if (item.feature === 'kot' && !hasPermission('canAccessKOT')) return false;
+    if (item.id === 'suppliers' && !hasPermission('canAccessSuppliers')) return false;
+    if (item.id === 'expenses' && !hasPermission('canAccessExpenses')) return false;
+    if (item.id === 'reports' && !hasPermission('canAccessReports')) return false;
+    if (item.id === 'settings' && !hasPermission('canManageUsers') && user?.role !== 'admin') return false;
     return true;
   });
 

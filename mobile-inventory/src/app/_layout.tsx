@@ -170,32 +170,31 @@ function RootLayoutNav() {
     const onAccessSelection = segments[0] === '(auth)' && segments[1] === 'access-selection';
     const inAuthGroup = segments[0] === '(auth)' && !onAccessSelection;
     const onOnboarding = segments[0] === 'onboarding';
+    const isManagedUser = user?.accountType === 'managed' || user?.role === 'agent';
     const needsOnboarding =
       isAuthenticated &&
-      user?.accountType !== 'managed' &&
+      !isManagedUser &&
       user?.onboardingCompleted === false;
     const needsBusinessType =
       isAuthenticated &&
-      user?.accountType !== 'managed' &&
+      !isManagedUser &&
       user?.onboardingCompleted !== false &&
       !user?.businessType;
     const needsSetup = needsOnboarding || needsBusinessType;
 
     if (!isAuthenticated && !inAuthGroup && !onAccessSelection) {
       router.replace('/(auth)/login' as any);
+    } else if (isAuthenticated && isManagedUser && (onOnboarding || onAccessSelection)) {
+      router.replace('/(tabs)' as any);
     } else if (isAuthenticated && needsSetup && !onOnboarding) {
       router.replace('/onboarding' as any);
     } else if (isAuthenticated && (inAuthGroup || onOnboarding) && !needsSetup) {
-      // Being authenticated while still sitting on a login/register screen only happens right
-      // after signing in — a cold start with a saved session never lands in this group. That's
-      // the moment to offer the workstation choice, the same as the web app does. Staff accounts
-      // skip it: their role is already fixed by the admin, so there is nothing to choose.
-      const canChooseWorkstation = user?.accountType !== 'managed';
+      const canChooseWorkstation = !isManagedUser;
       router.replace((canChooseWorkstation ? '/(auth)/access-selection' : '/(tabs)') as any);
     }
 
     SplashScreen.hideAsync().catch(() => {});
-  }, [isLoading, isAuthenticated, segments, user?.onboardingCompleted, user?.accountType, user?.businessType]);
+  }, [isLoading, isAuthenticated, segments, user?.onboardingCompleted, user?.accountType, user?.role, user?.businessType]);
 
   if (isLoading) {
     return <AppSplashScreen />;

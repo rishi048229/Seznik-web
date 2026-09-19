@@ -275,8 +275,7 @@ class Td404LabelPrinterModule : Module() {
         // rounded one, every label would be off by that difference and the error would compound
         // down the roll, which is exactly how die-cut labels drift out of alignment.
         val isContinuous = gapType == 0
-        val tscWidthMm = if (isContinuous && widthMm >= 75.0) 72
-          else if (isContinuous && widthMm >= 55.0) 48
+        val tscWidthMm = if (isContinuous) (if (widthMm >= 60.0) 72 else 48)
           else widthMm.roundToInt().coerceAtLeast(1)
         val tscHeightMm = heightMm.roundToInt().coerceAtLeast(1)
         val tscGapMm = if (isContinuous) 0 else gapMm.roundToInt().coerceAtLeast(2)
@@ -538,10 +537,8 @@ class Td404LabelPrinterModule : Module() {
     val isContinuous = finiteInt(spec["gapType"], 2) == 0
     val printWmm = if (canvasIsResolved) {
       minOf(widthMm, headMm)
-    } else if (isContinuous && widthMm >= 75.0) {
-      72.0 // 576 dots active head for 80mm roll
-    } else if (isContinuous && widthMm >= 55.0) {
-      48.0 // 384 dots active head for 58mm roll
+    } else if (isContinuous) {
+      if (widthMm >= 60.0) 72.0 else 48.0
     } else {
       minOf(widthMm, headMm)
     }
