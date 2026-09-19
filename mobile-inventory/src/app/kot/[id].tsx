@@ -56,6 +56,8 @@ import { getTemplateById } from '@/constants/receiptTemplates';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import { printInvoiceReceipt } from '@/utils/invoiceActions';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
+import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal';
+import { Sale } from '@/types/sale';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 const VOID_REASONS = [
@@ -143,6 +145,9 @@ export default function KotOrderDetailScreen() {
   const [newProductNote, setNewProductNote] = useState('');
   const [selectedProductToAdd, setSelectedProductToAdd] = useState<Product | null>(null);
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
+
+  // Bill just settled here — a remote print job is addressed to this saved sale.
+  const [remotePrintSale, setRemotePrintSale] = useState<Sale | null>(null);
 
   // Settlement / Bill Checkout Modal
   const [showSettleModal, setShowSettleModal] = useState(false);
@@ -404,7 +409,7 @@ export default function KotOrderDetailScreen() {
           await printInvoiceReceipt(
             result.sale,
             storeProfile,
-            paperWidth || '58mm',
+            undefined,
             {
               template,
               customTemplate,
@@ -430,6 +435,10 @@ export default function KotOrderDetailScreen() {
 
       setShowSettleModal(false);
       Alert.alert('Bill Settled!', `Invoice #${result.sale.invoiceNumber} recorded successfully.`, [
+        {
+          text: 'Send to Agent',
+          onPress: () => setRemotePrintSale(result.sale as Sale),
+        },
         {
           text: 'OK',
           onPress: () => router.replace('/kot' as any),
@@ -1180,6 +1189,18 @@ export default function KotOrderDetailScreen() {
         </Modal>
 
         {/* ADD FOOD DISH MODAL */}
+        <RemotePrintSendModal
+          visible={!!remotePrintSale}
+          sale={remotePrintSale}
+          onClose={() => setRemotePrintSale(null)}
+          onSent={() => {
+            setRemotePrintSale(null);
+            Alert.alert('Sent to agent', 'They will get a notification to accept and print this bill.', [
+              { text: 'OK', onPress: () => router.replace('/kot' as any) },
+            ]);
+          }}
+        />
+
         <AddFoodItemModal
           visible={showAddFoodModal}
           onClose={() => setShowAddFoodModal(false)}

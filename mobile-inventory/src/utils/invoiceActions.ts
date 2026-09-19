@@ -85,10 +85,16 @@ export function formatInvoiceDateTime(createdAt: string) {
   );
 }
 
+/**
+ * `paperWidth` is optional on purpose: passing a width here overrides the connected printer's own
+ * default, so callers that only have the store's generic fallback should pass nothing and let
+ * PrinterService.resolvePaperWidth decide. Forcing '58mm' from a caller is what made 80mm
+ * printers render narrow receipts.
+ */
 export async function printInvoiceReceipt(
   sale: Sale,
   storeProfile: StoreProfileWithSettings,
-  paperWidth: '58mm' | '80mm',
+  paperWidth: '58mm' | '80mm' | undefined,
   printOptions: ReceiptPrintOptions,
   connectionState?: string
 ): Promise<boolean> {
@@ -107,7 +113,8 @@ export async function printInvoiceThermal(
   _onNeedPrinter?: () => void,
   connectionState?: string
 ): Promise<boolean> {
-  return printInvoiceReceipt(sale, storeProfile, '58mm', {}, connectionState);
+  // Undefined, not '58mm': let the connected printer's own width win.
+  return printInvoiceReceipt(sale, storeProfile, undefined, {}, connectionState);
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {

@@ -4146,10 +4146,14 @@ class ThermalPrinterServiceManager {
     // 2. Generate formatted receipt text
     const receiptText = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
     const lines = receiptText.split(/\r?\n/);
-    const colsTarget = is80 ? 48 : 32;
+    // Must match the width formatReceiptText actually padded to, which depends on the chosen
+    // receipt font (Font B is 64 cols at 80mm, not 48). Hardcoding 48 here made every line of a
+    // compact-font receipt render against the wrong grid.
+    const colsTarget = receiptFontCols(paperWidth, options?.receiptFont);
     const dividerDouble = '='.repeat(colsTarget);
     const dividerSingle = '-'.repeat(colsTarget);
-    // Base font height: 2.5mm = 20px at 203 DPI, exactly 12.0 dots per monospace char (48 * 12 = 576 dots / 72mm)
+    // Height is a hint only — `monospaceCols` below is what actually pins the grid to the full
+    // print-head width (see drawElementOnCanvas in the native module).
     const baseFontH = 2.5;
 
     for (const rawLine of lines) {
@@ -4168,9 +4172,10 @@ class ThermalPrinterServiceManager {
           width: printableWidth,
           fontHeight: baseFontH,
           bold: false,
-          align: 1, // Center
+          align: 0,
           fontFamily: 'monospace',
           monospace: true,
+          monospaceCols: colsTarget,
         });
         y += is80 ? 3.0 : 2.8;
         continue;
@@ -4183,17 +4188,22 @@ class ThermalPrinterServiceManager {
         const isTotalLine = /^(total|grand\s*total|net\s*payable|amount\s*paid|balance)/i.test(leftPart.trim());
         const fontH = isTotalLine ? (is80 ? 3.6 : 3.2) : baseFontH;
 
+        // Both halves are laid out against the SAME full-width grid so the left label and the
+        // right-hand amount come out at identical character size. Totals keep their deliberately
+        // larger font, so they are not pinned to the grid.
+        const gridCols = isTotalLine ? undefined : colsTarget;
         elements.push({
           type: 'text',
           value: leftPart.trim(),
           x: 0,
           y,
-          width: printableWidth * 0.65,
+          width: printableWidth,
           fontHeight: fontH,
           bold: isTotalLine,
           align: 0,
           fontFamily: 'monospace',
           monospace: true,
+          ...(gridCols ? { monospaceCols: gridCols } : {}),
         });
         elements.push({
           type: 'text',
@@ -4206,6 +4216,7 @@ class ThermalPrinterServiceManager {
           align: 2,
           fontFamily: 'monospace',
           monospace: true,
+          ...(gridCols ? { monospaceCols: gridCols } : {}),
         });
         y += fontH + (is80 ? 1.2 : 1.0);
         continue;
@@ -4226,6 +4237,8 @@ class ThermalPrinterServiceManager {
         align: isCentered || isHeader ? 1 : 0,
         fontFamily: 'monospace',
         monospace: true,
+        // Headers are intentionally larger than the grid, so only body lines get pinned to it.
+        ...(isHeader ? {} : { monospaceCols: colsTarget }),
       });
       y += fontH + (is80 ? 1.1 : 0.9);
     }

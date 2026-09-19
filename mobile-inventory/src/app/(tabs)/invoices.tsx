@@ -14,7 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Search,
   TrendingUp,
@@ -24,6 +24,7 @@ import {
   QrCode,
   UserCheck,
   Printer,
+  Send,
   Download,
   Eye,
   Share2,
@@ -48,6 +49,9 @@ import { useStoreProfile } from '@/hooks/useStoreProfile';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useShallow } from 'zustand/react/shallow';
 import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal';
+import { RemoteSaleBadge } from '@/components/ui/RemoteSaleBadge';
+import { useAuthStore } from '@/store/useAuthStore';
 import { getTemplateById } from '@/constants/receiptTemplates';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import {
@@ -126,7 +130,10 @@ export default function InvoicesTabScreen() {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [exchangeSale, setExchangeSale] = useState<Sale | null>(null);
   const [showExchangeModal, setShowExchangeModal] = useState(false);
+  const router = useRouter();
   const [showPrinterModal, setShowPrinterModal] = useState(false);
+  const [remotePrintSale, setRemotePrintSale] = useState<Sale | null>(null);
+  const canSendRemotePrint = useAuthStore((s) => s.hasPermission('canSendRemotePrint'));
   const [pendingPrintSale, setPendingPrintSale] = useState<Sale | null>(null);
   const [busySaleId, setBusySaleId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<'print' | 'download' | 'share' | null>(null);
@@ -235,7 +242,7 @@ export default function InvoicesTabScreen() {
     setBusySaleId(sale.id);
     setBusyAction('print');
     try {
-      const ok = await printInvoiceReceipt(sale, storeProfile, paperWidth, buildPrintOptions(), connectionState);
+      const ok = await printInvoiceReceipt(sale, storeProfile, undefined, buildPrintOptions(), connectionState);
       if (ok) {
         Alert.alert(t('printSent', 'Print Sent'), t('printSentHint', 'Receipt sent to your thermal printer.'));
       }
@@ -481,6 +488,7 @@ export default function InvoicesTabScreen() {
                               <Text style={[styles.returnBadgeText, { color: '#F59E0B' }]}>PARTIAL</Text>
                             </View>
                           )}
+                          {item.isRemotePrint ? <RemoteSaleBadge compact /> : null}
                         </View>
                         <Text style={[styles.invoiceAmount, { color: BRAND_COLORS.blue600 }]}>
                           {formatCurrency(item.grandTotal)}
@@ -608,6 +616,21 @@ export default function InvoicesTabScreen() {
                           </>
                         )}
                       </TouchableOpacity>
+
+                      {canSendRemotePrint && (
+                        <TouchableOpacity
+                          onPress={() => setRemotePrintSale(item)}
+                          style={[styles.cardActionBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}
+                          accessibilityRole="button"
+                          accessibilityLabel="Send this receipt to a teammate to print"
+                          activeOpacity={0.7}
+                        >
+                          <Send size={15} color={BRAND_COLORS.blue600} />
+                          <Text style={[styles.cardActionBtnText, { color: BRAND_COLORS.blue600 }]}>
+                            Remote
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </ScrollView>
                   </View>
                 );
@@ -624,6 +647,16 @@ export default function InvoicesTabScreen() {
             />
           )}
         </View>
+
+        <RemotePrintSendModal
+          visible={!!remotePrintSale}
+          sale={remotePrintSale}
+          onClose={() => setRemotePrintSale(null)}
+          onSent={(job) => {
+            setRemotePrintSale(null);
+            router.push(`/print-jobs/${job.id}` as any);
+          }}
+        />
 
         <A4InvoicePreviewModal
           visible={showA4Preview}

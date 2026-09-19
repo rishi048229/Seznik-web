@@ -514,7 +514,7 @@ export default function NewKotOrderScreen() {
           await printInvoiceReceipt(
             provisionalSale,
             storeProfile,
-            paperWidth || '58mm',
+            undefined,
             {
               template,
               customTemplate,

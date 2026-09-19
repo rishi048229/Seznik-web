@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useSales, useBulkDeleteSales, useUpdateSaleDeliveryStatus, useDeliveryReminders } from '@/hooks/useSales'
 import { useSettings } from '@/hooks/useSettings'
 import { useCustomers } from '@/hooks/useCustomers'
-import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth, Truck, User, Clock, CheckCircle2, AlertCircle, Bell } from 'lucide-react'
+import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth, Truck, User, Clock, CheckCircle2, AlertCircle, Bell, Send } from 'lucide-react'
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
@@ -18,6 +18,7 @@ import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
+import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal'
 import type { Sale, DeliveryStatus, PaymentStatus } from '@/types/sale.types'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
@@ -36,6 +37,7 @@ export const SalesPage = () => {
   const [orderTypeFilter, setOrderTypeFilter] = useState<'all' | 'walk_in' | 'delivery'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [printSaleId, setPrintSaleId] = useState<string | null>(null)
+  const [remotePrintSaleId, setRemotePrintSaleId] = useState<string | null>(null)
   const [printFormat, setPrintFormat] = useState<'a4' | 'thermal'>('a4')
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
@@ -465,6 +467,14 @@ export const SalesPage = () => {
           </Button>
           <Button variant="ghost" size="sm" onClick={() => { setShareSaleId(row.id); setSharePhone(row.deliveryPhone || '') }} title={t('daybook.shareWhatsApp')}>
             <WhatsAppIcon size={16} className="text-green-600" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setRemotePrintSaleId(row.id)}
+            title="Send this receipt to a teammate's phone to print"
+          >
+            <Send size={16} className="text-blue-600" />
           </Button>
         </div>
       ),

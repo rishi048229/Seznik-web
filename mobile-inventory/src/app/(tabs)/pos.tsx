@@ -60,6 +60,8 @@ import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper
 import { BRAND_COLORS } from '@/constants/theme';
 import ThermalPrinterService, { type PrintSaleData } from '@/services/PrinterService';
 import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
+import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal';
+import { Sale } from '@/types/sale';
 import { applyStoreProfileToPrintData } from '@/utils/invoiceActions';
 import { BillGstBreakdown } from '@/components/billing/BillGstBreakdown';
 import { BillChargesBreakdown } from '@/components/billing/BillChargesBreakdown';
@@ -246,6 +248,9 @@ function PosScreen() {
   const saleCommittedRef = useRef(false);
   const directSaveRequestedRef = useRef(false);
   const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
+  // Set once the bill is actually recorded — a remote print job is addressed to a saved sale.
+  const [savedSaleForRemote, setSavedSaleForRemote] = useState<Sale | null>(null);
+  const [remotePrintVisible, setRemotePrintVisible] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [isSavingSalePreview, setIsSavingSalePreview] = useState(false);
   const checkoutLockRef = useRef(false);
@@ -597,6 +602,7 @@ function PosScreen() {
   const handlePrintCheckout = () => {
     directSaveRequestedRef.current = false;
     if (!prepareCheckout()) return;
+    setSavedSaleForRemote(null);
     setShowReceiptPreviewModal(true);
   };
 
@@ -622,6 +628,7 @@ function PosScreen() {
     persistSaleInBackground(pending.payload, {
       onSuccess: (sale) => {
         const finalInv = sale.invoiceNumber || pending.provisionalInv;
+        setSavedSaleForRemote(sale);
         checkoutLockRef.current = false;
         setPreviewSaleData((prev) => (prev ? { ...prev, invoiceNumber: finalInv } : prev));
         setIsSavingSalePreview(false);
@@ -1753,6 +1760,19 @@ function PosScreen() {
         onAdjustStock={({ id, quantity, reason }) => adjustStock({ id, payload: { change: quantity, reason } })}
       />
 
+      <RemotePrintSendModal
+        visible={remotePrintVisible}
+        sale={savedSaleForRemote}
+        onClose={() => setRemotePrintVisible(false)}
+        onSent={() => {
+          setRemotePrintVisible(false);
+          Alert.alert(
+            t('sentToAgent', 'Sent to agent'),
+            t('sentToAgentHint', 'They will get a notification to accept and print this bill.')
+          );
+        }}
+      />
+
       <ReceiptPreviewModal
         visible={showReceiptPreviewModal}
         saleData={previewSaleData}
@@ -1760,6 +1780,18 @@ function PosScreen() {
         autoCloseAfterPrint={false}
         autoPrintOnOpen={true}
         onConfirmed={commitPendingSale}
+        onSendToAgent={() => {
+          if (!savedSaleForRemote) {
+            // The bill has to exist before it can be handed to anyone.
+            commitPendingSale();
+            Alert.alert(
+              t('savingBill', 'Saving bill'),
+              t('savingBillHint', 'Saving this bill first — tap Send to Agent again in a moment.')
+            );
+            return;
+          }
+          setRemotePrintVisible(true);
+        }}
         onEdit={() => {
           // Straight back to the cart, which was never cleared, so the basket is
           // still exactly as it was. Nothing has been saved or printed yet.

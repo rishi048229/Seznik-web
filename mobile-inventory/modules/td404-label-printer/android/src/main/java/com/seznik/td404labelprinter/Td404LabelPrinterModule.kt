@@ -623,6 +623,26 @@ class Td404LabelPrinterModule : Module() {
           } else {
             if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
           }
+
+          // A receipt is a fixed character grid: `monospaceCols` characters have to span exactly
+          // `w`. Sizing by height alone (above) only sets the em size and leaves the character
+          // ADVANCE to whichever monospace face Android resolves — typically ~0.6em, but nothing
+          // guarantees it. When the advance comes out narrower than assumed, all 48 columns land
+          // well short of the 72mm head and the whole receipt prints as a small column down the
+          // middle of wide paper. Measuring the real advance and scaling to fit makes the grid
+          // fill the paper on any device/font.
+          val monoCols = finiteInt(el["monospaceCols"], 0)
+          if (monospace && monoCols > 0 && w > 0f) {
+            val probeSize = 100f
+            paint.textSize = probeSize
+            val advanceAtProbe = paint.measureText("0")
+            if (advanceAtProbe > 0f) {
+              val desiredAdvance = w / monoCols.toFloat()
+              paint.textSize = (probeSize * desiredAdvance / advanceAtProbe).coerceAtLeast(8f)
+            } else {
+              paint.textSize = textSizePx
+            }
+          }
           paint.textAlign = when (align) {
             1 -> Paint.Align.CENTER
             2 -> Paint.Align.RIGHT

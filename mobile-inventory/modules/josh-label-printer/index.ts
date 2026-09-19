@@ -18,6 +18,13 @@ export type JoshLabelElement =
       align?: 0 | 1 | 2;
       fontFamily?: string;
       monospace?: boolean;
+      /**
+       * Number of monospace columns that must span exactly `width`. When set, the renderer
+       * measures the real character advance and scales the text to fill that width, instead of
+       * inferring it from `fontHeight` and hoping the font's advance ratio matches.
+       * Ignored by renderers that don't support it.
+       */
+      monospaceCols?: number;
     }
   | {
       type: 'barcode';

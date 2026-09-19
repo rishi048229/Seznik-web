@@ -32,6 +32,7 @@ import {
   QrCode,
   Sparkles,
   Bluetooth,
+  Send,
 } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import ThermalPrinterService, { PrintSaleData, ReceiptPrintOptions, numberToIndianWords } from '@/services/PrinterService';
@@ -71,6 +72,13 @@ interface ReceiptPreviewModalProps {
    * POS uses it to record the sale, which is why it no longer happens at Pay Now.
    */
   onConfirmed?: () => void;
+  /**
+   * Hands this bill to a teammate's phone to print, for when the person who needs the paper copy
+   * is not standing at this counter. Only rendered when provided, and only once the sale is
+   * actually recorded — a print job is addressed to a saved sale, so there is nothing to send
+   * before that.
+   */
+  onSendToAgent?: () => void;
 }
 
 export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
@@ -82,6 +90,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   isSaleSaving = false,
   onEdit,
   onConfirmed,
+  onSendToAgent,
 }) => {
   const {
     activeDevice,
@@ -1028,6 +1037,19 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
+                {onSendToAgent ? (
+                  <TouchableOpacity
+                    onPress={onSendToAgent}
+                    disabled={isSaleSaving}
+                    style={[styles.sendAgentBtn, isSaleSaving && { opacity: 0.5 }]}
+                  >
+                    <Send size={15} color={BRAND_COLORS.blue600} />
+                    <Text style={styles.sendAgentBtnText}>
+                      {isSaleSaving ? 'Saving bill…' : 'Send to Agent to Print'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+
                 <TouchableOpacity
                   onPress={handleClose}
                   style={[styles.closeBottomBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
@@ -1450,6 +1472,19 @@ const styles = StyleSheet.create({
   },
   reprintNoticeText: { fontSize: 11, fontWeight: '700', color: '#F59E0B', lineHeight: 15 },
   actionRow: { flexDirection: 'row', gap: 8 },
+  sendAgentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: BRAND_COLORS.blue600,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+  },
+  sendAgentBtnText: { color: BRAND_COLORS.blue600, fontWeight: '800', fontSize: 13.5 },
   skipPrintBtn: {
     flex: 1,
     flexDirection: 'row',
