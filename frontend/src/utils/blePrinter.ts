@@ -5,8 +5,6 @@
 // auto-detect which profile the device actually exposes, so any printer
 // matching one of the profiles below "just works" from the same UI.
 
-import { logPrinterConnection } from '@/services/api';
-
 interface PrinterProfile {
   /** Human-readable family name (shown for diagnostics only). */
   name: string
@@ -125,8 +123,7 @@ export function subscribeBlePrinter(listener: Listener): () => void {
 
 function handleGattDisconnected() {
   characteristic = null
-  device = null
-  setState({ status: 'disconnected', deviceName: null, profileName: null })
+  setState({ status: 'disconnected' })
 }
 
 // Finds the first profile the device actually exposes and returns its write
@@ -166,35 +163,23 @@ async function resolveWriteCharacteristic(
 
 async function connectToDevice(dev: BluetoothDevice): Promise<void> {
   setState({ status: 'connecting', deviceName: dev.name ?? 'Printer' })
+  dev.addEventListener('gattserverdisconnected', handleGattDisconnected)
+
+  const server = await dev.gatt?.connect()
+  if (!server) throw new Error('Unable to open a GATT connection to the printer')
+
+  const { char, profile } = await resolveWriteCharacteristic(server)
+
+  device = dev
+  characteristic = char
+  const props = (char as unknown as { properties?: { write?: boolean; writeWithoutResponse?: boolean } })?.properties
+  supportsWriteWithoutResponse = !!props?.writeWithoutResponse
+  supportsWriteWithResponse = !!props?.write
+  const dName = dev.name ?? 'Printer'
   try {
-    dev.addEventListener('gattserverdisconnected', handleGattDisconnected)
-
-    const server = await dev.gatt?.connect()
-    if (!server) throw new Error('Unable to open a GATT connection to the printer')
-
-    const { char, profile } = await resolveWriteCharacteristic(server)
-
-    device = dev
-    characteristic = char
-    const props = (char as unknown as { properties?: { write?: boolean; writeWithoutResponse?: boolean } })?.properties
-    supportsWriteWithoutResponse = !!props?.writeWithoutResponse
-    supportsWriteWithResponse = !!props?.write
-    const dName = dev.name ?? 'Printer'
-    try {
-      localStorage.setItem('seznik_last_ble_printer_name', dName)
-    } catch {}
-    setState({ status: 'connected', deviceName: dName, profileName: profile.name })
-    // Log the exact bluetooth printer name to the backend (non-blocking)
-    logPrinterConnection({
-      printerName: dev.name || dName,
-      deviceAddress: dev.id || null,
-      platform: 'web',
-      connectionType: 'ble',
-    });
-  } catch (err) {
-    handleGattDisconnected()
-    throw err
-  }
+    localStorage.setItem('seznik_last_ble_printer_name', dName)
+  } catch {}
+  setState({ status: 'connected', deviceName: dName, profileName: profile.name })
 }
 
 
@@ -239,39 +224,28 @@ export function disconnectPrinter(): void {
 }
 
 export async function printEscPos(bytes: Uint8Array): Promise<void> {
-  if (!characteristic) {
-    if (device && device.gatt && !device.gatt.connected) {
-      try {
-        await connectToDevice(device)
-      } catch {}
-    }
-    if (!characteristic) {
-      try {
-        await tryReconnectKnownPrinter()
-      } catch {}
-    }
-    if (!characteristic) {
-      throw new Error('Bluetooth printer is not connected. Please connect the printer first.')
-    }
-  }
+  if (!characteristic) throw new Error('Printer not connected')
 
   setState({ status: 'printing' })
   try {
+    // Prefer writeWithoutResponse with short 3ms pacing — eliminates 30-50ms round-trip
+    // GATT ACK latency stalls per 20 bytes and streams bitmap logos smoothly to thermal printers.
+    const useFastStream = supportsWriteWithoutResponse
     for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
       const chunk = bytes.slice(offset, offset + CHUNK_SIZE)
-      if (supportsWriteWithoutResponse) {
+      const remaining = bytes.length - offset - chunk.length
+      const isTail = remaining <= CHUNK_SIZE * 4
+      if (useFastStream) {
         await characteristic.writeValueWithoutResponse(chunk)
-        // 10ms pacing per 20-byte chunk (~2000 bytes/sec) matches thermal printhead burn speed
-        // and strictly prevents the printer's 256-512 byte UART serial FIFO buffer from overflowing.
-        await new Promise(resolve => setTimeout(resolve, 10))
-        // Micro-pause every 240 bytes (12 chunks) to allow printer microcontroller to flush buffer
-        if (offset > 0 && offset % 240 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 30))
-        }
+        // Tail packets carry feed/cut — give the printer buffer time so the
+        // slip actually ejects instead of stopping halfway out.
+        await new Promise(resolve => setTimeout(resolve, isTail ? 28 : 5))
       } else {
         await characteristic.writeValueWithResponse(chunk)
       }
     }
+    // Let the printer finish the feed/cut instead of dropping the last QR rows.
+    await new Promise(resolve => setTimeout(resolve, 450))
   } finally {
     setState({ status: characteristic ? 'connected' : 'disconnected' })
   }

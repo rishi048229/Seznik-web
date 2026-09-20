@@ -17,7 +17,7 @@ export const getAuthToken = () => localStorage.getItem('token');
 export const setAuthToken = (token: string) => localStorage.setItem('token', token);
 export const removeAuthToken = () => localStorage.removeItem('token');
 
-export const fetchApi = async (endpoint: string, options: RequestInit = {}) => {
+export const fetchApi = async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const token = getAuthToken();
   
   const headers = {
@@ -51,7 +51,7 @@ export const fetchApi = async (endpoint: string, options: RequestInit = {}) => {
     throw new Error(toUserMessage(data?.error || response.statusText, fallback))
   }
 
-  return data;
+  return data as T
 };
 
 export const logPrinterConnection = async (data: {

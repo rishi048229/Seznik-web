@@ -11,6 +11,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline'
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
+  isLoading?: boolean
   leftIcon?: ReactNode
   children: ReactNode
 }
@@ -20,7 +21,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     {
       variant = 'primary',
       size = 'md',
-      loading = false,
+      isLoading,
+      loading = Boolean(isLoading),
       leftIcon,
       children,
       className,

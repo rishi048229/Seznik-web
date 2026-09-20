@@ -22,7 +22,6 @@ import {
 import { formatINR } from '@/utils/currency'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { clsx } from 'clsx'
-import { toastError } from '@/utils/userMessage'
 import {
   Ticket, Plus, Pencil, Trash2, Settings2, Printer, X, Minus, ChevronLeft, ChevronRight,
   Search, Download, ArrowUp, ArrowDown, Receipt as ReceiptIcon, TrendingUp, Award, Bluetooth,
@@ -126,12 +125,12 @@ export const QuickTokensPage = () => {
     if (editingId) {
       updateTokenType({ tokenTypeId: editingId, data: payload }, {
         onSuccess: () => { toast.success('Token type updated'); resetTypeForm() },
-        onError: (err) => toastError(err, 'Failed to update token type'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update token type'),
       })
     } else {
       createTokenType({ ...payload, sortOrder: sortedTypes.length }, {
         onSuccess: () => { toast.success('Token type created'); resetTypeForm() },
-        onError: (err) => toastError(err, 'Failed to create token type'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create token type'),
       })
     }
   }
@@ -157,7 +156,7 @@ export const QuickTokensPage = () => {
       }
       toast.success(`Added ${missing.length} token templates`)
     } catch (err) {
-      toastError(err, 'Failed to add templates')
+      toast.error(err instanceof Error ? err.message : 'Failed to add templates')
     }
   }
 
@@ -215,7 +214,7 @@ export const QuickTokensPage = () => {
       toast.success(`Token #${token.tokenNumber} printed`)
     } catch (err) {
       console.error('BLE Print error:', err)
-      toastError(err, 'Bluetooth print failed. Falling back to browser print...')
+      toast.error((err as Error).message || 'Bluetooth print failed. Falling back to browser print...')
       printTokenBrowser(token)
     } finally {
       setIsBlePrinting(false)
@@ -252,7 +251,7 @@ export const QuickTokensPage = () => {
           printToken(token, printMode)
           closeIssue()
         },
-        onError: (err) => toastError(err, 'Failed to issue token'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to issue token'),
       }
     )
   }

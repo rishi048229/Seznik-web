@@ -3,13 +3,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as purchaseService from '@/services/purchaseService'
 
-export const usePurchases = () => {
+export const usePurchases = (opts?: { refetchInterval?: number | false }) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: [QUERY_KEYS.PURCHASES, user?.uid],
     queryFn: () => purchaseService.getPurchases(user!.uid),
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    staleTime: opts?.refetchInterval ? 0 : 5 * 60 * 1000,
+    refetchOnWindowFocus: Boolean(opts?.refetchInterval),
+    refetchInterval: opts?.refetchInterval,
   })
 }
 

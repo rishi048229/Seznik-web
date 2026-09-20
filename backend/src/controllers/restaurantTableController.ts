@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getTables = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const tables = await prisma.restaurantTable.findMany({
       where: { userId },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -50,7 +51,7 @@ export const getTables = async (req: Request, res: Response) => {
 
 export const createTable = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { name, sortOrder, capacity } = req.body;
 
     if (!name || !name.trim()) {
@@ -75,7 +76,7 @@ export const createTable = async (req: Request, res: Response) => {
 
 export const updateTable = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { name, sortOrder, isActive, capacity } = req.body;
 
@@ -100,7 +101,7 @@ export const updateTable = async (req: Request, res: Response) => {
 
 export const deleteTable = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
 
     await prisma.restaurantTable.deleteMany({

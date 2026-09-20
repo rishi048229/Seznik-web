@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useSaleById, useUpdateSaleDeliveryStatus } from '@/hooks/useSales'
+import { useSaleById } from '@/hooks/useSales'
 import { useSettings } from '@/hooks/useSettings'
 import { useCustomers } from '@/hooks/useCustomers'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -8,70 +8,42 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { ArrowLeft, Printer, FileText, Bluetooth, Download, RotateCcw, Receipt, ArrowRightLeft, Truck, MapPin, Phone, Calendar, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { ProcessReturnModal } from '@/components/sales/ProcessReturnModal'
-import { ReturnReceiptModal } from '@/components/sales/ReturnReceiptModal'
-import { ProcessExchangeModal } from '@/components/sales/ProcessExchangeModal'
-import { ExchangeReceiptModal } from '@/components/sales/ExchangeReceiptModal'
-import { useReturnsForSale } from '@/hooks/useSaleReturns'
-import { useExchangesForSale } from '@/hooks/useSaleExchanges'
-import { useQueryClient } from '@tanstack/react-query'
-import { QUERY_KEYS } from '@/constants/queryKeys'
-import type { DeliveryStatus, PaymentStatus } from '@/types/sale.types'
+import { ArrowLeft, Printer, FileText, Bluetooth, Download } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
+import { effectiveReceiptDate } from '@/utils/date'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
 import toast from 'react-hot-toast'
+import { isCancelledSale } from '@/utils/saleStatus'
 import { toastError } from '@/utils/userMessage'
 
 export const SaleDetailPage = () => {
   const { t } = useLanguage()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const { data: sale, isLoading } = useSaleById(id ?? '')
-  const { mutate: updateDeliveryStatus, isPending: isUpdatingDelivery } = useUpdateSaleDeliveryStatus()
-  const { data: returns = [] } = useReturnsForSale(id ?? '')
-  const { data: exchanges = [] } = useExchangesForSale(id ?? '')
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
-  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
-  const [selectedReturnSlip, setSelectedReturnSlip] = useState<any | null>(null)
-  const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false)
-  const [selectedExchangeSlip, setSelectedExchangeSlip] = useState<any | null>(null)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const blePrinter = useBlePrinter()
-
-  const handleUpdateStatus = (deliveryStatus: DeliveryStatus, paymentStatus?: PaymentStatus) => {
-    if (!sale) return
-    updateDeliveryStatus(
-      { saleId: sale.id, data: { deliveryStatus, paymentStatus } },
-      {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES, sale.id] })
-          toast.success('Delivery status updated successfully')
-        },
-        onError: (err) => toastError(err, 'Failed to update delivery status'),
-      }
-    )
-  }
 
   // Accept format directly to avoid React state update race condition
   const handlePrint = async (format: 'a4' | 'thermal') => {
     if (!sale) return
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = (sale.customerId
+    const customerName = sale.customerId
       ? customers?.find(c => c.id === sale.customerId)?.name
-      : undefined) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
+      : ''
 
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
@@ -86,8 +58,6 @@ export const SaleDetailPage = () => {
           sale,
           receiptConfig: { ...receiptConfig, showTaxBreakdown },
           paperSize,
-          printerConfig: settings?.printerConfig,
-          receiptFont: settings?.printerConfig?.receiptFont,
           businessName: settings?.businessName,
           businessAddress: settings?.businessAddress,
           customerName,
@@ -103,19 +73,13 @@ export const SaleDetailPage = () => {
       return
     }
 
-    const customerObj = sale.customerId ? customers?.find(c => c.id === sale.customerId) : undefined
-    const customerPhone = customerObj?.phone || (sale as any).customerPhone || (sale as any).customer?.phone || undefined
-
     const receiptHTML = generateReceiptHTML({
       sale,
       receiptConfig: { ...receiptConfig, showTaxBreakdown },
       printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
-      businessPhone: settings?.businessPhone,
-      businessGSTIN: settings?.businessGSTIN,
       customerName,
-      customerPhone,
       width: paperWidth,
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
@@ -123,32 +87,38 @@ export const SaleDetailPage = () => {
 
     printReceipt(receiptHTML, paperWidth, sale.invoiceNumber, () => {
       setIsPrintModalOpen(false)
-    }, settings?.printerConfig?.receiptFont)
+    })
   }
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!sale) return
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerObj = sale.customerId ? customers?.find(c => c.id === sale.customerId) : undefined
-    const customerName = (customerObj?.name) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
-    const customerPhone = customerObj?.phone || (sale as any).customerPhone || (sale as any).customer?.phone || undefined
+    const customerName = sale.customerId
+      ? customers?.find(c => c.id === sale.customerId)?.name
+      : ''
     const html = generateReceiptHTML({
       sale,
       receiptConfig: { ...receiptConfig, showTaxBreakdown },
       printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
-      businessPhone: settings?.businessPhone,
-      businessGSTIN: settings?.businessGSTIN,
       customerName,
-      customerPhone,
-      customer: customerObj || null,
+      customer: sale.customerId ? customers?.find(c => c.id === sale.customerId) : null,
       width: '210mm',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
     })
-    downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — click Save as PDF`)
+    const toastId = toast.loading('Preparing PDF…')
+    setIsDownloadingPdf(true)
+    try {
+      await downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+      toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} downloaded`, { id: toastId })
+    } catch (error) {
+      toast.dismiss(toastId)
+      toastError(error, 'Could not download the invoice PDF')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
   }
 
   const handlePrintBluetooth = async () => {
@@ -159,22 +129,16 @@ export const SaleDetailPage = () => {
         await blePrinter.connect()
       }
       const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerObj = sale.customerId ? customers?.find(c => c.id === sale.customerId) : undefined
-      const customerName = (customerObj?.name) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
-      const customerPhone = customerObj?.phone || (sale as any).customerPhone || (sale as any).customer?.phone || undefined
+      const customerName = sale.customerId
+        ? customers?.find(c => c.id === sale.customerId)?.name
+        : ''
       const bytes = await generateReceiptEscPos({
         sale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',
-        printerConfig: settings?.printerConfig,
-        receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
-        businessPhone: settings?.businessPhone,
-        businessGSTIN: settings?.businessGSTIN,
-        businessLogoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
         customerName,
-        customerPhone,
       })
       await blePrinter.print(bytes)
       setIsPrintModalOpen(false)
@@ -202,7 +166,7 @@ export const SaleDetailPage = () => {
     )
   }
 
-  const saleDate = (sale.createdAt as unknown as { toDate?: () => Date })?.toDate ? new Date((sale.createdAt as unknown as { toDate?: () => Date }).toDate!()) : new Date(sale.createdAt || Date.now())
+  const saleDate = effectiveReceiptDate(sale.createdAt)
 
   const uniqueTaxRates = Array.from(new Set(sale.items?.map(item => item.taxRate || 0).filter(rate => rate > 0) ?? []))
   const formattedTaxRate = uniqueTaxRates.length === 1 ? (Math.round(uniqueTaxRates[0] * 100) / 100).toString() : ''
@@ -218,29 +182,11 @@ export const SaleDetailPage = () => {
         title={t('sales.saleDetailsTitle')}
         breadcrumb={[t('page.salesHistory'), sale.invoiceNumber]}
         action={
-          <div className="flex flex-wrap gap-2">
-            {sale.returnStatus !== 'full' && (
-              <>
-                <Button
-                  variant="primary"
-                  onClick={() => setIsExchangeModalOpen(true)}
-                  leftIcon={<ArrowRightLeft size={16} />}
-                >
-                  Exchange Items
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={() => setIsReturnModalOpen(true)}
-                  leftIcon={<RotateCcw size={16} />}
-                >
-                  Return / Refund
-                </Button>
-              </>
-            )}
+          <div className="flex gap-2">
             <Button variant="ghost" onClick={() => setIsPrintModalOpen(true)} leftIcon={<Printer size={16} />}>
               {t('pos.print')}
             </Button>
-            <Button variant="ghost" onClick={handleDownloadPdf} leftIcon={<Download size={16} />}>
+            <Button variant="ghost" onClick={handleDownloadPdf} leftIcon={<Download size={16} />} loading={isDownloadingPdf}>
               Download PDF
             </Button>
             <Button variant="ghost" onClick={() => navigate(ROUTES.SALES)} leftIcon={<ArrowLeft size={16} />}>
@@ -250,177 +196,16 @@ export const SaleDetailPage = () => {
         }
       />
 
+      {isCancelledSale(sale) && (
+        <div className="max-w-2xl mx-auto mb-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+          <p className="font-bold">Cancelled</p>
+          {sale.cancelReason && <p>Reason: {sale.cancelReason}</p>}
+          {sale.cancelledByName && <p>By {sale.cancelledByName}</p>}
+        </div>
+      )}
+
       {/* Sale details card (for screen viewing) */}
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Return Status Banner (if returned) */}
-        {sale.returnStatus && sale.returnStatus !== 'none' && (
-          <div className="flex items-center justify-between p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl">
-            <div className="flex items-center gap-3">
-              <RotateCcw className="text-amber-600 dark:text-amber-400 shrink-0" size={20} />
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-amber-950 dark:text-amber-200 text-sm">
-                    {sale.returnStatus === 'full' ? 'Invoice Fully Returned' : 'Invoice Partially Returned'}
-                  </span>
-                  <Badge variant={sale.returnStatus === 'full' ? 'danger' : 'warning'}>
-                    {sale.returnStatus === 'full' ? 'FULL RETURN' : 'PARTIAL RETURN'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                  Total Refunded: <strong>{formatINR(sale.totalRefunded || 0)}</strong>
-                </p>
-              </div>
-            </div>
-            {sale.returnStatus !== 'full' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsReturnModalOpen(true)}
-                leftIcon={<RotateCcw size={14} />}
-              >
-                Return More
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Delivery & Fulfillment Card */}
-        {sale.orderType === 'delivery' && (
-          <div className="p-5 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/50 dark:from-blue-950/30 dark:via-dark-card dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800/80 rounded-2xl shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-blue-100 dark:border-blue-900/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                  <Truck size={22} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base">Delivery & Fulfillment</h3>
-                    <Badge variant={
-                      sale.deliveryStatus === 'delivered' ? 'success' :
-                      sale.deliveryStatus === 'out_for_delivery' ? 'info' :
-                      sale.deliveryStatus === 'cancelled' ? 'default' : 'warning'
-                    }>
-                      {sale.deliveryStatus === 'delivered' ? 'DELIVERED' :
-                       sale.deliveryStatus === 'out_for_delivery' ? 'OUT FOR DELIVERY' :
-                       sale.deliveryStatus === 'cancelled' ? 'CANCELLED' : 'PENDING'}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Order Type: <strong>Delivery</strong> • Payment: <strong className={sale.paymentStatus === 'pending' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>{sale.paymentStatus === 'pending' ? 'COD / PENDING' : 'PAID'}</strong>
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2">
-                {sale.deliveryStatus === 'pending' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={isUpdatingDelivery}
-                    onClick={() => handleUpdateStatus('out_for_delivery')}
-                    leftIcon={<Truck size={14} />}
-                  >
-                    Mark Out for Delivery
-                  </Button>
-                )}
-                {sale.deliveryStatus !== 'delivered' && (
-                  <Button
-                    size="sm"
-                    loading={isUpdatingDelivery}
-                    onClick={() => handleUpdateStatus('delivered')}
-                    leftIcon={<CheckCircle2 size={14} />}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    Mark Delivered
-                  </Button>
-                )}
-                {sale.paymentStatus === 'pending' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={isUpdatingDelivery}
-                    onClick={() => handleUpdateStatus(sale.deliveryStatus || 'pending', 'paid')}
-                    className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300"
-                  >
-                    Mark COD Paid
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Delivery Details Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              {sale.deliveryPhone && (
-                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
-                    <Phone size={13} className="text-blue-500" />
-                    <span>Contact Phone</span>
-                  </div>
-                  <p className="font-bold text-gray-900 dark:text-gray-100 text-sm">{sale.deliveryPhone}</p>
-                </div>
-              )}
-
-              {sale.scheduledDeliveryDate && (
-                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
-                    <Calendar size={13} className="text-amber-500" />
-                    <span>Scheduled Date</span>
-                  </div>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">
-                    {new Date(sale.scheduledDeliveryDate).toLocaleDateString('en-IN', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
-                  </p>
-                </div>
-              )}
-
-              {sale.paymentDueDate && sale.paymentStatus === 'pending' && (
-                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
-                    <Clock size={13} className="text-orange-500" />
-                    <span>Payment Due</span>
-                  </div>
-                  <p className="font-bold text-orange-600 dark:text-orange-400">
-                    {new Date(sale.paymentDueDate).toLocaleDateString('en-IN', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
-                  </p>
-                </div>
-              )}
-
-              {sale.deliveredAt && (
-                <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
-                    <CheckCircle2 size={13} className="text-emerald-500" />
-                    <span>Delivered At</span>
-                  </div>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">
-                    {new Date(sale.deliveredAt).toLocaleDateString('en-IN', {
-                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {sale.deliveryAddress && (
-              <div className="p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700 text-xs">
-                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-semibold mb-1">
-                  <MapPin size={13} className="text-red-500" />
-                  <span>Delivery Destination Address</span>
-                </div>
-                <p className="font-medium text-gray-900 dark:text-gray-100 leading-relaxed">{sale.deliveryAddress}</p>
-                {sale.deliveryNotes && (
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 italic">
-                    Notes: {sale.deliveryNotes}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
+      <div className="max-w-2xl mx-auto">
         <Card className="overflow-hidden">
           {/* Receipt Header */}
           <div className="bg-[#0a0a2e] text-white p-6 text-center">
@@ -444,14 +229,7 @@ export const SaleDetailPage = () => {
             <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('sales.invoiceHeader')}</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{sale.invoiceNumber}</p>
-                  {sale.orderType === 'delivery' && (
-                    <Badge variant="blue" className="text-[10px]">
-                      DELIVERY
-                    </Badge>
-                  )}
-                </div>
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{sale.invoiceNumber}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.date')}</p>
@@ -468,43 +246,24 @@ export const SaleDetailPage = () => {
               </div>
             </div>
 
-            {/* Customer & Delivery Destination */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.customerLabel')}</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {sale.customerId ? (customers?.find(c => c.id === sale.customerId)?.name || t('sales.registeredCustomer')) : (sale.customerName || (sale.orderType === 'delivery' ? 'Delivery Customer' : t('dashboard.walkInCustomer')))}
-                </p>
-                {sale.deliveryPhone && <p className="text-xs text-gray-400 mt-0.5">{sale.deliveryPhone}</p>}
-              </div>
-
-              {sale.orderType === 'delivery' && sale.deliveryAddress && (
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Shipping / Delivery To</p>
-                  <p className="text-xs font-medium text-gray-800 dark:text-gray-200 mt-0.5 leading-relaxed">
-                    {sale.deliveryAddress}
-                  </p>
-                </div>
-              )}
+            {/* Customer */}
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.customerLabel')}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {sale.customerId ? t('sales.registeredCustomer') : t('dashboard.walkInCustomer')}
+              </p>
             </div>
 
             {/* Payment Method */}
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.paymentMethod')}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant={
-                  sale.paymentMethod === 'cash' ? 'success' :
-                  sale.paymentMethod === 'card' ? 'info' :
-                  sale.paymentMethod === 'upi' ? 'default' : 'warning'
-                }>
-                  {sale.paymentMethod?.toUpperCase()}
-                </Badge>
-                {sale.paymentStatus === 'pending' && (
-                  <Badge variant="warning">
-                    UNPAID / COD PENDING
-                  </Badge>
-                )}
-              </div>
+              <Badge variant={
+                sale.paymentMethod === 'cash' ? 'success' :
+                sale.paymentMethod === 'card' ? 'info' :
+                sale.paymentMethod === 'upi' ? 'default' : 'warning'
+              }>
+                {sale.paymentMethod?.toUpperCase()}
+              </Badge>
             </div>
 
             {/* Items Table */}
@@ -560,7 +319,7 @@ export const SaleDetailPage = () => {
               </div>
               <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-200 dark:border-gray-700">
                 <span className="text-gray-900 dark:text-gray-100">{t('sales.grandTotal')}</span>
-                <span className="text-[#0a0a2e] dark:text-blue-400">{formatINR(sale.grandTotal)}</span>
+                <span className="text-[#0a0a2e]">{formatINR(sale.grandTotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 dark:text-gray-400">{t('sales.amountPaid')}</span>
@@ -587,180 +346,7 @@ export const SaleDetailPage = () => {
             </div>
           </div>
         </Card>
-
-        {/* Returns / Credit Notes Section */}
-        {returns.length > 0 && (
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <RotateCcw className="text-rose-600" size={18} />
-                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">
-                  Credit Notes &amp; Returns History ({returns.length})
-                </h3>
-              </div>
-            </div>
-
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {returns.map((ret: any) => (
-                <div key={ret.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 dark:text-slate-100">
-                        {ret.returnNumber}
-                      </span>
-                      <Badge variant="default">
-                        {(ret.refundMethod || 'cash').toUpperCase()}
-                      </Badge>
-                      {ret.reason && (
-                        <span className="text-xs text-slate-500 capitalize">
-                          ({ret.reason.replace('_', ' ')})
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {new Date(ret.createdAt).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {' • '}
-                      {Array.isArray(ret.items) ? `${ret.items.reduce((s: number, i: any) => s + (i.quantity || 0), 0)} items returned` : ''}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-rose-600 text-base">
-                      -{formatINR(ret.refundAmount)}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      leftIcon={<Receipt size={14} />}
-                      onClick={() => setSelectedReturnSlip(ret)}
-                    >
-                      Return Slip
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Exchange History Card */}
-        {exchanges.length > 0 && (
-          <Card className="p-5">
-            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-3 flex items-center gap-2">
-              <ArrowRightLeft className="text-sky-600" size={16} />
-              Exchange Vouchers ({exchanges.length})
-            </h4>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {exchanges.map((exc: any) => {
-                const isEven = Math.abs(exc.differenceAmount) < 0.01
-                const isUpgrade = exc.differenceAmount > 0
-                return (
-                  <div key={exc.id} className="py-3 flex items-center justify-between gap-3 text-sm">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                          {exc.exchangeNumber}
-                        </span>
-                        <Badge variant={isEven ? 'secondary' : isUpgrade ? 'primary' : 'success'}>
-                          {isEven ? 'EVEN' : isUpgrade ? 'UPGRADE' : 'DOWNGRADE'}
-                        </Badge>
-                        <span className="text-xs text-slate-500 uppercase">
-                          ({exc.settlementMethod?.replace('_', ' ')})
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {new Date(exc.createdAt).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                        {' • '}
-                        Return: <strong>{exc.saleReturn?.returnNumber}</strong>
-                        {' • '}
-                        New Inv: <strong>#{exc.newSale?.invoiceNumber}</strong>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className={`font-bold text-base ${isUpgrade ? 'text-blue-600' : isEven ? 'text-slate-700 dark:text-slate-300' : 'text-emerald-600'}`}>
-                        {isEven ? 'Rs. 0.00' : `${isUpgrade ? '+' : '-'}${formatINR(Math.abs(exc.differenceAmount))}`}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        leftIcon={<Receipt size={14} />}
-                        onClick={() => setSelectedExchangeSlip(exc)}
-                      >
-                        Voucher
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        )}
       </div>
-
-      {/* Process Return Modal */}
-      {sale && (
-        <ProcessReturnModal
-          sale={sale}
-          isOpen={isReturnModalOpen}
-          onClose={() => setIsReturnModalOpen(false)}
-          onSuccess={(newReturn) => {
-            qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
-            qc.invalidateQueries({ queryKey: ['sale-returns'] })
-            setSelectedReturnSlip(newReturn)
-          }}
-        />
-      )}
-
-      {/* Process Exchange Modal */}
-      {sale && (
-        <ProcessExchangeModal
-          sale={sale}
-          isOpen={isExchangeModalOpen}
-          onClose={() => setIsExchangeModalOpen(false)}
-          onSuccess={(result) => {
-            qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
-            qc.invalidateQueries({ queryKey: ['sale-returns'] })
-            qc.invalidateQueries({ queryKey: ['sale-exchanges'] })
-            setIsExchangeModalOpen(false)
-            setSelectedExchangeSlip(result.exchange)
-          }}
-        />
-      )}
-
-      {/* Return Slip Print/Download Modal */}
-      {selectedReturnSlip && sale && (
-        <ReturnReceiptModal
-          isOpen={!!selectedReturnSlip}
-          onClose={() => setSelectedReturnSlip(null)}
-          saleReturn={selectedReturnSlip}
-          sale={sale}
-        />
-      )}
-
-      {/* Exchange Voucher Print/Download Modal */}
-      {selectedExchangeSlip && sale && (
-        <ExchangeReceiptModal
-          isOpen={!!selectedExchangeSlip}
-          onClose={() => setSelectedExchangeSlip(null)}
-          exchange={selectedExchangeSlip}
-          originalSale={sale}
-          saleReturn={selectedExchangeSlip.saleReturn}
-          newSale={selectedExchangeSlip.newSale}
-        />
-      )}
 
       {/* Print Format Modal */}
       <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('pos.printReceiptTitle')} size="sm">

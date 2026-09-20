@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getTokens = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { date } = req.query;
 
     const where: any = { userId };
@@ -30,7 +31,7 @@ export const getTokens = async (req: Request, res: Response) => {
 // printed ticket a per-day sequential number instead of an invoice number.
 export const createToken = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { tokenTypeId, name, amount, quantity, paymentMethod, note } = req.body;
 
     const qty = quantity ? parseFloat(quantity) : 1;
@@ -115,7 +116,7 @@ export const createToken = async (req: Request, res: Response) => {
 // no void/status concept anywhere else in the codebase.
 export const deleteToken = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
 
     const token = await prisma.token.findFirst({ where: { id: String(id), userId } });

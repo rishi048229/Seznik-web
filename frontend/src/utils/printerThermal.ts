@@ -1,7 +1,7 @@
 import type { PrinterConfig } from '@/types/settings.types'
 import { resolveReceiptFontId, type ReceiptFontId } from '@shared/receiptFonts'
 
-type PrinterConfigLoose = Partial<PrinterConfig> & Record<string, unknown>
+type PrinterConfigLoose = Partial<PrinterConfig>
 
 const isThermalPaper = (v: unknown): v is '58mm' | '80mm' => v === '58mm' || v === '80mm'
 

@@ -33,6 +33,14 @@ const ADDITIVE_COLUMNS = [
   `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "billCharges" JSONB`,
   `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "returnStatus" TEXT NOT NULL DEFAULT 'none'`,
   `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "totalRefunded" DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'completed'`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)`,
+  `ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "cancelledByName" TEXT`,
+  `ALTER TABLE "KOTOrder" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)`,
+  `ALTER TABLE "KOTOrder" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT`,
+  `ALTER TABLE "KOTOrder" ADD COLUMN IF NOT EXISTS "cancelledByName" TEXT`,
+  `ALTER TABLE "KOTOrderItem" ADD COLUMN IF NOT EXISTS "kotBatchNumber" INTEGER`,
 ] as const
 
 
@@ -131,6 +139,20 @@ const ADDITIVE_TABLES = [
   `CREATE INDEX IF NOT EXISTS "UtilityBill_userId_date_idx" ON "UtilityBill" ("userId", "date")`,
   `CREATE INDEX IF NOT EXISTS "UtilityBill_consumerNumber_idx" ON "UtilityBill" ("consumerNumber")`,
   `CREATE INDEX IF NOT EXISTS "UtilityBill_receiptNumber_idx" ON "UtilityBill" ("receiptNumber")`,
+  `
+  CREATE TABLE IF NOT EXISTS "KOTPrintEvent" (
+    "id" TEXT PRIMARY KEY,
+    "orderId" TEXT NOT NULL,
+    "batchNumber" INTEGER NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'kot',
+    "itemSnapshot" JSONB NOT NULL,
+    "printedByName" TEXT,
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+  `,
+  `CREATE INDEX IF NOT EXISTS "KOTPrintEvent_orderId_idx" ON "KOTPrintEvent" ("orderId")`,
+  `CREATE INDEX IF NOT EXISTS "KOTPrintEvent_userId_idx" ON "KOTPrintEvent" ("userId")`,
 ] as const
 
 let ensured: Promise<void> | null = null

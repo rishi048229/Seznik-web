@@ -3,13 +3,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as tokenService from '@/services/tokenService'
 
-export const useTokens = (date?: string) => {
+export const useTokens = (date?: string, opts?: { refetchInterval?: number | false }) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: [QUERY_KEYS.TOKENS, user?.uid, date],
     queryFn: () => tokenService.getTokens(date),
     enabled: !!user,
     staleTime: 0,
+    refetchOnWindowFocus: Boolean(opts?.refetchInterval),
+    refetchInterval: opts?.refetchInterval,
   })
 }
 

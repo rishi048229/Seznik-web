@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect, Fragment } from 'react'
-import { PrinterAnimationModal } from '@/components/ui/PrinterAnimationModal'
-import { useNavigate } from 'react-router-dom'
 import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { useCart } from '@/hooks/useCart'
@@ -8,33 +6,28 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { useCreateSale } from '@/hooks/useSales'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
-import { useLocationStock } from '@/hooks/useLocations'
-import { LocationSelector } from '@/components/common/LocationSelector'
 import { BleConnectButton } from '@/components/common/BleConnectButton'
 import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
-import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, FileText, ScanLine, Bluetooth, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight, CheckCircle2, Truck, User } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, ScanLine, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
+import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
+import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
-import { formatINR, roundCurrency } from '@/utils/currency'
-import { gstSummaryFromCart } from '@/utils/gst'
-import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { shouldPrintThermalOverBle } from '@/utils/printTarget'
-import { ROUTES } from '@/constants/routes'
+import { formatINR } from '@/utils/currency'
+import { localDateInputValue, saleTimestampFromBillDate } from '@/utils/date'
+import { printCompletedSale } from '@/utils/printCompletedSale'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { useAuth } from '@/contexts/AuthContext'
-import { isProductAvailable, usesStockTracking } from '@/utils/businessFeatures'
 import { trackUserAction } from '@/utils/analytics'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
@@ -150,29 +143,24 @@ const CategoryTabsRow = ({
 
 export const POSPage = () => {
   const { t } = useLanguage()
-  const { userProfile } = useAuth()
   const pageTutorial = usePageTutorial('pos')
-  const navigate = useNavigate()
   const { data: products, isLoading } = useProducts()
   const { data: categories } = useCategories()
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
-  const trackStock = usesStockTracking(userProfile?.businessType, settings?.trackStock)
-  const { items, addItem, removeItem, updateQty, applyDiscount, clearCart, totals, updateItemDetails } = useCart()
+  const { items, addItem, removeItem, updateQty, clearCart, totals, updateItemDetails } = useCart()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
 
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isRealisticReceiptOpen, setIsRealisticReceiptOpen] = useState(false)
   const [currentSaleForReceipt, setCurrentSaleForReceipt] = useState<Partial<Sale> | null>(null)
-  const [isBlePrinting, setIsBlePrinting] = useState(false)
+  const [showTaxBreakdown, setShowTaxBreakdown] = useState<boolean>(() => settings?.receiptConfig?.showTaxBreakdown ?? true)
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
-  const [itemDiscountOpenId, setItemDiscountOpenId] = useState<string | null>(null)
 
   // Quick-edit a product's own details (name/price/stock/etc.) without leaving
   // the billing screen — opened from either the product grid or a cart line.
@@ -217,36 +205,7 @@ export const POSPage = () => {
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [amountPaid, setAmountPaid] = useState('')
-  const [billDate, setBillDate] = useState<string>(() => new Date().toISOString().split('T')[0])
-  const [completedSaleId, setCompletedSaleId] = useState<string>('')
-  const [completedInvoiceNumber, setCompletedInvoiceNumber] = useState<string>('')
-
-  // Delivery & Fulfillment state
-  const [orderType, setOrderType] = useState<'walk_in' | 'delivery'>('walk_in')
-  const [deliveryAddress, setDeliveryAddress] = useState('')
-  const [deliveryPhone, setDeliveryPhone] = useState('')
-  const [deliveryNotes, setDeliveryNotes] = useState('')
-  const [scheduledDeliveryDate, setScheduledDeliveryDate] = useState('')
-  const [deliveryPaymentStatus, setDeliveryPaymentStatus] = useState<'paid' | 'pending'>('paid')
-  const [paymentDueDate, setPaymentDueDate] = useState('')
-
-  const [lastSaleData, setLastSaleData] = useState<{
-    items: typeof items
-    totals: typeof totals
-    orderDiscountAmount: number
-    finalTotal: number
-    method: typeof method
-    amountPaidNum: number
-    selectedCustomer: string
-    orderType?: 'walk_in' | 'delivery'
-    deliveryAddress?: string
-    deliveryPhone?: string
-    deliveryNotes?: string
-    scheduledDeliveryDate?: string
-    deliveryStatus?: import('@/types/sale.types').DeliveryStatus
-    paymentStatus?: import('@/types/sale.types').PaymentStatus
-    paymentDueDate?: string
-  } | null>(null)
+  const [billDate, setBillDate] = useState<string>(() => localDateInputValue())
 
   // Build a map of product stock reserved in cart
   const cartReserved = items.reduce<Record<string, number>>((acc, item) => {
@@ -254,39 +213,8 @@ export const POSPage = () => {
     return acc
   }, {})
 
-  // Auto-clean orphan items: if store products have loaded and cart contains items not in this store's catalog (e.g. from previous tests/sessions), prune them
-  useEffect(() => {
-    if (!isLoading && products !== undefined && items.length > 0) {
-      if (products.length === 0) {
-        clearCart()
-      } else {
-        const validProductIds = new Set(products.map(p => p.id))
-        const orphanItems = items.filter(i => !validProductIds.has(i.productId))
-        if (orphanItems.length > 0) {
-          orphanItems.forEach(i => removeItem(i.productId))
-        }
-      }
-    }
-  }, [isLoading, products, items, clearCart, removeItem])
-
-  // Multi-location inventory: when a location is selected, stock/price
-  // resolve through that location's own ProductLocationStock row instead of
-  // the product's flat totals. A product with no stock row at the selected
-  // location is 0 available there — it does NOT fall back to the flat
-  // total, since that's the entire point of per-location stock.
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
-  const { data: locationStockRows = [] } = useLocationStock(selectedLocationId)
-  const locationStockMap = new Map(locationStockRows.map(r => [r.productId, r]))
-
-  const getEffectiveStock = (product: Product): number => {
-    if (!selectedLocationId) return product.currentStock
-    return locationStockMap.get(product.id)?.stock ?? 0
-  }
-  const getEffectivePrice = (product: Product): number => {
-    if (!selectedLocationId) return product.sellingPrice
-    const override = locationStockMap.get(product.id)?.priceOverride
-    return override ?? product.sellingPrice
-  }
+  const getEffectiveStock = (product: Product): number => product.currentStock
+  const getEffectivePrice = (product: Product): number => product.sellingPrice
   /** The exact object to hand to addItem/cart logic so the cart line carries the location's price. */
   const withEffectivePrice = (product: Product): Product => {
     const price = getEffectivePrice(product)
@@ -307,16 +235,13 @@ export const POSPage = () => {
   useBarcodeScanner({
     mode: 'pos',
     onScan: handleBarcodeScan,
-    enabled: !isPaymentOpen && !isPrintModalOpen && !isRealisticReceiptOpen,
+    enabled: !isPaymentOpen && !isRealisticReceiptOpen,
   })
 
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
-  // Restaurants can filter by availability (including inactive). Stock businesses
-  // keep the prior active-only catalog for billing.
-  const catalogProducts = trackStock ? activeProducts : (products ?? [])
   const priceMinNum = parseFloat(priceMin)
   const priceMaxNum = parseFloat(priceMax)
-  const filtered = catalogProducts
+  const filtered = activeProducts
     .filter(p => {
       const q = search.trim().toLowerCase()
       const matchesSearch = !q ||
@@ -328,25 +253,15 @@ export const POSPage = () => {
 
       const reserved = cartReserved[p.id] || 0
       const available = getEffectiveStock(p) - reserved
-      const matchesStock = trackStock
-        ? (stockFilter === 'all' ||
-            (stockFilter === 'out' && available <= 0) ||
-            (stockFilter === 'low' && available > 0 && available <= p.lowStockThreshold) ||
-            (stockFilter === 'in' && available > p.lowStockThreshold))
-        : (stockFilter === 'all' ||
-            (stockFilter === 'in' && isProductAvailable(p)) ||
-            (stockFilter === 'out' && !isProductAvailable(p)))
+      const matchesStock = stockFilter === 'all' ||
+        (stockFilter === 'out' && available <= 0) ||
+        (stockFilter === 'low' && available > 0 && available <= p.lowStockThreshold) ||
+        (stockFilter === 'in' && available > p.lowStockThreshold)
 
       const matchesPriceMin = isNaN(priceMinNum) || p.sellingPrice >= priceMinNum
       const matchesPriceMax = isNaN(priceMaxNum) || p.sellingPrice <= priceMaxNum
 
-      // Once a store is picked, only show what that store actually carries
-      // (has a stock row for) — a bare price/stock swap wasn't enough; the
-      // grid itself needs to reflect "this store's catalog," not every
-      // product in the whole business.
-      const matchesStoreScope = !selectedLocationId || locationStockMap.has(p.id)
-
-      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax && matchesStoreScope
+      return matchesSearch && matchesCategory && matchesStock && matchesPriceMin && matchesPriceMax
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -354,61 +269,34 @@ export const POSPage = () => {
         case 'name-desc': return b.name.localeCompare(a.name)
         case 'price-asc': return a.sellingPrice - b.sellingPrice
         case 'price-desc': return b.sellingPrice - a.sellingPrice
-        case 'stock-asc': return trackStock ? a.currentStock - b.currentStock : Number(isProductAvailable(b)) - Number(isProductAvailable(a))
-        case 'stock-desc': return trackStock ? b.currentStock - a.currentStock : Number(isProductAvailable(a)) - Number(isProductAvailable(b))
+        case 'stock-asc': return a.currentStock - b.currentStock
+        case 'stock-desc': return b.currentStock - a.currentStock
         default: return 0
       }
     })
 
-  // Gross (MRP-inclusive) value before any order-level discount — used as the
-  // base for % discounts so the customer sees the discount against the
-  // price they were quoted, not the GST-stripped taxable value.
-  const grossBeforeOrderDiscount = roundCurrency(
-    items.reduce((s, i) => s + i.sellingPrice * i.quantity - i.discount, 0)
-  )
+  const orderDiscountAmount = orderDiscountType === 'flat'
+    ? orderDiscount
+    : totals.subtotal * (orderDiscount / 100)
 
-  const orderDiscountAmount = roundCurrency(
-    orderDiscountType === 'flat'
-      ? orderDiscount
-      : grossBeforeOrderDiscount * (orderDiscount / 100)
-  )
-
-  // Indian GST rule: discount reduces the taxable base FIRST, then GST is
-  // computed on the reduced base.  gstSummaryFromCart applies a proportional
-  // discount factor across all cart lines before running the per-slab GST
-  // calculation, so the resulting totalGst is always on the discounted value.
-  const gstSummary = gstSummaryFromCart(items, orderDiscountAmount)
-  const taxAmount = roundCurrency(gstSummary.totalGst)
-  // Rebuild grand total from the GST-aware components so there is no
-  // rounding gap between what is displayed and what is stored in the DB.
-  const finalTotal = roundCurrency(Math.max(0, gstSummary.taxableValue + taxAmount))
-
+  const taxAmount = totals.tax
+  const finalTotal = totals.subtotal + taxAmount - orderDiscountAmount
 
   useEffect(() => {
     if (isPaymentOpen) {
       if (method === 'credit') {
         setAmountPaid('0')
-      } else if (method === 'cash') {
-        // Do not prefill cash amount
       } else if (!amountPaid || amountPaid === '0') {
-        setAmountPaid(finalTotal.toFixed(2))
+        setAmountPaid(finalTotal.toString())
       }
     }
   }, [isPaymentOpen, method, finalTotal])
 
   const handleProductClick = (product: Product) => {
-    if (!trackStock) {
-      if (!isProductAvailable(product)) {
-        toast.error('Item is not available')
-        return
-      }
-      addItem(withEffectivePrice(product))
-      return
-    }
     const reserved = cartReserved[product.id] || 0
     const available = getEffectiveStock(product) - reserved
     if (available <= 0) {
-      toast.error(selectedLocationId ? `${t('pos.errOutOfStock')} at this location` : t('pos.errOutOfStock'))
+      toast.error(t('pos.errOutOfStock'))
     } else {
       addItem(withEffectivePrice(product))
     }
@@ -442,16 +330,6 @@ export const POSPage = () => {
   const handleUpdateQty = (productId: string, newQty: number) => {
     const product = products?.find(p => p.id === productId)
     if (!product) return
-
-    if (!trackStock) {
-      if (newQty <= 0) {
-        removeItem(productId)
-      } else {
-        updateQty(productId, newQty)
-      }
-      return
-    }
-
     const reserved = cartReserved[productId] || 0
     const otherQty = reserved - (items.find(i => i.productId === productId)?.quantity || 0)
     const maxAllowed = getEffectiveStock(product) - otherQty
@@ -470,122 +348,87 @@ export const POSPage = () => {
   const amountPaidNum = parseFloat(amountPaid) || 0
   const unpaidAmount = Math.max(0, finalTotal - amountPaidNum)
   const change = Math.max(0, amountPaidNum - finalTotal)
-  const isDeliveryPending = orderType === 'delivery' && deliveryPaymentStatus === 'pending'
-  const isComplete = isDeliveryPending || unpaidAmount <= 0.01 || Boolean(selectedCustomer)
+  const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer)
+
+  const openPayment = () => {
+    setAmountPaid(method === 'credit' ? '0' : finalTotal.toString())
+    setIsPaymentOpen(true)
+  }
 
   const handleCheckout = () => {
-    const isDelivery = orderType === 'delivery'
-    const finalPaymentStatus = isDelivery ? deliveryPaymentStatus : (method === 'credit' ? 'pending' : 'paid')
-    const finalAmountPaid = isDelivery && deliveryPaymentStatus === 'pending' ? 0 : amountPaidNum
+    if (!isComplete || isCreating) return
+
+    const saleItems = items.map(item => {
+      const itemTaxRate = item.taxRate || 0
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+        discount: item.discount,
+        taxRate: itemTaxRate,
+        priceIncludesGst: item.priceIncludesGst ?? false,
+        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * itemTaxRate / 100),
+        total: item.sellingPrice * item.quantity - item.discount,
+      }
+    })
 
     const saleData: Parameters<typeof createSale>[0] = {
-      items: items.map(item => {
-        const itemTaxRate = item.taxRate || 0
-        const lineTotal = item.sellingPrice * item.quantity - item.discount
-        const includesGst = item.priceIncludesGst ?? false
-        const computedTaxAmount = itemTaxRate > 0
-          ? includesGst
-            ? lineTotal - (lineTotal / (1 + itemTaxRate / 100))
-            : lineTotal * itemTaxRate / 100
-          : 0
-        return {
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          sellingPrice: item.sellingPrice,
-          discount: item.discount,
-          taxRate: itemTaxRate,
-          priceIncludesGst: includesGst,
-          taxAmount: computedTaxAmount,
-          total: lineTotal,
-        }
-      }),
-      subtotal: gstSummary.taxableValue,
+      items: saleItems,
+      subtotal: totals.subtotal,
       totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
       totalTax: taxAmount,
       grandTotal: finalTotal,
       paymentMethod: method,
-      amountPaid: finalAmountPaid,
+      amountPaid: amountPaidNum,
       changeReturned: change,
       isQuickBill: false,
-      createdAt: billDate ? new Date(`${billDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString() : undefined,
-      orderType,
-      deliveryAddress: isDelivery ? deliveryAddress : undefined,
-      deliveryPhone: isDelivery ? deliveryPhone : undefined,
-      deliveryNotes: isDelivery ? deliveryNotes : undefined,
-      scheduledDeliveryDate: isDelivery && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
-      deliveryStatus: isDelivery ? 'pending' : 'delivered',
-      paymentStatus: finalPaymentStatus,
-      paymentDueDate: (isDelivery || unpaidAmount > 0.01 || method === 'credit') && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
+      createdAt: saleTimestampFromBillDate(billDate),
     }
 
-
-    // Only set customerId if a customer is selected (Firestore rejects undefined)
     if (selectedCustomer) {
       saleData.customerId = selectedCustomer
     }
-    // Multi-location inventory: stamps which location's stock this whole
-    // sale decrements. Absent entirely when no location is selected, so the
-    // backend takes its legacy flat-stock path unchanged.
-    if (selectedLocationId) {
-      ;(saleData as Record<string, unknown>).locationId = selectedLocationId
+
+    const draftSale: Sale = {
+      id: `draft-${Date.now()}`,
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+      items: saleItems,
+      subtotal: saleData.subtotal,
+      totalDiscount: saleData.totalDiscount,
+      totalTax: saleData.totalTax,
+      grandTotal: saleData.grandTotal,
+      paymentMethod: method,
+      amountPaid: amountPaidNum,
+      changeReturned: change,
+      isQuickBill: false,
+      createdAt: saleData.createdAt || new Date().toISOString(),
+      customerId: selectedCustomer || undefined,
     }
 
-    // =========================================================================
-    // OPTIMISTIC PRINTING & BACKGROUND SALE PERSISTENCE
-    // Mirroring Mobile POS flow:
-    // 1. Take snapshot of cart & create provisional invoice ID immediately.
-    // 2. Open print modal and reset POS cart instantly so user sees zero lag.
-    // 3. Persist sale to backend concurrently in the background; update with
-    //    official invoiceNumber/saleId once server responds.
-    // =========================================================================
-    const provisionalInvoice = `INV-${Date.now().toString().slice(-8)}`
-    const snapshot = {
-      items: [...items],
-      totals: { ...totals, subtotal: gstSummary.taxableValue, tax: taxAmount },
-      orderDiscountAmount,
-      finalTotal,
-      method,
-      amountPaidNum: finalAmountPaid,
-      selectedCustomer,
-      orderType,
-      deliveryAddress: isDelivery ? deliveryAddress : undefined,
-      deliveryPhone: isDelivery ? deliveryPhone : undefined,
-      deliveryNotes: isDelivery ? deliveryNotes : undefined,
-      scheduledDeliveryDate: isDelivery && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
-      deliveryStatus: (isDelivery ? 'pending' : 'delivered') as import('@/types/sale.types').DeliveryStatus,
-      paymentStatus: finalPaymentStatus as import('@/types/sale.types').PaymentStatus,
-      paymentDueDate: isDelivery && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
-    }
-    setLastSaleData(snapshot)
-    setCompletedSaleId('')
-    setCompletedInvoiceNumber(provisionalInvoice)
+    const customerName = selectedCustomer
+      ? customers?.find(c => c.id === selectedCustomer)?.name
+      : undefined
 
-    // Step 1: Clear cart and display print pop-up immediately
-    clearCart()
-    setOrderDiscount(0)
-    setSelectedCustomer('')
     setIsPaymentOpen(false)
-    setMethod('cash')
-    setAmountPaid('')
-    setDeliveryAddress('')
-    setDeliveryPhone('')
-    setDeliveryNotes('')
-    setScheduledDeliveryDate('')
-    setDeliveryPaymentStatus('paid')
-    setPaymentDueDate('')
-    setOrderType('walk_in')
-    setIsPrintModalOpen(true)
 
-    // Step 2: Asynchronously persist sale to backend without blocking the UI
+    void printCompletedSale({
+      sale: draftSale,
+      settings,
+      customerName,
+      ble: blePrinter,
+    }).catch((error) => {
+      toastError(error, t('pos.errFailedPrintBluetooth'))
+    })
+
     createSale(saleData, {
-      onSuccess: (result) => {
+      onSuccess: () => {
         trackUserAction('pos_checkout_completed', { grandTotal: finalTotal, itemCount: items.length, paymentMethod: method })
-        const saleId = result.id
-        const invoiceNumber = result.invoiceNumber || provisionalInvoice
-        // Update snapshot references with the official backend-assigned invoice number
-        setCompletedSaleId(saleId)
-        setCompletedInvoiceNumber(invoiceNumber)
+        clearCart()
+        setOrderDiscount(0)
+        setSelectedCustomer('')
+        setMethod('cash')
+        setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
       },
       onError: (error) => {
@@ -602,10 +445,10 @@ export const POSPage = () => {
     }
     const tempSale: Partial<Sale> = {
       id: `draft-${Date.now()}`,
-      invoiceNumber: 'DRAFT',
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
       createdAt: new Date().toISOString(),
-      subtotal: gstSummary.taxableValue,
-      totalDiscount: orderDiscountAmount + items.reduce((s, i) => s + i.discount, 0),
+      subtotal: totals.subtotal,
+      totalDiscount: orderDiscountAmount,
       totalTax: taxAmount,
       grandTotal: finalTotal,
       paymentMethod: method,
@@ -623,163 +466,9 @@ export const POSPage = () => {
         total: item.sellingPrice * item.quantity - item.discount,
       })),
       customerId: selectedCustomer,
-      customerName: (selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : undefined) || 'Walk-in Customer',
-      orderType,
-      deliveryAddress: orderType === 'delivery' ? deliveryAddress : undefined,
-      deliveryPhone: orderType === 'delivery' ? deliveryPhone : undefined,
-      deliveryNotes: orderType === 'delivery' ? deliveryNotes : undefined,
-      scheduledDeliveryDate: orderType === 'delivery' && scheduledDeliveryDate ? new Date(scheduledDeliveryDate).toISOString() : undefined,
-      deliveryStatus: orderType === 'delivery' ? 'pending' : 'delivered',
-      paymentStatus: orderType === 'delivery' ? deliveryPaymentStatus : 'paid',
-      paymentDueDate: orderType === 'delivery' && paymentDueDate ? new Date(paymentDueDate).toISOString() : undefined,
     }
     setCurrentSaleForReceipt(tempSale)
     setIsRealisticReceiptOpen(true)
-  }
-
-  // Build sale object from lastSaleData (cart items are already cleared)
-  const buildTempSale = (): Sale | null => {
-    if (!lastSaleData) return null
-    return {
-      id: completedSaleId,
-      invoiceNumber: completedInvoiceNumber || `INV-${completedSaleId?.slice(-5) || '00000'}`,
-      customerId: lastSaleData.selectedCustomer,
-      customerName: (lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.name : undefined) || (lastSaleData.orderType === 'delivery' ? 'Delivery Customer' : 'Walk-in Customer'),
-      customerPhone: lastSaleData.selectedCustomer ? customers?.find(c => c.id === lastSaleData.selectedCustomer)?.phone : lastSaleData.deliveryPhone || undefined,
-      orderType: lastSaleData.orderType || 'walk_in',
-      deliveryAddress: lastSaleData.deliveryAddress,
-      deliveryPhone: lastSaleData.deliveryPhone,
-      deliveryNotes: lastSaleData.deliveryNotes,
-      scheduledDeliveryDate: lastSaleData.scheduledDeliveryDate,
-      deliveryStatus: lastSaleData.deliveryStatus || (lastSaleData.orderType === 'delivery' ? 'pending' : 'delivered'),
-      paymentStatus: lastSaleData.paymentStatus || (lastSaleData.method === 'credit' ? 'pending' : 'paid'),
-      paymentDueDate: lastSaleData.paymentDueDate,
-      items: lastSaleData.items.map(item => {
-        const itemTaxRate = item.taxRate || 0
-        const lineTotal = item.sellingPrice * item.quantity - item.discount
-        const includesGst = item.priceIncludesGst ?? false
-        const computedTaxAmount = itemTaxRate > 0
-          ? includesGst
-            ? lineTotal - (lineTotal / (1 + itemTaxRate / 100))
-            : lineTotal * itemTaxRate / 100
-          : 0
-        return {
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          sellingPrice: item.sellingPrice,
-          discount: item.discount,
-          taxRate: itemTaxRate,
-          taxAmount: computedTaxAmount,
-          total: lineTotal,
-        }
-      }),
-      subtotal: lastSaleData.totals.subtotal,
-      totalDiscount: lastSaleData.orderDiscountAmount + lastSaleData.items.reduce((s, i) => s + i.discount, 0),
-      totalTax: lastSaleData.totals.tax,
-      grandTotal: lastSaleData.finalTotal,
-      paymentMethod: lastSaleData.method,
-      amountPaid: lastSaleData.amountPaidNum,
-      changeReturned: lastSaleData.method === 'cash' ? lastSaleData.amountPaidNum - lastSaleData.finalTotal : 0,
-      isQuickBill: false,
-      createdAt: new Date().toISOString(),
-    }
-  }
-
-  const handleOpenRealisticReceipt = () => {
-    const tempSale = buildTempSale()
-    if (!tempSale) return
-    setCurrentSaleForReceipt(tempSale)
-    setIsRealisticReceiptOpen(true)
-  }
-
-  const finishPrintFlow = () => {
-    setIsPrintingAnimating(false)
-    setIsPrintModalOpen(false)
-    setLastSaleData(null)
-    setCompletedSaleId('')
-    setCompletedInvoiceNumber('')
-    setMethod('cash')
-    setAmountPaid('')
-    navigate(ROUTES.SALES)
-  }
-
-  const [isPrintingAnimating, setIsPrintingAnimating] = useState(false)
-
-  // Accept format directly to avoid React state race condition
-  const handlePrint = (format: 'a4' | 'thermal') => {
-    const tempSale = buildTempSale()
-    if (!tempSale || !lastSaleData) return
-
-    setIsPrintingAnimating(true)
-
-    const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerObj = lastSaleData.selectedCustomer
-      ? customers?.find(c => c.id === lastSaleData.selectedCustomer)
-      : undefined
-    const customerName = customerObj?.name || 'Walk-in Customer'
-    const customerPhone = customerObj?.phone || undefined
-
-    const paperSize = settings?.printerConfig?.paperSize || '58mm'
-    const paperWidth: '50mm' | '80mm' | '210mm' = format === 'thermal'
-      ? (paperSize === '80mm' ? '80mm' : '50mm')
-      : '210mm'
-
-    const receiptHTML = generateReceiptHTML({
-      sale: tempSale,
-      receiptConfig,
-      printerConfig: settings?.printerConfig,
-      businessName: settings?.businessName,
-      businessAddress: settings?.businessAddress,
-      businessPhone: settings?.businessPhone,
-      businessGSTIN: settings?.businessGSTIN,
-      customerName,
-      customerPhone,
-      width: paperWidth,
-      logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
-      settingsTaxName: 'GST',
-    })
-
-    printReceipt(receiptHTML, paperWidth, tempSale.invoiceNumber, finishPrintFlow, settings?.printerConfig?.receiptFont)
-  }
-
-  const handlePrintBluetooth = async () => {
-    const tempSale = buildTempSale()
-    if (!tempSale || !lastSaleData) return
-
-    setIsPrintingAnimating(true)
-    setIsBlePrinting(true)
-    try {
-      if (blePrinter.status !== 'connected') {
-        await blePrinter.connect()
-      }
-      const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerObj = lastSaleData.selectedCustomer
-        ? customers?.find(c => c.id === lastSaleData.selectedCustomer)
-        : undefined
-      const customerName = customerObj?.name || 'Walk-in Customer'
-      const customerPhone = customerObj?.phone || undefined
-      const bytes = await generateReceiptEscPos({
-        sale: tempSale,
-        receiptConfig,
-        paperSize: settings?.printerConfig?.paperSize || '58mm',
-        printerConfig: settings?.printerConfig,
-        receiptFont: settings?.printerConfig?.receiptFont,
-        businessName: settings?.businessName,
-        businessAddress: settings?.businessAddress,
-        businessPhone: settings?.businessPhone,
-        businessGSTIN: settings?.businessGSTIN,
-        businessLogoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
-        customerName,
-        customerPhone,
-      })
-      await blePrinter.print(bytes)
-      finishPrintFlow()
-    } catch (error) {
-      toastError(error, t('pos.errFailedPrintBluetooth'))
-    } finally {
-      setIsBlePrinting(false)
-    }
   }
 
   if (isLoading) {
@@ -886,25 +575,18 @@ export const POSPage = () => {
                       )}
                     </div>
 
-                    {/* Stock Status / Availability */}
+                    {/* Stock Status */}
                     <div className="mb-4">
                       <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                        {trackStock ? t('pos.stockStatus') : 'Availability'}
+                        {t('pos.stockStatus')}
                       </label>
                       <div className="grid grid-cols-2 gap-2">
-                        {(trackStock
-                          ? ([
-                              { value: 'all', label: t('pos.allStock') },
-                              { value: 'in', label: t('pos.inStock') },
-                              { value: 'low', label: t('pos.lowStock') },
-                              { value: 'out', label: t('pos.outOfStock') },
-                            ] as const)
-                          : ([
-                              { value: 'all', label: 'All' },
-                              { value: 'in', label: 'Available' },
-                              { value: 'out', label: 'Not available' },
-                            ] as const)
-                        ).map(opt => (
+                        {([
+                          { value: 'all', label: t('pos.allStock') },
+                          { value: 'in', label: t('pos.inStock') },
+                          { value: 'low', label: t('pos.lowStock') },
+                          { value: 'out', label: t('pos.outOfStock') },
+                        ] as const).map(opt => (
                           <button
                             key={opt.value}
                             type="button"
@@ -959,12 +641,8 @@ export const POSPage = () => {
                         <option value="name-desc">{t('pos.sortNameDesc')}</option>
                         <option value="price-asc">{t('pos.sortPriceAsc')}</option>
                         <option value="price-desc">{t('pos.sortPriceDesc')}</option>
-                        {trackStock && (
-                          <>
-                            <option value="stock-asc">{t('pos.sortStockAsc')}</option>
-                            <option value="stock-desc">{t('pos.sortStockDesc')}</option>
-                          </>
-                        )}
+                        <option value="stock-asc">{t('pos.sortStockAsc')}</option>
+                        <option value="stock-desc">{t('pos.sortStockDesc')}</option>
                       </select>
                     </div>
                   </div>
@@ -973,9 +651,7 @@ export const POSPage = () => {
             </div>
           </form>
 
-          {/* Billing location (only shown when multi-location inventory is enabled) */}
           <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <LocationSelector onChange={setSelectedLocationId} />
             <BleConnectButton />
           </div>
 
@@ -994,10 +670,8 @@ export const POSPage = () => {
             {filtered.map(product => {
               const reserved = cartReserved[product.id] || 0
               const available = getEffectiveStock(product) - reserved
-              const isOutOfStock = trackStock
-                ? available <= 0
-                : !isProductAvailable(product)
-              const isLowStock = trackStock && available > 0 && available <= product.lowStockThreshold
+              const isOutOfStock = available <= 0
+              const isLowStock = available > 0 && available <= product.lowStockThreshold
 
               return (
                 <div
@@ -1009,24 +683,7 @@ export const POSPage = () => {
                       : 'cursor-pointer border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-blue-400 hover:bg-blue-50/70 dark:hover:border-blue-700 dark:hover:bg-blue-950/20 hover:shadow-md'
                   }`}
                 >
-                  <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center relative">
-                    {trackStock ? (
-                      <span className={`absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm z-10 ${
-                        isOutOfStock
-                          ? 'bg-red-600 text-white'
-                          : isLowStock
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-slate-900/80 text-white border border-white/20 backdrop-blur-sm'
-                      }`}>
-                        {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
-                      </span>
-                    ) : (
-                      !isProductAvailable(product) && (
-                        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm z-10 bg-red-600 text-white">
-                          Not available
-                        </span>
-                      )
-                    )}
+                  <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                     {product.imageURL ? (
                       <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
@@ -1040,27 +697,15 @@ export const POSPage = () => {
 
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <span className="text-base font-bold text-blue-600">{formatINR(getEffectivePrice(product))}</span>
-                    {trackStock ? (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
-                        isOutOfStock
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : isLowStock
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
-                      }`}>
-                        {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
-                      </span>
-                    ) : (
-                      isOutOfStock ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                          Not available
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          Available
-                        </span>
-                      )
-                    )}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                      isOutOfStock
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        : isLowStock
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                    }`}>
+                      {isOutOfStock ? t('pos.outOfStock') : `${t('pos.stockCount')}: ${available}`}
+                    </span>
                   </div>
 
                   <div className="mt-auto pt-3 flex items-center gap-2">
@@ -1076,7 +721,7 @@ export const POSPage = () => {
                       type="button"
                       disabled={isOutOfStock}
                       onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) handleProductClick(product) }}
-                      className="flex-1 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold flex items-center justify-center gap-1 shadow-sm shadow-blue-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:bg-blue-500 dark:hover:bg-blue-400"
+                      className="flex-1 h-9 rounded-xl bg-[#0a0a2e] hover:bg-blue-600 text-white text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus size={16} />
                       Add
@@ -1120,73 +765,25 @@ export const POSPage = () => {
               <Badge variant="info">{t('pos.orderPrefix')}{String(Date.now()).slice(-4)}</Badge>
             </div>
             {items.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={clearCart}
-                  title="Clear Cart"
-                  className="px-2 py-1 text-xs font-semibold text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <Trash2 size={13} />
-                  <span>Clear</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAmountPaid(method === 'cash' ? '' : method === 'credit' ? '0' : finalTotal.toFixed(2))
-                    setIsPaymentOpen(true)
-                  }}
-                  disabled={isCreating}
-                  title={t('pos.completeAndPrint')}
-                  className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
-                >
-                  <Printer size={15} />
-                  <span>{t('pos.print')}</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAmountPaid(finalTotal.toString())
+                  setIsPaymentOpen(true)
+                }}
+                disabled={isCreating}
+                title={t('pos.completeAndPrint')}
+                className="sm:hidden px-3 py-1.5 bg-[#0a0a2e] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
+              >
+                <Printer size={15} />
+                <span>{t('pos.print')}</span>
+              </button>
             )}
           </div>
 
           {/* Customer Selector (optional - walk-in by default) — searchable by name/phone */}
-          <div data-tour="pos-customer-select" className="space-y-2">
+          <div data-tour="pos-customer-select">
             <CustomerSelect value={selectedCustomer} onChange={setSelectedCustomer} size="compact" />
-
-            {/* Order Type Toggle: Walk-in vs Delivery */}
-            <div className="flex items-center p-1 bg-gray-100 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700/60">
-              <button
-                type="button"
-                onClick={() => setOrderType('walk_in')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  orderType === 'walk_in'
-                    ? 'bg-white dark:bg-dark-card text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200 dark:border-gray-700'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-              >
-                <User size={13} />
-                <span>Walk-in</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOrderType('delivery')
-                  if (selectedCustomer) {
-                    const cust = customers?.find(c => c.id === selectedCustomer)
-                    if (cust) {
-                      if (!deliveryPhone && cust.phone) setDeliveryPhone(cust.phone)
-                      if (!deliveryAddress && cust.address) setDeliveryAddress(cust.address)
-                    }
-                  }
-                }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  orderType === 'delivery'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-              >
-                <Truck size={13} />
-                <span>Delivery</span>
-              </button>
-            </div>
           </div>
         </div>
 
@@ -1248,108 +845,26 @@ export const POSPage = () => {
 
                   {/* Quantity Controls + Line Total - Separate Row */}
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-600">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
-                        <button
-                          onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
-                          className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span className="text-sm font-bold w-8 text-center text-gray-900 dark:text-gray-100">{item.quantity}</span>
-                        <button
-                          onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
-                          className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          disabled={trackStock && item.quantity >= available}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-
-                      {/* Item Discount Trigger Badge */}
+                    <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
                       <button
-                        type="button"
-                        onClick={() => setItemDiscountOpenId(itemDiscountOpenId === item.productId ? null : item.productId)}
-                        className={`text-[11px] px-2 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
-                          item.discount > 0
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
-                            : 'bg-gray-100 hover:bg-blue-50 text-gray-500 hover:text-blue-600 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
-                        }`}
-                        title="Add/Edit discount for this specific item"
+                        onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
                       >
-                        <Tag size={12} />
-                        <span>{item.discount > 0 ? `-${formatINR(item.discount)}` : '+ Disc'}</span>
+                        <Minus size={14} />
+                      </button>
+                      <span className="text-sm font-bold w-8 text-center text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                      <button
+                        onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        disabled={item.quantity >= available}
+                      >
+                        <Plus size={14} />
                       </button>
                     </div>
-
-                    <div className="text-right">
-                      {item.discount > 0 && (
-                        <p className="text-[11px] text-gray-400 line-through leading-tight">
-                          {formatINR(item.sellingPrice * item.quantity)}
-                        </p>
-                      )}
-                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                        {formatINR(Math.max(0, item.sellingPrice * item.quantity - item.discount))}
-                      </p>
-                    </div>
+                    <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                      {formatINR(item.sellingPrice * item.quantity)}
+                    </span>
                   </div>
-
-                  {/* Inline Item Discount Popover / Mini Editor */}
-                  {itemDiscountOpenId === item.productId && (
-                    <div className="mt-2.5 p-2 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg space-y-1.5 animate-fadeIn">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1">
-                          <Tag size={12} className="text-blue-600" />
-                          <span>Line Discount for {item.productName}:</span>
-                        </span>
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400">Max: {formatINR(item.sellingPrice * item.quantity)}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="relative flex-1">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max={item.sellingPrice * item.quantity}
-                            step="0.01"
-                            placeholder="0.00"
-                            value={item.discount || ''}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0
-                              const safeVal = Math.max(0, Math.min(item.sellingPrice * item.quantity, val))
-                              applyDiscount(item.productId, safeVal)
-                            }}
-                            className="w-full h-8 pl-6 pr-2 text-xs font-bold rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                          />
-                        </div>
-                        <div className="flex gap-1">
-                          {[5, 10, 20].map((pct) => (
-                            <button
-                              key={pct}
-                              type="button"
-                              onClick={() => {
-                                const d = roundCurrency((item.sellingPrice * item.quantity) * (pct / 100))
-                                applyDiscount(item.productId, d)
-                              }}
-                              className="px-2 py-1 text-[10px] font-bold rounded bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 text-blue-700 dark:text-blue-300 cursor-pointer"
-                            >
-                              {pct}%
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              applyDiscount(item.productId, 0)
-                              setItemDiscountOpenId(null)
-                            }}
-                            className="px-2 py-1 text-[10px] font-bold rounded bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-100 cursor-pointer"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             })
@@ -1357,79 +872,56 @@ export const POSPage = () => {
         </div>
 
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-20 sm:pb-4 space-y-2.5">
-          {/* Order / Bill Level Discount */}
+        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-20 sm:pb-4 space-y-2">
+          {/* Order Discount (Order-level only) */}
           {items.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      type="number"
-                      placeholder={t('pos.discount')}
-                      value={orderDiscount || ''}
-                      onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                      className="flex-1 h-9 text-xs"
-                    />
-                    <div className="relative shrink-0">
-                      <select
-                        value={orderDiscountType}
-                        onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                        className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                      >
-                        <option value="flat">₹</option>
-                        <option value="percent">%</option>
-                      </select>
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right shrink-0 min-w-[90px]">
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
-                  <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                placeholder={t('pos.discount')}
+                value={orderDiscount || ''}
+                onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
+                className="flex-1 h-9 text-xs"
+              />
+              <div className="relative shrink-0">
+                <select
+                  value={orderDiscountType}
+                  onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
+                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="flat">₹</option>
+                  <option value="percent">%</option>
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
                 </div>
               </div>
-
-              {/* Legal / Indian GST Section 15 Compliance Note */}
-              <div className="p-2 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-lg text-[10.5px] leading-tight flex items-start gap-1.5 text-blue-900 dark:text-blue-200">
-                <Info size={13} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">GST Note (Sec. 15, CGST Act): </span>
-                  <span className="text-blue-800 dark:text-blue-300">
-                    Discounts reduce the base taxable value first. GST is recalculated on the discounted taxable amount.
-                  </span>
-                </div>
+              <div className="text-right shrink-0">
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
+                <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
               </div>
             </div>
           )}
 
-          {/* Payment & Preview Action Buttons */}
-          <div data-tour="pos-checkout-btn" className="space-y-2">
-            <Button
-              onClick={() => {
-                setAmountPaid(method === 'cash' ? '' : method === 'credit' ? '0' : finalTotal.toFixed(2))
-                setIsPaymentOpen(true)
-              }}
-              disabled={items.length === 0 || isCreating}
-              className="w-full h-11 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400 shadow-md shadow-blue-500/25"
-            >
-              <CheckCircle2 size={18} className="mr-2" />
-              {t('pos.completeSale')}
-            </Button>
-
+          <div data-tour="pos-checkout-btn" className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
-              size="sm"
               onClick={handlePreviewCurrentBill}
               disabled={items.length === 0}
-              leftIcon={<FileText size={15} className="text-blue-600 dark:text-blue-300" />}
-              className="w-full h-10 text-xs font-semibold border-blue-300 text-blue-700 dark:text-blue-200 dark:border-blue-500/60 hover:bg-blue-50 dark:hover:bg-blue-500/15"
+              className="h-11 text-sm font-semibold"
             >
-              Preview &amp; edit bill
+              <Pencil size={16} className="mr-1.5" />
+              {t('action.edit')}
+            </Button>
+            <Button
+              onClick={openPayment}
+              disabled={items.length === 0 || isCreating}
+              className="h-11 text-sm font-bold bg-[#0a0a2e] hover:bg-[#1a1555] shadow-md"
+            >
+              <Printer size={16} className="mr-1.5" />
+              {t('pos.print')}
             </Button>
           </div>
         </div>
@@ -1446,10 +938,10 @@ export const POSPage = () => {
             onClick={handleCheckout}
             disabled={!isComplete || isCreating}
             loading={isCreating}
-            className="w-full py-3.5 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white dark:!text-white dark:bg-blue-500 dark:hover:bg-blue-400"
+            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
           >
-            <CheckCircle2 size={18} className="mr-2" />
-            {isComplete ? t('pos.completeSale') : t('pos.insufficientAmount')}
+            <Printer size={18} className="mr-2" />
+            {isComplete ? t('pos.completeAndPrint') : t('pos.insufficientAmount')}
           </Button>
         }
       >
@@ -1475,143 +967,6 @@ export const POSPage = () => {
             />
           </div>
 
-          {/* Delivery & Fulfillment Details (if Order Type is Delivery) */}
-          {orderType === 'delivery' && (
-            <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 rounded-xl space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-blue-950 dark:text-blue-200">
-                  <Truck size={16} className="text-blue-600 dark:text-blue-400" />
-                  <span>Delivery & Fulfillment Details</span>
-                </div>
-                <Badge variant="blue" size="sm">Delivery Order</Badge>
-              </div>
-
-              {/* Searchable Customer / Recipient Picker */}
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Customer / Recipient (Search by Name or Phone)
-                </label>
-                <CustomerSelect
-                  value={selectedCustomer}
-                  onChange={(custId) => {
-                    setSelectedCustomer(custId)
-                    if (custId) {
-                      const cust = customers?.find(c => c.id === custId)
-                      if (cust) {
-                        if (cust.phone) setDeliveryPhone(cust.phone)
-                        if (cust.address) setDeliveryAddress(cust.address)
-                      }
-                    }
-                  }}
-                  size="compact"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Delivery Phone
-                  </label>
-                  <Input
-                    type="tel"
-                    placeholder="Recipient phone number"
-                    value={deliveryPhone}
-                    onChange={e => setDeliveryPhone(e.target.value)}
-                    className="text-xs py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Scheduled Delivery Date
-                  </label>
-                  <Input
-                    type="date"
-                    min={new Date().toISOString().split('T')[0]}
-                    value={scheduledDeliveryDate}
-                    onChange={e => setScheduledDeliveryDate(e.target.value)}
-                    className="text-xs py-2"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Delivery Address
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Complete shipping / delivery address"
-                  value={deliveryAddress}
-                  onChange={e => setDeliveryAddress(e.target.value)}
-                  className="text-xs py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Delivery Notes / Instructions (Optional)
-                </label>
-                <Input
-                  type="text"
-                  placeholder="e.g., Gate code, deliver between 4-6 PM"
-                  value={deliveryNotes}
-                  onChange={e => setDeliveryNotes(e.target.value)}
-                  className="text-xs py-2"
-                />
-              </div>
-
-              <div className="pt-1">
-                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                  Payment Collection Mode
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeliveryPaymentStatus('paid')
-                      setAmountPaid(finalTotal.toFixed(2))
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all text-center cursor-pointer ${
-                      deliveryPaymentStatus === 'paid'
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-sm'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:border-gray-300'
-                    }`}
-                  >
-                    ✓ Paid in Advance
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeliveryPaymentStatus('pending')
-                      setAmountPaid('0')
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all text-center cursor-pointer ${
-                      deliveryPaymentStatus === 'pending'
-                        ? 'border-amber-600 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-950/60 dark:text-amber-300 shadow-sm'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:border-gray-300'
-                    }`}
-                  >
-                    ⏳ Pay on Delivery (Pending / COD)
-                  </button>
-                </div>
-              </div>
-
-              {deliveryPaymentStatus === 'pending' && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1">
-                    Expected Payment Collection Due Date
-                  </label>
-                  <Input
-                    type="date"
-                    value={paymentDueDate}
-                    onChange={e => setPaymentDueDate(e.target.value)}
-                    className="text-xs py-2"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Payment Methods */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('pos.paymentMethod')}</label>
@@ -1625,68 +980,28 @@ export const POSPage = () => {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => {
-                    setMethod(id)
-                    if (id === 'cash') {
-                      setAmountPaid('')
-                    } else if (id === 'credit') {
-                      setAmountPaid('0')
-                    } else {
-                      setAmountPaid(finalTotal.toFixed(2))
-                    }
-                  }}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all cursor-pointer ${
+                  onClick={() => setMethod(id)}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                     method === id
-                      ? 'border-blue-600 bg-blue-50/80 text-blue-700 dark:border-blue-500 dark:bg-blue-950/50 dark:text-blue-300 shadow-sm'
-                      : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-elevated text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-gray-200'
+                      ? 'border-[#0a0a2e] bg-[#0a0a2e]/5'
+                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                   }`}
                 >
-                  <Icon size={24} className={method === id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-400'} />
-                  <span className={`text-xs font-bold ${method === id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-400'}`}>
+                  <Icon size={24} className={method === id ? 'text-[#0a0a2e]' : 'text-gray-400'} />
+                  <span className={`text-xs font-medium ${method === id ? 'text-[#0a0a2e]' : 'text-gray-500'}`}>
                     {label}
                   </span>
                 </button>
               ))}
             </div>
-
-            {/* In-Modal Searchable Customer Selection for Credit */}
-            {method === 'credit' && (
-              <div className="mt-3 p-3.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-950 dark:text-blue-200">
-                  <UserPlus size={15} className="text-blue-600 dark:text-blue-400" />
-                  <span>Select Customer for Credit Account</span>
-                </div>
-                <CustomerSelect
-                  value={selectedCustomer}
-                  onChange={setSelectedCustomer}
-                  size="compact"
+            {method === 'upi' && settings?.receiptConfig?.upiId && (
+              <div className="mt-3">
+                <UpiQrPanel
+                  upiId={settings.receiptConfig.upiId}
+                  payeeName={settings?.businessName || 'Store'}
+                  amount={finalTotal}
                 />
               </div>
-            )}
-
-            {method === 'upi' && (
-              settings?.receiptConfig?.upiId || settings?.upiId ? (
-                <div className="mt-3">
-                  <UpiQrPanel
-                    upiId={settings?.receiptConfig?.upiId || settings?.upiId || ''}
-                    payeeName={settings?.businessName || 'Store'}
-                    amount={finalTotal}
-                  />
-                </div>
-              ) : (
-                <div className="mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between gap-3">
-                  <div className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
-                    <span className="font-bold">Business UPI ID missing.</span> Add your Business UPI ID in Settings to display dynamic payment QR codes.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigate(ROUTES.SETTINGS)}
-                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer"
-                  >
-                    Add UPI ID
-                  </button>
-                </div>
-              )
             )}
           </div>
 
@@ -1705,142 +1020,42 @@ export const POSPage = () => {
             />
 
             {method === 'cash' && (
-              <div className="space-y-2 mt-2.5">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 dark:text-gray-400">
-                  <span>Common Notes</span>
+              <div className="flex gap-2 mt-2">
+                {[100, 500, 1000, 2000].map(amt => (
                   <button
+                    key={amt}
                     type="button"
-                    onClick={() => setAmountPaid(finalTotal.toFixed(2))}
-                    className="text-blue-600 dark:text-blue-400 hover:underline font-bold cursor-pointer"
+                    onClick={() => setAmountPaid(String(amt))}
+                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
                   >
-                    Exact: {formatINR(finalTotal)}
+                    {formatINR(amt)}
                   </button>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                  {[10, 20, 50, 100, 200, 500].map(amt => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setAmountPaid(String(amt))}
-                      className={`py-2 px-1 text-xs font-bold border rounded-lg transition-all cursor-pointer ${
-                        Number(amountPaid) === amt
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/60 dark:text-blue-300 shadow-sm'
-                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-elevated text-gray-700 dark:text-gray-200 hover:border-blue-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60'
-                      }`}
-                    >
-                      ₹{amt}
-                    </button>
-                  ))}
-                </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Partial Credit Allocation, COD Pending Notice & Change Badges */}
-          {isDeliveryPending ? (
-            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
-              <span className="font-semibold">Pay on Delivery (COD) — Total to collect:</span>
-              <span className="font-extrabold text-sm">{formatINR(finalTotal)}</span>
-            </div>
-          ) : unpaidAmount > 0.01 ? (
+          {/* Partial Credit Allocation & Change Badges */}
+          {unpaidAmount > 0.01 ? (
             selectedCustomer ? (
-              <div className="space-y-3">
-                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <UserPlus size={15} className="text-amber-600 dark:text-amber-400" />
-                    Partial Credit Allocation
-                  </div>
-                  <p>
-                    {formatINR(amountPaidNum)} paid via {method.toUpperCase()}. Remaining <strong className="text-amber-900 dark:text-amber-100">{formatINR(unpaidAmount)}</strong> will be added to <strong>{customers?.find(c => c.id === selectedCustomer)?.name}</strong>'s Credit Balance.
-                  </p>
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <UserPlus size={15} className="text-amber-600 dark:text-amber-400" />
+                  Partial Credit Allocation
                 </div>
-
-                {/* Credit Payment Due Date / Reminder Settings */}
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Calendar size={13} className="text-blue-600 dark:text-blue-400" />
-                      Payment Due Date / Reminder
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentDueDate('')}
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-colors ${!paymentDueDate ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'}`}
-                      >
-                        None
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const d = new Date()
-                          d.setDate(d.getDate() + 7)
-                          setPaymentDueDate(d.toISOString().split('T')[0])
-                        }}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
-                      >
-                        +7d
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const d = new Date()
-                          d.setDate(d.getDate() + 15)
-                          setPaymentDueDate(d.toISOString().split('T')[0])
-                        }}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
-                      >
-                        +15d
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const d = new Date()
-                          d.setDate(d.getDate() + 30)
-                          setPaymentDueDate(d.toISOString().split('T')[0])
-                        }}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
-                      >
-                        +30d
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const d = new Date()
-                          d.setDate(d.getDate() + 45)
-                          setPaymentDueDate(d.toISOString().split('T')[0])
-                        }}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-blue-100"
-                      >
-                        +45d
-                      </button>
-                    </div>
-                  </div>
-                  <input
-                    type="date"
-                    value={paymentDueDate}
-                    onChange={e => setPaymentDueDate(e.target.value)}
-                    className="w-full text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none"
-                  />
-                </div>
+                <p>
+                  {formatINR(amountPaidNum)} paid via {method.toUpperCase()}. Remaining <strong className="text-amber-900 dark:text-amber-100">{formatINR(unpaidAmount)}</strong> will be added to <strong>{customers?.find(c => c.id === selectedCustomer)?.name}</strong>'s Credit Balance.
+                </p>
               </div>
             ) : (
-
-              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-2">
+              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs space-y-1">
                 <div className="font-bold flex items-center gap-1.5">
                   <AlertTriangle size={15} className="text-red-600 dark:text-red-400" />
                   Customer Selection Required for Credit
                 </div>
                 <p>
-                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please search and select a customer below:
+                  Unpaid balance of <strong>{formatINR(unpaidAmount)}</strong> cannot be issued to a walk-in customer. Please select a registered customer to record credit, or collect full payment.
                 </p>
-                <div className="pt-1">
-                  <CustomerSelect
-                    value={selectedCustomer}
-                    onChange={setSelectedCustomer}
-                    size="compact"
-                  />
-                </div>
               </div>
             )
           ) : change > 0 ? (
@@ -1849,67 +1064,6 @@ export const POSPage = () => {
               <span className="font-extrabold text-sm">{formatINR(change)}</span>
             </div>
           ) : null}
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={isPrintModalOpen}
-        onClose={finishPrintFlow}
-        title={t('pos.saleCompleted')}
-        size="md"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Sale saved successfully. Choose how to print this bill, or skip printing.
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              type="button"
-              onClick={() => handlePrint('a4')}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <FileText size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.a4Paper')}</p>
-                <p className="text-xs text-gray-400">{t('pos.standardFormat')}</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (shouldPrintThermalOverBle(settings, blePrinter)) {
-                  void handlePrintBluetooth()
-                } else {
-                  handlePrint('thermal')
-                }
-              }}
-              className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-[#0a0a2e] dark:hover:border-[#0a0a2e] transition-all"
-            >
-              <Printer size={32} className="text-gray-400" />
-              <div className="text-center">
-                <p className="font-bold text-gray-900 dark:text-gray-100">{t('pos.thermal50mm')}</p>
-                <p className="text-xs text-gray-400">{t('pos.posPrinter')}</p>
-              </div>
-            </button>
-          </div>
-          {blePrinter.isSupported && (
-            <Button
-              variant="outline"
-              className="w-full"
-              loading={isBlePrinting}
-              leftIcon={<Bluetooth size={16} />}
-              onClick={handlePrintBluetooth}
-            >
-              {blePrinter.status === 'connected' ? `${t('pos.printToDevice')} ${blePrinter.deviceName}` : t('pos.printViaBluetooth')}
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            className="w-full py-2.5 font-medium text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-            onClick={finishPrintFlow}
-          >
-            {t('pos.skipPrinting')}
-          </Button>
         </div>
       </Modal>
 
@@ -1922,7 +1076,7 @@ export const POSPage = () => {
         initialCustomerName={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.name : ''}
         initialCustomerPhone={selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.phone : ''}
         blePrinter={blePrinter}
-        onDone={finishPrintFlow}
+        onDone={() => setIsRealisticReceiptOpen(false)}
       />
 
       {/* Quick Edit Product Modal — edit name/price/stock/GST/etc. without leaving billing */}
@@ -1941,16 +1095,6 @@ export const POSPage = () => {
           }
         }}
       />
-
-      <PrinterAnimationModal
-        isOpen={isPrintingAnimating}
-        onClose={() => setIsPrintingAnimating(false)}
-        invoiceNumber="INV-RECENT"
-        grandTotal={lastSaleData?.finalTotal || lastSaleData?.totals?.grandTotal}
-        businessName={settings?.businessName}
-        itemCount={lastSaleData?.items?.length}
-      />
-
 
       {/* Tutorial Video Modal & Guided Onboarding Tour */}
       <PageVideoTutorialModal

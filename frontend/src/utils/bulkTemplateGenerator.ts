@@ -259,7 +259,7 @@ export async function downloadBulkUploadTemplate(format: 'xlsx' | 'csv' = 'xlsx'
 
     // Native Excel Data Validation Dropdown on Column F (Unit) for rows 2 to 3000
     // Using reference list from Unit_Reference sheet and inline fallback
-    wsProducts.dataValidations.add('F2:F3000', {
+    ;(wsProducts as unknown as { dataValidations: { add: (range: string, opts: unknown) => void } }).dataValidations.add('F2:F3000', {
       type: 'list',
       allowBlank: false,
       formulae: ['"piece,kg,gram,liter,meter,dozen,box"'],

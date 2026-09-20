@@ -20,6 +20,7 @@ interface MenuPickerProps {
   showUnavailable?: boolean
   onShowUnavailableChange?: (value: boolean) => void
   onAddFoodItem?: () => void
+  stockFor?: (product: Product) => number
 }
 
 const dietaryFromDescription = (description?: string | null): 'veg' | 'non_veg' | 'egg' | null => {

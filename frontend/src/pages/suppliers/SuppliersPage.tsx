@@ -402,9 +402,7 @@ export const SuppliersPage = () => {
         <RecordPurchasePaymentModal
           isOpen={!!payingSupplier}
           onClose={() => setPayingSupplier(null)}
-          supplierId={payingSupplier.id}
-          supplierName={payingSupplier.name}
-          outstandingAmount={payingSupplier.payableBalance || 0}
+          supplier={payingSupplier}
         />
       )}
 

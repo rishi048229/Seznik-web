@@ -1,74 +1,43 @@
-import { useEffect, useMemo, useState, useDeferredValue } from 'react'
-import { X, Printer, CreditCard, Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { X, Printer, CreditCard, Plus, Ban } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
-import { LocationSelector } from '@/components/common/LocationSelector'
 import { BleConnectButton } from '@/components/common/BleConnectButton'
-import { useProducts, useUpdateProduct } from '@/hooks/useProducts'
+import { useProducts } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
-import { useLocationStock } from '@/hooks/useLocations'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { useAuth } from '@/contexts/AuthContext'
-import { isRestaurantBusiness } from '@/constants/businessTypes'
 import { useRestaurantTables } from '@/hooks/useRestaurantTables'
 import {
   useAddKotItems,
+  useAssignKotTable,
+  useCancelKotOrder,
   useCreateKotOrder,
-  useEditKotOrder,
   useGenerateKotBill,
   useKotOrder,
   useKotOrders,
   useSendKotToKitchen,
-  useUpdateKotStatus,
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
-import { isProductAvailable } from '@/utils/businessFeatures'
-import { roundCurrency } from '@/utils/currency'
 import { resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { printKotDeltaSlipSmart, printKotSlipSmart } from '@/utils/kotPrint'
+import { printKotSlipSmart } from '@/utils/kotPrint'
 import { generateRestaurantBillEscPos, printRestaurantBill } from '@/utils/restaurantBill'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
 import { ItemNotesDialog } from './ItemNotesDialog'
 import { OrderTicketPanel } from './OrderTicketPanel'
 import { KOTBillModal } from './KOTBillModal'
-import { AddFoodItemModal } from './AddFoodItemModal'
+import { CancelOrderDialog } from './CancelOrderDialog'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
-import type {
-  KOTBillResult,
-  KOTDeltaChange,
-  KOTDraftItem,
-  KOTOrderItem,
-  KOTOrderStatus,
-  KOTOrderType,
-  RestaurantTable,
-} from '@/types/kot.types'
+import type { KOTBillResult, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
 import { mergeKotConfig, orderTypeLabel, ticketTitle } from '../kotConfig'
 import { ticketLaneLabel } from '../kotUtils'
 
 const LAST_WAITER_KEY = 'kot_last_waiter'
-
-const VOID_REASONS = [
-  'Guest cancelled',
-  'Kitchen mistake / duplicate',
-  'Item out of stock',
-  'Preparation delay',
-  'Wrong item entered',
-  'Other / Guest request',
-] as const
-
-const STATUS_PIPELINE: Array<{ id: KOTOrderStatus; label: string }> = [
-  { id: 'open', label: 'Open' },
-  { id: 'sent_to_kitchen', label: 'Sent' },
-  { id: 'preparing', label: 'Preparing' },
-  { id: 'ready', label: 'Ready' },
-  { id: 'served', label: 'Served' },
-]
 
 interface KOTWorkspaceProps {
   table?: RestaurantTable | null
@@ -89,14 +58,11 @@ const toPayloadItems = (items: KOTDraftItem[]) =>
   }))
 
 export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrderType, onClose }: KOTWorkspaceProps) => {
-  const { user, userProfile } = useAuth()
-  const isRestaurant = isRestaurantBusiness(user?.businessType ?? userProfile?.businessType)
-  const { data: restaurantTables = [] } = useRestaurantTables()
-
   const { data: products = [], isLoading: productsLoading } = useProducts()
-  const { mutateAsync: updateProduct } = useUpdateProduct()
   const { data: categories = [] } = useCategories()
   const { data: settings } = useSettings()
+  const { userProfile } = useAuth()
+  const { data: tables = [] } = useRestaurantTables({ refetchInterval: 10000 })
   const { mutate: updateSettings } = useUpdateSettings()
   const { mutate: createSettings } = useCreateSettings()
   const blePrinter = useBlePrinter()
@@ -106,12 +72,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [orderType, setOrderType] = useState<KOTOrderType>(
     initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
-  const [tableNumber, setTableNumber] = useState<string>(() => {
-    if (table?.name) return table.name
-    return ''
-  })
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(table?.id ?? null)
-  const [locationId, setLocationId] = useState<string | null>(null)
   const [waiterName, setWaiterName] = useState(() => {
     try {
       return localStorage.getItem(LAST_WAITER_KEY) || ''
@@ -122,35 +82,23 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [pendingItems, setPendingItems] = useState<KOTDraftItem[]>([])
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [showUnavailable, setShowUnavailable] = useState(false)
   const [pickedProduct, setPickedProduct] = useState<Product | null>(null)
   const [itemNotes, setItemNotes] = useState('')
   const [itemMods, setItemMods] = useState<string[]>([])
   const [billOpen, setBillOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [assignTableId, setAssignTableId] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [mobileTab, setMobileTab] = useState<'menu' | 'ticket'>('menu')
-  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({})
-  const [itemNotesDraft, setItemNotesDraft] = useState<Record<string, string>>({})
-  const [voidedItems, setVoidedItems] = useState<Record<string, string>>({})
-  const [voidingItemId, setVoidingItemId] = useState<string | null>(null)
-  const [selectedVoidReason, setSelectedVoidReason] = useState<string>(VOID_REASONS[0])
-  const [customVoidReason, setCustomVoidReason] = useState('')
-  const [addFoodOpen, setAddFoodOpen] = useState(false)
 
   const { data: order, isLoading: orderLoading } = useKotOrder(orderId)
-  const { data: runningOrders = [] } = useKotOrders({
-    status: 'running',
-    refetchInterval: 30_000,
-    staleTime: 15_000,
-  })
-  const { data: locationStockRows = [] } = useLocationStock(locationId)
+  const { data: runningOrders = [] } = useKotOrders({ status: 'running', refetchInterval: 8000 })
   const { mutateAsync: createOrder, isPending: isCreating } = useCreateKotOrder()
   const { mutateAsync: addItems, isPending: isAdding } = useAddKotItems()
   const { mutateAsync: sendKitchen, isPending: isSending } = useSendKotToKitchen()
-  const { mutateAsync: editOrder, isPending: isEditing } = useEditKotOrder()
-  const { mutateAsync: updateStatus, isPending: isUpdatingStatus } = useUpdateKotStatus()
+  const { mutateAsync: assignTable, isPending: isAssigning } = useAssignKotTable()
+  const { mutateAsync: cancelOrder, isPending: isCancelling } = useCancelKotOrder()
   const { mutate: generateBill, isPending: isBilling } = useGenerateKotBill()
-  const deferredSearch = useDeferredValue(search)
 
   const persistKotConfig = (next: typeof kotCfg, ok?: string) => {
     const data = { kotConfig: next }
@@ -171,40 +119,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     if (order?.orderType === 'dine_in' || order?.orderType === 'takeaway' || order?.orderType === 'delivery') {
       setOrderType(order.orderType)
     }
-    if (order?.table?.name) {
-      setTableNumber(order.table.name)
-      setSelectedTableId(order.tableId || order.table.id || null)
-    } else if (order?.partyLabel) {
-      setTableNumber(order.partyLabel)
-      setSelectedTableId(order.tableId || null)
-    } else if (table?.name) {
-      setTableNumber(table.name)
-      setSelectedTableId(table.id)
-    }
-  }, [order?.id, order?.waiterName, order?.customerId, order?.orderType, order?.table?.name, order?.partyLabel, order?.tableId, table?.id, table?.name])
-
-  useEffect(() => {
-    if (!order) {
-      setItemQuantities({})
-      setItemNotesDraft({})
-      setVoidedItems({})
-      return
-    }
-    const qMap: Record<string, number> = {}
-    const nMap: Record<string, string> = {}
-    const vMap: Record<string, string> = {}
-    order.items.forEach((it) => {
-      qMap[it.id] = it.quantity
-      nMap[it.id] = it.notes || ''
-      if (it.status === 'voided') {
-        vMap[it.id] = it.notes?.replace(/^\[VOID:?\s*|\]/gi, '') || 'Voided'
-      }
-    })
-    setItemQuantities(qMap)
-    setItemNotesDraft(nMap)
-    setVoidedItems(vMap)
-    setPendingItems([])
-  }, [order?.id, order?.updatedAt])
+  }, [order?.id, order?.waiterName, order?.customerId, order?.orderType])
 
   useEffect(() => {
     const trimmed = waiterName.trim()
@@ -223,160 +138,35 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }, [orderId, kotCfg.allowedOrderTypes, kotCfg.defaultOrderType, orderType])
 
-  const locationStockMap = useMemo(() => {
-    const map = new Map<string, { stock: number; priceOverride?: number | null }>()
-    for (const row of locationStockRows) {
-      map.set(row.productId, { stock: row.stock, priceOverride: row.priceOverride })
-    }
-    return map
-  }, [locationStockRows])
-
-  const priceFor = (product: Product) => {
-    if (!locationId) return product.sellingPrice
-    return locationStockMap.get(product.id)?.priceOverride ?? product.sellingPrice
-  }
+  const stockFor = (product: Product) => product.currentStock
+  const priceFor = (product: Product) => product.sellingPrice
 
   const filteredProducts = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase()
+    const q = search.trim().toLowerCase()
     const childIds = categoryId ? getChildCategories(categories, categoryId).map((c) => c.id) : []
     return products.filter((p) => {
-      // Soft-deleted stay off the menu; availability is isAvailable (legacy isActive fallback)
-      if (p.isActive === false) return false
-      const matchesAvailability = showUnavailable ? !isProductAvailable(p) : isProductAvailable(p)
+      if (!p.isActive) return false
       const matchesCategory = !categoryId || p.categoryId === categoryId || childIds.includes(p.categoryId)
       const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.barcode ?? '').toLowerCase().includes(q)
-      return matchesAvailability && matchesCategory && matchesSearch
+      return matchesCategory && matchesSearch
     })
-  }, [products, deferredSearch, categoryId, categories, showUnavailable])
+  }, [products, search, categoryId, categories])
 
-  const handleToggleAvailability = async (product: Product, nextActive: boolean) => {
-    try {
-      await updateProduct({ productId: product.id, data: { isAvailable: nextActive } })
-      toast.success(nextActive ? `"${product.name}" is available again` : `"${product.name}" marked not available`)
-      if (!nextActive) {
-        setPendingItems((prev) => prev.filter((it) => it.productId !== product.id))
-      }
-    } catch (err) {
-      toastError(err, 'Could not update menu item')
-    }
-  }
-
-  const kitchenSentItems = (order?.items ?? []).filter((it) => !!it.sentToKitchenAt)
-  const unprintedServerItems = (order?.items ?? []).filter(
-    (it) => !it.sentToKitchenAt && it.status !== 'voided'
-  )
-
-  const deltaChanges = useMemo((): KOTDeltaChange[] => {
-    if (!order) {
-      return pendingItems.map((it) => ({
-        type: 'new' as const,
-        productName: it.productName,
-        quantity: it.quantity,
-        notes: it.notes,
-      }))
-    }
-    const changes: KOTDeltaChange[] = []
-    pendingItems.forEach((newItem) => {
-      changes.push({
-        type: 'new',
-        productName: newItem.productName,
-        quantity: newItem.quantity,
-        notes: newItem.notes,
-      })
-    })
-    order.items.forEach((orig) => {
-      if (orig.status !== 'voided' && voidedItems[orig.id]) {
-        changes.push({
-          type: 'void',
-          productName: orig.productName,
-          quantity: itemQuantities[orig.id] ?? orig.quantity,
-          reason: voidedItems[orig.id],
-        })
-      }
-    })
-    order.items.forEach((orig) => {
-      if (orig.status !== 'voided' && !voidedItems[orig.id]) {
-        const currentQty = itemQuantities[orig.id] ?? orig.quantity
-        const currentNote = itemNotesDraft[orig.id] ?? (orig.notes || '')
-        if (currentQty !== orig.quantity || currentNote !== (orig.notes || '')) {
-          changes.push({
-            type: 'qty_change',
-            productName: orig.productName,
-            quantity: currentQty,
-            oldQuantity: orig.quantity,
-            notes: currentNote,
-          })
-        }
-      }
-    })
-    return changes
-  }, [order, pendingItems, voidedItems, itemQuantities, itemNotesDraft])
+  const sentItems = (order?.items ?? []).filter((it) => !!it.sentToKitchenAt)
+  const unprintedServerItems = (order?.items ?? []).filter((it) => !it.sentToKitchenAt)
 
   const totals = useMemo(() => {
-    const billableExisting = (order?.items ?? [])
-      .filter((it) => it.status !== 'voided' && !voidedItems[it.id])
-      .map((it) => ({
-        qty: itemQuantities[it.id] ?? it.quantity,
-        price: it.unitPrice,
-        tax: it.taxRate,
-      }))
     const all = [
-      ...billableExisting,
+      ...(order?.items ?? []).map((it) => ({ qty: it.quantity, price: it.unitPrice, tax: it.taxRate })),
       ...pendingItems.map((it) => ({ qty: it.quantity, price: it.unitPrice, tax: it.taxRate })),
     ]
-    const rawSubtotal = all.reduce((s, it) => s + it.price * it.qty, 0)
-    const rawTax = all.reduce((s, it) => s + (it.price * it.qty * (it.tax || 0)) / 100, 0)
-    const subtotal = roundCurrency(rawSubtotal)
-    const tax = roundCurrency(rawTax)
-    return { subtotal, tax, grandTotal: roundCurrency(subtotal + tax) }
-  }, [order?.items, pendingItems, voidedItems, itemQuantities])
+    const subtotal = all.reduce((s, it) => s + it.price * it.qty, 0)
+    const tax = all.reduce((s, it) => s + (it.price * it.qty * (it.tax || 0)) / 100, 0)
+    return { subtotal, tax, grandTotal: subtotal + tax }
+  }, [order?.items, pendingItems])
 
-  const busy = isCreating || isAdding || isSending || isEditing || isUpdatingStatus
-  const displayName = useMemo(() => {
-    if (orderType === 'dine_in' && isRestaurant && tableNumber.trim()) {
-      return tableNumber.trim()
-    }
-    return ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
-  }, [orderType, isRestaurant, tableNumber, order?.table?.name, order?.partyLabel, table?.name])
-
-  const handleTableNumberChange = (val: string) => {
-    setTableNumber(val)
-    const match = restaurantTables.find(
-      (t) => t.name.trim().toLowerCase() === val.trim().toLowerCase()
-    )
-    const matchedTableId = match ? match.id : null
-    setSelectedTableId(matchedTableId)
-    if (orderId) {
-      editOrder({
-        id: orderId,
-        partyLabel: val.trim() || undefined,
-        tableId: matchedTableId,
-      }).catch(() => {})
-    }
-  }
-
-  const handleSelectTable = (tbl: RestaurantTable | null) => {
-    if (!tbl) {
-      setSelectedTableId(null)
-      setTableNumber('')
-      if (orderId) {
-        editOrder({ id: orderId, partyLabel: undefined, tableId: null }).catch(() => {})
-      }
-      return
-    }
-    setSelectedTableId(tbl.id)
-    setTableNumber(tbl.name)
-    if (orderId) {
-      editOrder({ id: orderId, partyLabel: tbl.name, tableId: tbl.id }).catch(() => {})
-    }
-  }
-
-  const handleOrderTypeChange = (nextType: KOTOrderType) => {
-    setOrderType(nextType)
-    if (orderId) {
-      editOrder({ id: orderId, orderType: nextType }).catch(() => {})
-    }
-  }
+  const busy = isCreating || isAdding || isSending || isAssigning || isCancelling
+  const displayName = ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
 
   const openTickets = useMemo(() => {
     const list = [...runningOrders]
@@ -392,17 +182,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     setCustomerId('')
     setOrderId(null)
     setMobileTab('menu')
-    setItemQuantities({})
-    setItemNotesDraft({})
-    setVoidedItems({})
-    setVoidingItemId(null)
-    if (!table) {
-      setTableNumber('')
-      setSelectedTableId(null)
-    } else {
-      setTableNumber(table.name)
-      setSelectedTableId(table.id)
-    }
     if (!kotCfg.allowedOrderTypes.includes(orderType)) {
       setOrderType(kotCfg.defaultOrderType)
     }
@@ -452,12 +231,9 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
   const startOrderPayload = (items: KOTDraftItem[]) => ({
     orderType,
-    tableId: (orderType === 'dine_in' && isRestaurant) ? (selectedTableId || table?.id || undefined) : undefined,
-    partyLabel: (orderType === 'dine_in' && isRestaurant && tableNumber.trim())
-      ? tableNumber.trim()
-      : (table?.name || orderTypeLabel(orderType)),
+    tableId: table?.id,
+    partyLabel: table?.name || orderTypeLabel(orderType),
     waiterName: waiterName.trim() || undefined,
-    locationId: locationId || undefined,
     status: 'open' as const,
     items: toPayloadItems(items),
   })
@@ -510,7 +286,12 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     setPendingItems([])
   }
 
-  const printKitchen = async (items: KOTOrderItem[], orderNumber: number, waiter: string | null | undefined) => {
+  const printKitchen = async (
+    items: KOTOrderItem[],
+    orderNumber: number,
+    waiter: string | null | undefined,
+    opts?: { batchNumber?: number; isAdditional?: boolean; isCancelled?: boolean },
+  ) => {
     if (items.length === 0) return
     const slip = {
       orderNumber,
@@ -519,6 +300,9 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       waiterName: waiter || waiterName,
       showWaiter: kotCfg.showWaiterOnSlip,
       slipTitle: kotCfg.kotSlipTitle,
+      batchNumber: opts?.batchNumber,
+      isAdditional: opts?.isAdditional,
+      isCancelled: opts?.isCancelled,
       orderTime: new Date(),
       notes: order?.notes,
       priority: order?.priority,
@@ -543,102 +327,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }
 
-  const confirmVoid = () => {
-    if (!voidingItemId) return
-    const reason =
-      selectedVoidReason === 'Other / Guest request' && customVoidReason.trim()
-        ? customVoidReason.trim()
-        : selectedVoidReason
-    setVoidedItems((prev) => ({ ...prev, [voidingItemId]: reason }))
-    setVoidingItemId(null)
-    setCustomVoidReason('')
-    setSelectedVoidReason(VOID_REASONS[0])
-  }
-
-  const handleFireDelta = async (autoPrint = true) => {
-    if (!orderId || !order) return
-    // For new bills without an order yet, pending-only changes go through Send to Kitchen
-    const hasExistingEdits = deltaChanges.some((c) => c.type !== 'new') || (order && pendingItems.length > 0)
-    if (!hasExistingEdits && pendingItems.length === 0) return
-    if (deltaChanges.length === 0) return
-
-    try {
-      const itemsToAdd = pendingItems.map((it) => ({
-        productId: it.productId,
-        productName: it.productName,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        taxRate: it.taxRate,
-        notes: it.notes,
-        modifiers: it.modifiers,
-      }))
-
-      const itemsToUpdate = order.items
-        .filter((orig) => orig.status !== 'voided' && !voidedItems[orig.id])
-        .filter(
-          (orig) =>
-            (itemQuantities[orig.id] !== undefined && itemQuantities[orig.id] !== orig.quantity) ||
-            (itemNotesDraft[orig.id] ?? '') !== (orig.notes || '')
-        )
-        .map((orig) => ({
-          id: orig.id,
-          quantity: itemQuantities[orig.id] ?? orig.quantity,
-          notes: itemNotesDraft[orig.id] ?? orig.notes ?? undefined,
-        }))
-
-      const itemsToVoid = Object.entries(voidedItems)
-        .filter(([id]) => order.items.some((it) => it.id === id && it.status !== 'voided'))
-        .map(([id, reason]) => ({ id, reason }))
-
-      await editOrder({
-        id: order.id,
-        data: {
-          itemsToAdd,
-          itemsToUpdate,
-          itemsToVoid,
-        },
-      })
-
-      if (autoPrint && deltaChanges.length > 0) {
-        try {
-          const paperSize = settings?.printerConfig?.paperSize || '58mm'
-          await printKotDeltaSlipSmart(
-            {
-              orderNumber: order.orderNumber,
-              tableName: order.table?.name || table?.name,
-              partyLabel: order.partyLabel,
-              waiterName: waiterName || order.waiterName,
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              changes: deltaChanges,
-            },
-            {
-              paperSize,
-              useBluetooth: shouldPrintThermalOverBle(settings, blePrinter),
-              ble: blePrinter,
-            }
-          )
-        } catch (printErr) {
-          console.warn('Delta KOT print failed:', printErr)
-        }
-      }
-
-      setPendingItems([])
-      toast.success(autoPrint ? 'Changes fired — delta KOT printed' : 'Order items saved')
-    } catch (err) {
-      toastError(err, 'Could not fire changes')
-    }
-  }
-
-  const handleStatusStep = async (status: KOTOrderStatus) => {
-    if (!orderId) return
-    try {
-      await updateStatus({ id: orderId, status })
-      toast.success(`Status → ${STATUS_PIPELINE.find((s) => s.id === status)?.label || status}`)
-    } catch (err) {
-      toastError(err, 'Could not update status')
-    }
-  }
-
   const handleSendToKitchen = async () => {
     try {
       let id = orderId
@@ -658,11 +346,13 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       const result = await sendKitchen({
         id,
         waiterName: waiterName.trim() || undefined,
-        locationId: locationId || undefined,
       })
-      const toPrint = result.newlySentItems?.length ? result.newlySentItems : result.items.filter((it) => !it.sentToKitchenAt)
-      await printKitchen(toPrint.length ? toPrint : result.items, result.orderNumber, result.waiterName)
-      toast.success('Sent to kitchen')
+      const toPrint = result.newlySentItems?.length ? result.newlySentItems : result.items.filter((it) => it.kotBatchNumber === result.kotBatchNumber)
+      await printKitchen(toPrint.length ? toPrint : result.items, result.orderNumber, result.waiterName, {
+        batchNumber: result.kotBatchNumber,
+        isAdditional: result.isAdditional,
+      })
+      toast.success(result.isAdditional ? `Additional KOT round ${result.kotBatchNumber} sent` : 'Sent to kitchen')
     } catch (err) {
       toastError(err, 'Could not send to kitchen')
     }
@@ -741,8 +431,6 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         id = created.id
         setOrderId(id)
         setPendingItems([])
-      } else if (deltaChanges.length > 0) {
-        await handleFireDelta(false)
       } else if (pendingItems.length > 0) {
         await persistPending(id)
       }
@@ -752,10 +440,50 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }
 
+  const vacantTables = tables.filter((tb) => tb.isActive !== false && !tb.isOccupied)
+  const canAssignTable = Boolean(orderId && kotCfg.showTables && !order?.tableId && !table?.id)
+
+  const handleAssignTable = async () => {
+    if (!orderId || !assignTableId) {
+      toast.error('Pick a vacant table')
+      return
+    }
+    try {
+      await assignTable({ id: orderId, tableId: assignTableId })
+      setAssignTableId('')
+      toast.success('Moved to table')
+    } catch (err) {
+      toastError(err, 'Could not assign the table')
+    }
+  }
+
+  const handleCancelOrder = async (payload: { reason: string; printCancelSlip: boolean }) => {
+    if (!orderId) return
+    try {
+      const result = await cancelOrder({
+        id: orderId,
+        data: {
+          reason: payload.reason,
+          printCancelSlip: payload.printCancelSlip,
+          cancelledByName: userProfile?.displayName || undefined,
+        },
+      })
+      if (result.printCancelSlip) {
+        const fired = (result.order.items ?? []).filter((it) => it.sentToKitchenAt)
+        await printKitchen(fired.length ? fired : result.order.items, result.order.orderNumber, result.order.waiterName, {
+          isCancelled: true,
+        })
+      }
+      toast.success('Order cancelled')
+      setCancelOpen(false)
+      onClose()
+    } catch (err) {
+      toastError(err, 'Could not cancel the order')
+    }
+  }
+
   const hasNewItems = pendingItems.length > 0 || unprintedServerItems.length > 0
-  const hasAnyItems = hasNewItems || kitchenSentItems.some((it) => it.status !== 'voided' && !voidedItems[it.id])
-  const currentStatus = (order?.status || 'open') as KOTOrderStatus
-  const showStatusPipeline = !!orderId && order && order.status !== 'billed' && order.status !== 'cancelled'
+  const hasAnyItems = hasNewItems || sentItems.length > 0
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900 flex flex-col">
@@ -764,41 +492,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           <p className="text-xs text-gray-500 dark:text-gray-400">{orderTypeLabel(orderType)} bill</p>
           <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100 truncate">{displayName}</h1>
         </div>
-        {showStatusPipeline && (
-          <div className="hidden md:flex items-center gap-1 min-w-0 overflow-x-auto no-scrollbar">
-            {STATUS_PIPELINE.map((step, idx) => {
-              const currentIdx = STATUS_PIPELINE.findIndex((s) => s.id === currentStatus)
-              const active = step.id === currentStatus
-              const reached = currentIdx >= idx
-              const nextStep = STATUS_PIPELINE[idx]
-              const canAdvance =
-                idx === currentIdx + 1 || (currentStatus === 'open' && step.id === 'sent_to_kitchen')
-              return (
-                <button
-                  key={step.id}
-                  type="button"
-                  disabled={isUpdatingStatus || (!canAdvance && !active)}
-                  onClick={() => {
-                    if (canAdvance) void handleStatusStep(nextStep.id)
-                  }}
-                  className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors ${
-                    active
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : reached
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                        : canAdvance
-                          ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:border-blue-400'
-                          : 'bg-gray-50 dark:bg-gray-900 text-gray-400 border-gray-200 dark:border-gray-800 opacity-60'
-                  }`}
-                >
-                  {step.label}
-                </button>
-              )
-            })}
-          </div>
-        )}
         <div className="flex-1 flex justify-end min-w-0 overflow-x-auto no-scrollbar items-center gap-2">
-          <LocationSelector onChange={setLocationId} />
           <BleConnectButton />
         </div>
         <button
@@ -860,7 +554,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
           onClick={() => setMobileTab('ticket')}
           className={`flex-1 py-2.5 text-sm font-semibold ${mobileTab === 'ticket' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
         >
-          Ticket{hasAnyItems ? ` (${kitchenSentItems.length + unprintedServerItems.length + pendingItems.length})` : ''}
+          Ticket{hasAnyItems ? ` (${sentItems.length + unprintedServerItems.length + pendingItems.length})` : ''}
         </button>
       </div>
 
@@ -878,12 +572,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               onSearchChange={setSearch}
               categoryId={categoryId}
               onCategoryChange={setCategoryId}
-              showUnavailable={showUnavailable}
-              onShowUnavailableChange={setShowUnavailable}
-              onToggleAvailability={handleToggleAvailability}
-              onAddFoodItem={() => setAddFoodOpen(true)}
+              stockFor={stockFor}
               onPick={(p) => {
-                if (!isProductAvailable(p)) return
                 setPickedProduct(p)
                 setItemNotes('')
                 setItemMods([])
@@ -893,76 +583,69 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         </div>
 
         <div
-          className={`w-full sm:w-[380px] lg:w-[420px] shrink-0 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col min-h-0 overflow-hidden ${
+          className={`w-full sm:w-[380px] lg:w-[420px] shrink-0 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col min-h-0 ${
             mobileTab === 'menu' ? 'hidden sm:flex' : 'flex'
           }`}
         >
           {orderLoading && orderId ? (
-            <div className="flex flex-1 justify-center py-16">
+            <div className="flex justify-center py-16">
               <Spinner />
             </div>
           ) : (
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              <OrderTicketPanel
-                tableName={displayName}
-                orderNumber={order?.orderNumber}
-                orderType={orderType}
-                onOrderTypeChange={handleOrderTypeChange}
-                showTableField={isRestaurant}
-                tableNumber={tableNumber}
-                onTableNumberChange={handleTableNumberChange}
-                availableTables={restaurantTables}
-                selectedTableId={selectedTableId}
-                onSelectTable={handleSelectTable}
-                waiterName={waiterName}
-                onWaiterChange={setWaiterName}
-                showWaiter={kotCfg.showWaiterField}
-                waiterNames={kotCfg.waiterNames}
-                onAddWaiter={handleAddWaiter}
-                allowedOrderTypes={kotCfg.allowedOrderTypes}
-                sentItems={kitchenSentItems}
-                unprintedServerItems={unprintedServerItems}
-                pendingItems={pendingItems}
-                onPendingQty={(tempId, qty) => {
-                  if (qty <= 0) {
-                    setPendingItems((prev) => prev.filter((it) => it.tempId !== tempId))
-                    return
-                  }
-                  setPendingItems((prev) => prev.map((it) => (it.tempId === tempId ? { ...it, quantity: qty } : it)))
-                }}
-                onRemovePending={(tempId) => setPendingItems((prev) => prev.filter((it) => it.tempId !== tempId))}
-                itemQuantities={itemQuantities}
-                itemNotesDraft={itemNotesDraft}
-                voidedItems={voidedItems}
-                onExistingQty={(itemId, qty) =>
-                  setItemQuantities((prev) => ({ ...prev, [itemId]: Math.max(1, qty) }))
+            <OrderTicketPanel
+              tableName={displayName}
+              orderNumber={order?.orderNumber}
+              orderType={orderType}
+              onOrderTypeChange={setOrderType}
+              waiterName={waiterName}
+              onWaiterChange={setWaiterName}
+              showWaiter={kotCfg.showWaiterField}
+              waiterNames={kotCfg.waiterNames}
+              onAddWaiter={handleAddWaiter}
+              allowedOrderTypes={kotCfg.allowedOrderTypes}
+              sentItems={sentItems}
+              unprintedServerItems={unprintedServerItems}
+              pendingItems={pendingItems}
+              onPendingQty={(tempId, qty) => {
+                if (qty <= 0) {
+                  setPendingItems((prev) => prev.filter((it) => it.tempId !== tempId))
+                  return
                 }
-                onExistingNotes={(itemId, notes) =>
-                  setItemNotesDraft((prev) => ({ ...prev, [itemId]: notes }))
-                }
-                onRequestVoid={(itemId) => {
-                  setVoidingItemId(itemId)
-                  setSelectedVoidReason(VOID_REASONS[0])
-                  setCustomVoidReason('')
-                }}
-                onUndoVoid={(itemId) =>
-                  setVoidedItems((prev) => {
-                    const next = { ...prev }
-                    delete next[itemId]
-                    return next
-                  })
-                }
-                deltaChanges={orderId ? deltaChanges : []}
-                onFireDelta={orderId ? () => void handleFireDelta(true) : undefined}
-                firingDelta={isEditing}
-                subtotal={totals.subtotal}
-                tax={totals.tax}
-                grandTotal={totals.grandTotal}
-              />
-            </div>
+                setPendingItems((prev) => prev.map((it) => (it.tempId === tempId ? { ...it, quantity: qty } : it)))
+              }}
+              onRemovePending={(tempId) => setPendingItems((prev) => prev.filter((it) => it.tempId !== tempId))}
+              subtotal={totals.subtotal}
+              tax={totals.tax}
+              grandTotal={totals.grandTotal}
+            />
           )}
 
-          <div className="shrink-0 z-10 p-3 border-t border-gray-200 dark:border-gray-700 space-y-2 bg-white dark:bg-gray-800 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="shrink-0 p-3 border-t border-gray-200 dark:border-gray-700 space-y-2 pb-16 sm:pb-3">
+            {canAssignTable && (
+              <div className="flex gap-2">
+                <select
+                  value={assignTableId}
+                  onChange={(e) => setAssignTableId(e.target.value)}
+                  className="min-w-0 flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 text-sm"
+                >
+                  <option value="">Assign a table</option>
+                  {vacantTables.map((tb) => (
+                    <option key={tb.id} value={tb.id}>
+                      {tb.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!assignTableId || busy}
+                  loading={isAssigning}
+                  onClick={() => void handleAssignTable()}
+                >
+                  Seat
+                </Button>
+              </div>
+            )}
             {kotCfg.kitchenTicketsEnabled && (
               <Button
                 onClick={handleSendToKitchen}
@@ -983,6 +666,18 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               <CreditCard size={16} className="mr-2" />
               Settle Bill
             </Button>
+            {orderId && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                disabled={busy}
+                onClick={() => setCancelOpen(true)}
+              >
+                <Ban size={16} className="mr-2" />
+                Cancel Order
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -1000,98 +695,45 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         onConfirm={confirmAddItem}
       />
 
-      {billOpen ? (
-        <KOTBillModal
-          isOpen={billOpen}
-          onClose={() => setBillOpen(false)}
-          subtotal={totals.subtotal}
-          itemTax={totals.tax}
-          orderType={orderType}
-          onOrderTypeChange={handleOrderTypeChange}
-          isRestaurant={isRestaurant}
-          tableNumber={tableNumber}
-          onTableNumberChange={handleTableNumberChange}
-          customerId={customerId}
-          onCustomerChange={setCustomerId}
-          loading={isBilling}
-          onSettle={(payload) => {
-            if (!orderId) return
-            generateBill(
-              { id: orderId, data: payload },
-              {
-                onSuccess: async (result) => {
-                  toast.success('Bill settled — start the next one')
-                  setBillOpen(false)
-                  try {
-                    await printCustomerReceipt(result.sale)
-                  } catch (err) {
-                    console.error(err)
-                  }
-                  startFreshBill()
-                },
-                onError: (err) => toastError(err, 'Could not settle the bill'),
-              }
-            )
-          }}
-        />
-      ) : null}
+      <KOTBillModal
+        isOpen={billOpen}
+        onClose={() => setBillOpen(false)}
+        subtotal={totals.subtotal}
+        itemTax={totals.tax}
+        orderType={orderType}
+        onOrderTypeChange={setOrderType}
+        customerId={customerId}
+        onCustomerChange={setCustomerId}
+        loading={isBilling}
+        onSettle={(payload) => {
+          if (!orderId) return
+          generateBill(
+            { id: orderId, data: payload },
+            {
+              onSuccess: async (result) => {
+                toast.success('Bill settled — start the next one')
+                setBillOpen(false)
+                try {
+                  await printCustomerReceipt(result.sale)
+                } catch (err) {
+                  console.error(err)
+                }
+                startFreshBill()
+              },
+              onError: (err) => toastError(err, 'Could not settle the bill'),
+            }
+          )
+        }}
+      />
 
-      {voidingItemId ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl p-5 space-y-4">
-            <div>
-              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Void item</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Select a mandatory void reason for kitchen waste audit.
-              </p>
-            </div>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {VOID_REASONS.map((reason) => (
-                <button
-                  key={reason}
-                  type="button"
-                  onClick={() => setSelectedVoidReason(reason)}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
-                    selectedVoidReason === reason
-                      ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {reason}
-                </button>
-              ))}
-            </div>
-            {selectedVoidReason === 'Other / Guest request' && (
-              <Input
-                placeholder="Custom reason"
-                value={customVoidReason}
-                onChange={(e) => setCustomVoidReason(e.target.value)}
-                className="h-10"
-              />
-            )}
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setVoidingItemId(null)
-                  setCustomVoidReason('')
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmVoid}
-                disabled={selectedVoidReason === 'Other / Guest request' && !customVoidReason.trim()}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                Confirm void
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <AddFoodItemModal isOpen={addFoodOpen} onClose={() => setAddFoodOpen(false)} />
+      <CancelOrderDialog
+        isOpen={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        orderNumber={order?.orderNumber}
+        hadKitchen={sentItems.length > 0 || !!order?.sentToKitchenAt}
+        loading={isCancelling}
+        onConfirm={(payload) => void handleCancelOrder(payload)}
+      />
     </div>
   )
 }

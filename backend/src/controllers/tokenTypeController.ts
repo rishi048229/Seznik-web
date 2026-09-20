@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
+import { getTenantUserId } from '../utils/ownerUser';
 
 export const getTokenTypes = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const tokenTypes = await prisma.tokenType.findMany({
       where: { userId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -16,7 +17,7 @@ export const getTokenTypes = async (req: Request, res: Response) => {
 
 export const createTokenType = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { name, price, taxRate, icon, color, sortOrder } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -42,7 +43,7 @@ export const createTokenType = async (req: Request, res: Response) => {
 
 export const updateTokenType = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { name, price, taxRate, icon, color, sortOrder, isActive } = req.body;
 
@@ -80,7 +81,7 @@ export const updateTokenType = async (req: Request, res: Response) => {
 
 export const deleteTokenType = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = getTenantUserId(req);
     const { id } = req.params;
 
     await prisma.tokenType.deleteMany({

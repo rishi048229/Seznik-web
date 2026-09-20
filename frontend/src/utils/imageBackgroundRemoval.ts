@@ -432,7 +432,8 @@ export async function removeImageBackground(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context is not available');
 
-  const finalImageData = new ImageData(processed.pixels, processed.width, processed.height);
+  const pixels = new Uint8ClampedArray(processed.pixels)
+  const finalImageData = new ImageData(pixels, processed.width, processed.height);
   ctx.putImageData(finalImageData, 0, 0);
 
   const format = options.mode === 'white_clean' ? 'image/jpeg' : 'image/png';

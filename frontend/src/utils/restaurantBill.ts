@@ -3,6 +3,7 @@ import type { ReceiptConfig } from '@/types/settings.types'
 import { EscPosBuilder } from './escpos'
 import { calculateReceiptTotals, formatIndianNumber, getCols } from './receiptEngine'
 import { printReceipt } from './receipt'
+import { composeReceiptDateLabel } from './date'
 
 export interface RestaurantBillContext {
   sale: Sale
@@ -72,12 +73,7 @@ export const generateRestaurantBillHTML = (ctx: RestaurantBillContext): string =
   const { totals, rows } = taxRows(ctx.sale, gstin)
   const pay =
     ctx.sale.paymentMethod === 'upi' ? 'UPI' : ctx.sale.paymentMethod === 'card' ? 'Card' : ctx.sale.paymentMethod === 'credit' ? 'Credit' : 'Cash'
-  const when = new Date(ctx.sale.createdAt).toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const when = composeReceiptDateLabel(undefined, ctx.sale.createdAt, ctx.receiptConfig?.showPrintTime ?? true)
   const typeLabel = orderTypeTitle(ctx.orderType)
   const footer = ctx.receiptConfig?.footerMessage || 'Thank you. Please visit again.'
 
@@ -133,6 +129,7 @@ export const generateRestaurantBillHTML = (ctx: RestaurantBillContext): string =
     <div style="border-top:2px solid #000;margin:8px 0 4px;"></div>
     <div style="text-align:center;font-size:10px;">${esc(footer)}</div>
     <div style="text-align:center;font-size:10px;font-weight:700;margin-top:4px;">-- Guest Copy --</div>
+    <div style="height:14mm;"></div>
   </div>`
 }
 
@@ -148,12 +145,7 @@ export const generateRestaurantBillEscPos = (ctx: RestaurantBillContext): Uint8A
   const { totals, rows } = taxRows(ctx.sale, gstin)
   const pay =
     ctx.sale.paymentMethod === 'upi' ? 'UPI' : ctx.sale.paymentMethod === 'card' ? 'Card' : ctx.sale.paymentMethod === 'credit' ? 'Credit' : 'Cash'
-  const when = new Date(ctx.sale.createdAt).toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const when = composeReceiptDateLabel(undefined, ctx.sale.createdAt, ctx.receiptConfig?.showPrintTime ?? true)
   const b = new EscPosBuilder()
   b.init(paperSize)
   b.align('center')
@@ -201,8 +193,7 @@ export const generateRestaurantBillEscPos = (ctx: RestaurantBillContext): Uint8A
   b.align('center')
   b.line(ctx.receiptConfig?.footerMessage || 'Thank you. Please visit again.')
   b.line('-- Guest Copy --')
-  b.feed(3)
-  b.cut()
+  b.ejectAndCut()
   return b.toBytes()
 }
 

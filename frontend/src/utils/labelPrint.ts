@@ -1,5 +1,6 @@
 import { EscPosBuilder } from './escpos'
 import type { LabelElement } from '@/types/settings.types'
+import { receiptLabelGapDots } from './labelSizes'
 
 export interface LabelData {
   businessName: string
@@ -143,6 +144,7 @@ export function generateLabelEscPos(
     builder.doubleSize(false)
   }
 
+  builder.feedDots(receiptLabelGapDots())
   return builder.toBytes()
 }
 

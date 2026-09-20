@@ -9,25 +9,10 @@
     width: 100%;
     touch-action: manipulation;
   }
-  html.dark {
-    color-scheme: dark;
-  }
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-dark-bg dark:text-gray-100 antialiased;
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 antialiased;
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  }
-
-  /* Keep browser autofill from flashing white inputs in dark mode */
-  .dark input:-webkit-autofill,
-  .dark input:-webkit-autofill:hover,
-  .dark input:-webkit-autofill:focus,
-  .dark textarea:-webkit-autofill,
-  .dark select:-webkit-autofill {
-    -webkit-text-fill-color: #f3f4f6;
-    caret-color: #f3f4f6;
-    box-shadow: 0 0 0 1000px #161622 inset;
-    transition: background-color 99999s ease-in-out 0s;
   }
 }
 
@@ -44,29 +29,7 @@
     border-radius: 3px;
   }
   .dark .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: #34344a;
-  }
-
-  .animate-fadeIn {
-    animation: fadeIn 0.3s ease-out;
-  }
-
-  .skeleton-shimmer {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .skeleton-shimmer::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    transform: translateX(-100%);
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
-    animation: skeletonShimmer 1.6s ease-in-out infinite;
-  }
-
-  .dark .skeleton-shimmer::after {
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+    background: #475569;
   }
 
   .scrollbar-none::-webkit-scrollbar,
@@ -101,12 +64,6 @@
   }
 }
 
-@keyframes skeletonShimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
 .animate-in {
   animation: fadeIn 0.2s ease-out, slideInFromTop 0.2s ease-out;
 }
@@ -126,42 +83,78 @@
   }
 }
 
-@keyframes iosAlertOverlay {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes iosAlertPop {
+@keyframes cardSettle {
   from {
     opacity: 0;
-    transform: scale(1.08);
+    transform: translateY(16px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
-.animate-ios-alert-overlay {
-  animation: iosAlertOverlay 0.22s ease-out;
+@media (prefers-reduced-motion: no-preference) {
+  .page-shell > * {
+    animation: cardSettle 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .page-shell > *:nth-child(1) { animation-delay: 0.02s; }
+  .page-shell > *:nth-child(2) { animation-delay: 0.07s; }
+  .page-shell > *:nth-child(3) { animation-delay: 0.12s; }
+  .page-shell > *:nth-child(4) { animation-delay: 0.17s; }
+  .page-shell > *:nth-child(5) { animation-delay: 0.22s; }
+  .page-shell > *:nth-child(6) { animation-delay: 0.27s; }
+
+  .page-shell .ui-card {
+    animation: cardSettle 0.48s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .page-shell .ui-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 30px -16px rgba(15, 23, 42, 0.22);
+  }
 }
 
-.animate-ios-alert-pop {
-  animation: iosAlertPop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+@keyframes fleetShimmer {
+  0% { transform: translateX(-130%) skewX(-18deg); }
+  100% { transform: translateX(230%) skewX(-18deg); }
 }
 
-/* Animated Theme Toggler View Transitions */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
+.fleet-shimmer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
-/* Scoped to AnimatedThemeToggler — sets data-attribute and duration only during theme toggle */
-html[data-magicui-theme-vt="active"]::view-transition-group(root) {
-  animation-duration: var(--magicui-theme-toggle-vt-duration);
+.fleet-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 35%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(16, 185, 129, 0.22) 58%,
+    transparent 100%
+  );
+  animation: fleetShimmer 2.1s ease-in-out infinite;
 }
 
-html[data-magicui-theme-vt="active"]::view-transition-new(root) {
-  clip-path: var(--magicui-theme-vt-clip-from, none);
+@media (prefers-reduced-motion: reduce) {
+  .page-shell,
+  .ui-card {
+    animation: none !important;
+    transition: none !important;
+  }
+  .fleet-shimmer::before {
+    animation: none;
+    opacity: 0.25;
+  }
 }

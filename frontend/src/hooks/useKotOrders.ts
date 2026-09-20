@@ -2,25 +2,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as kotOrderService from '@/services/kotOrderService'
-import type { CreateKOTOrderPayload, EditKOTOrderPayload, KOTBillPayload } from '@/types/kot.types'
+import type { CancelKOTPayload, CreateKOTOrderPayload, KOTBillPayload } from '@/types/kot.types'
 
 const invalidateKotAndTables = (qc: ReturnType<typeof useQueryClient>) => {
   qc.invalidateQueries({ queryKey: [QUERY_KEYS.KOT_ORDERS] })
   qc.invalidateQueries({ queryKey: [QUERY_KEYS.RESTAURANT_TABLES] })
 }
 
-export const useKotOrders = (params?: {
-  status?: string
-  refetchInterval?: number
-  enabled?: boolean
-  staleTime?: number
-}) => {
+export const useKotOrders = (params?: { status?: string; refetchInterval?: number }) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: [QUERY_KEYS.KOT_ORDERS, user?.uid, params?.status ?? 'all'],
     queryFn: () => kotOrderService.getOrders({ status: params?.status }),
-    enabled: !!user && params?.enabled !== false,
-    staleTime: params?.staleTime ?? 10_000,
+    enabled: !!user,
+    staleTime: 0,
     refetchOnWindowFocus: false,
     refetchInterval: params?.refetchInterval,
   })
@@ -70,15 +65,6 @@ export const useSendKotToKitchen = () => {
   })
 }
 
-export const useEditKotOrder = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: EditKOTOrderPayload }) =>
-      kotOrderService.editOrder(id, data),
-    onSuccess: () => invalidateKotAndTables(qc),
-  })
-}
-
 export const useUpdateKotStatus = () => {
   const qc = useQueryClient()
   return useMutation({
@@ -101,6 +87,30 @@ export const useGenerateKotBill = () => {
         qc.refetchQueries({ queryKey: [QUERY_KEYS.PRODUCTS] }),
         qc.refetchQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] }),
         qc.refetchQueries({ queryKey: [QUERY_KEYS.CREDITS] }),
+      ])
+    },
+  })
+}
+
+export const useAssignKotTable = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, tableId }: { id: string; tableId: string }) =>
+      kotOrderService.assignTable(id, tableId),
+    onSuccess: () => invalidateKotAndTables(qc),
+  })
+}
+
+export const useCancelKotOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CancelKOTPayload }) =>
+      kotOrderService.cancelOrder(id, data),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.KOT_ORDERS] }),
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.RESTAURANT_TABLES] }),
+        qc.refetchQueries({ queryKey: [QUERY_KEYS.SALES] }),
       ])
     },
   })

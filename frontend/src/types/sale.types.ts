@@ -50,6 +50,18 @@ export interface Sale {
   paymentDueDate?: Date | string | null
 
   createdAt: Date | string
+  status?: 'completed' | 'cancelled' | string
+  cancelReason?: string | null
+  cancelledAt?: Date | string | null
+  cancelledByName?: string | null
+}
+
+export type ReturnItemRequest = {
+  productId?: string
+  id?: string
+  productName?: string
+  quantity: number
+  restock?: boolean
 }
 
 export interface SaleItem {

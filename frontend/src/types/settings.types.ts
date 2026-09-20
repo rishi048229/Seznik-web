@@ -35,6 +35,8 @@ export interface ReceiptConfig {
   phone: string
   gstin: string
   logoURL: string
+  /** Dest alias used by older receipt-builder tabs. */
+  logoUrl?: string
   footerMessage: string
   termsLine1: string
   termsLine2: string
@@ -47,6 +49,8 @@ export interface ReceiptConfig {
   showGSTIN?: boolean
   showCustomerDetails?: boolean
   showInvoiceNoAndDate?: boolean
+  /** Print the sale clock time next to the date. Defaults on. */
+  showPrintTime?: boolean
   showTaxBreakdown?: boolean
   showSubtotalDiscount?: boolean
   showFooterMessage?: boolean
@@ -126,6 +130,14 @@ export interface PrinterConfig {
   // uses the browser print dialog. (USB/network-IP were never implemented —
   // selecting them silently did nothing, which is why they were removed.)
   connectionType: 'bluetooth' | 'system_driver'
+  autoPrintOnSale?: boolean
+  openCashDrawer?: boolean
+  cutPaper?: boolean
+  printCopies?: number
+  autoCut?: boolean
+  topMargin?: number
+  /** Dest alias for paperSize. */
+  paperWidth?: '58mm' | '80mm'
 
   // Thermal Receipt Format — company name/address/phone/GSTIN/footer/terms
   // live on Settings.receiptConfig (the same object the real print pipeline

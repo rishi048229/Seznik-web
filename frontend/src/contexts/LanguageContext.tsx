@@ -5,7 +5,7 @@ import { translations, type LanguageCode, type TranslationKey } from '@/i18n/tra
 interface LanguageContextType {
   language: LanguageCode
   setLanguage: (lang: LanguageCode) => void
-  t: (key: TranslationKey) => string
+  t: (key: TranslationKey | string) => string
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
@@ -28,8 +28,9 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   // Look up the current language, fall back to English, then to the key itself.
   const t = useCallback(
-    (key: TranslationKey): string => {
-      return translations[language]?.[key] ?? translations.en[key] ?? key
+    (key: TranslationKey | string): string => {
+      const typed = key as TranslationKey
+      return translations[language]?.[typed] ?? translations.en[typed] ?? key
     },
     [language]
   )

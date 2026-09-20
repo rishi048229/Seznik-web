@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/jwt';
 import prisma from '../config/db';
+import { ADMIN_PERMISSIONS, resolveActor } from '../utils/ownerUser';
 
 // Per-process cache so the ban check doesn't cost a DB round-trip on every single authenticated
 // request app-wide (it used to, unconditionally). Safe under PM2 cluster mode — each worker has
@@ -112,6 +113,8 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       (req as any).user = {
         id: devUser.id,
         role: devUser.role || 'admin',
+        ownerId: devUser.id,
+        permissions: ADMIN_PERMISSIONS,
         businessType: (devUser as any).businessType ?? null,
       };
       return true;
@@ -145,7 +148,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         return res.status(401).json({ error: 'Not authorized, token expired or invalid' });
       }
 
-      let businessType: string | null = null;
       if (decoded?.id) {
         const { isBanned, banReason } = await checkBanned(decoded.id);
         if (isBanned) {
@@ -154,6 +156,14 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
             isBanned: true,
           });
         }
+      }
+
+      const actor = decoded?.id
+        ? await resolveActor(decoded.id)
+        : { id: decoded?.id, role: decoded?.role || 'admin', ownerId: decoded?.id, permissions: ADMIN_PERMISSIONS };
+
+      let businessType: string | null = null;
+      if (decoded?.id) {
         try {
           businessType = await resolveBusinessType(decoded.id);
         } catch {
@@ -161,14 +171,17 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         }
       }
 
-      (req as any).user = { ...decoded, businessType };
-
+      (req as any).user = {
+        ...decoded,
+        id: actor.id,
+        role: actor.role,
+        ownerId: actor.ownerId,
+        permissions: actor.permissions,
+        businessType,
+      };
       return next();
     } catch (error) {
       if (isDevMode) {
-        // getDevUser hits the database, so it can fail for the same reason the outer block did
-        // (e.g. the connection dropped). Throwing from inside a catch here leaves the rejection
-        // unhandled and takes the whole process down, so it needs its own guard.
         if (await applyDevUser(req, res)) return next();
         return;
       }

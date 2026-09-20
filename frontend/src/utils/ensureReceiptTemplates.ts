@@ -48,7 +48,7 @@ export function ensureTemplateHasLogoBlock(
   let changed = false
   const entries = template.entries.map((e) => {
     if (e.type !== 'image') return e
-    if (e.imageURL === targetLogoUrl && !e.imageUri && !e.imageBase64 && (e.enabled !== false || e.enabled === true)) {
+    if (e.imageURL === targetLogoUrl && !e.imageUri && !e.imageBase64 && e.enabled !== false) {
       return e
     }
 

@@ -187,6 +187,7 @@ export const composeTokenSlipHTML = (template: TokenSlipTemplate, token: TokenSl
     ${token.paymentMethod ? `<div style="font-size:10px;">${esc(token.paymentMethod.toUpperCase())}</div>` : ''}
     <div style="border-top:1px dashed #000;margin:8px 0 4px;"></div>
     <div style="font-size:10px;">${esc(template.footerMessage)}</div>
+    <div style="height:14mm;"></div>
   </div>`
 }
 
@@ -227,8 +228,7 @@ export const composeTokenSlipEscPos = (
   if (token.paymentMethod) b.line(token.paymentMethod.toUpperCase())
   b.hr(cols, '-')
   b.line(template.footerMessage)
-  b.feed(2)
-  b.cut()
+  b.ejectAndCut()
   return b.toBytes()
 }
 

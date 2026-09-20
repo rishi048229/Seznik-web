@@ -8,12 +8,16 @@ import {
   sendToKitchen,
   updateOrderStatus,
   generateBill,
+  assignTable,
+  cancelOrder,
 } from '../controllers/kotOrderController';
 import { protect } from '../middlewares/authMiddleware';
+import { requirePermission } from '../middlewares/requirePermission';
 
 const router = express.Router();
 
 router.use(protect);
+router.use(requirePermission('canAccessSales'));
 
 router.get('/', getOrders);
 router.get('/:id', getOrderById);
@@ -24,5 +28,7 @@ router.put('/:id/edit', editOrder);
 router.post('/:id/send-to-kitchen', sendToKitchen);
 router.patch('/:id/status', updateOrderStatus);
 router.post('/:id/bill', generateBill);
+router.post('/:id/assign-table', assignTable);
+router.post('/:id/cancel', cancelOrder);
 
 export default router;

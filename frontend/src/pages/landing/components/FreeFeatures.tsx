@@ -9,7 +9,7 @@ const ROWS = [
   'Multi-user & role-based access',
   'Bluetooth label printing',
   'Barcode scanning',
-  'Profit, loss & tax reports',
+  'Profit & loss reports',
   'Multi-store management',
   'Priority customer support',
   'Cloud backup & sync',

@@ -25,14 +25,9 @@ export class EscPosBuilder {
     return this
   }
 
-  init(paperSize: '58mm' | '80mm' = '58mm', fontType: 0 | 1 = 0, charSpacing = 0): this {
-    this.bytes = []
+  init(paperSize: '58mm' | '80mm' = '58mm'): this {
     this.push(ESC, 0x40) // ESC @ — Reset printer to default state
-    // ESC M n — Font A (0, 12×24) or Font B (1, 9×17).
-    this.push(ESC, 0x4d, fontType === 1 ? 0x01 : 0x00)
-    if (charSpacing > 0) {
-      this.push(ESC, 0x20, Math.min(255, Math.max(0, charSpacing))) // ESC SP n — Inter-character spacing
-    }
+    this.push(ESC, 0x4d, 0x00) // ESC M 0 — Select Font A (12x24 dots: 48 cols on 80mm / 32 cols on 58mm)
     this.push(GS, 0x4c, 0x00, 0x00) // GS L 0 0 — Set left margin to 0 dots
     if (paperSize === '80mm') {
       this.push(GS, 0x57, 0x40, 0x02) // GS W 576 (0x0240) — Set hardware printable area width to 576 dots (80mm)
@@ -40,16 +35,6 @@ export class EscPosBuilder {
       this.push(GS, 0x57, 0x80, 0x01) // GS W 384 (0x0180) — Set hardware printable area width to 384 dots (58mm)
     }
     return this
-  }
-
-  /** ESC M n — switch character font mid-job (0 = Font A, 1 = Font B). */
-  setCharacterFont(fontType: 0 | 1): this {
-    return this.push(ESC, 0x4d, fontType === 1 ? 0x01 : 0x00)
-  }
-
-  /** ESC SP n — set inter-character spacing in dots. */
-  charSpacing(dots: number): this {
-    return this.push(ESC, 0x20, Math.min(255, Math.max(0, dots)))
   }
 
   align(align: EscPosAlign): this {
@@ -61,16 +46,8 @@ export class EscPosBuilder {
     return this.push(ESC, 0x45, on ? 1 : 0)
   }
 
-  doubleHeight(on: boolean): this {
-    return this.push(GS, 0x21, on ? 0x01 : 0x00)
-  }
-
   doubleSize(on: boolean): this {
     return this.push(GS, 0x21, on ? 0x11 : 0x00)
-  }
-
-  reverse(on: boolean): this {
-    return this.push(GS, 0x42, on ? 1 : 0)
   }
 
   text(str: string): this {
@@ -100,23 +77,69 @@ export class EscPosBuilder {
     return this.line(left + ' '.repeat(space) + right)
   }
 
-  threeCol(col1: string, col2: string, col3: string, w1: number, w2: number, w3: number): this {
+  threeCol(col1: string, col2: string, col3: string, w1 = 12, w2 = 8, w3 = 12): this {
     const s1 = col1.slice(0, w1).padEnd(w1, ' ')
     const s2 = col2.slice(0, w2).padStart(w2, ' ')
     const s3 = col3.slice(0, w3).padStart(w3, ' ')
     return this.line(s1 + s2 + s3)
   }
 
+  doubleHeight(on: boolean): this {
+    return this.push(GS, 0x21, on ? 0x10 : 0x00)
+  }
+
+  feedAndCut(lines = 3): this {
+    this.feed(lines)
+    return this.ejectAndCut()
+  }
+
   feed(lines = 3): this {
     return this.push(ESC, 0x64, lines)
+  }
+
+  /** ESC J n — print and feed n dots (0–255). More precise than line feeds. */
+  feedDots(dots: number): this {
+    const n = Math.max(0, Math.min(255, Math.round(dots)))
+    return this.push(ESC, 0x4a, n)
+  }
+
+  /** ESC { n — print upside-down (180°) using native glyphs, not a bitmap. */
+  upsideDown(on: boolean): this {
+    return this.push(ESC, 0x7b, on ? 1 : 0)
+  }
+
+  /**
+   * ESC L + ESC W + ESC T — page-mode print area so 90/270 rotation stays
+   * black-on-white text instead of a 1bpp raster the sticker printer inverts.
+   */
+  beginPageMode(widthDots: number, heightDots: number, rotation: 90 | 180 | 270): this {
+    const w = Math.max(1, Math.min(65535, Math.round(widthDots)))
+    const h = Math.max(1, Math.min(65535, Math.round(heightDots)))
+    const dir = rotation === 90 ? 1 : rotation === 180 ? 2 : 3
+    this.push(ESC, 0x4c)
+    this.push(ESC, 0x57, 0x00, 0x00, 0x00, 0x00, w & 0xff, (w >> 8) & 0xff, h & 0xff, (h >> 8) & 0xff)
+    return this.push(ESC, 0x54, dir)
+  }
+
+  printPageMode(): this {
+    this.push(0x0c)
+    return this.push(ESC, 0x53)
   }
 
   cut(): this {
     return this.push(GS, 0x56, 0x01)
   }
 
-  feedAndCut(lines = 3): this {
-    return this.feed(lines).cut()
+  /**
+   * Advance the last printed dots (QR, footer, barcode) past the tear bar /
+   * cutter, then partial-cut. Portable 58mm printers keep the print head
+   * ~15–20mm before the cutter, so a 2mm tail left the QR stuck inside.
+   * ESC J is capped at 255 dots (~32mm at 8 dots/mm).
+   */
+  ejectAndCut(): this {
+    this.feedDots(232)
+    this.push(GS, 0x56, 0x01)
+    return this.feedDots(48)
   }
 
   // 1D barcode via the standard GS k command. CODE128 uses the newer
@@ -142,12 +165,14 @@ export class EscPosBuilder {
     return this
   }
 
+  // 2D QR code via the standard Epson "GS ( k" symbol-storage sequence
+  // (select model → set module size → set error-correction level → store
+  // data → print). This exact byte sequence is the widely-replicated ESC/POS
+  // spec used by most Chinese-clone thermal printers, not vendor-specific.
   qr(data: string, moduleSize = 6): this {
     const cn = 0x31 // '1' — fixed value for 2D symbol commands
 
-    // Omit explicit Model 2 command (0x41 0x32 0x00): ESC/POS printers default to
-    // Model 2 natively, but many clone/POS-58 firmwares fail to parse Function 165 and
-    // dump the 0x32 byte onto the paper as an unwanted literal '2' above the QR code.
+    this.push(GS, 0x28, 0x6b, 0x04, 0x00, cn, 0x41, 0x32, 0x00) // select Model 2
     this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x43, moduleSize) // module size (1-16)
     this.push(GS, 0x28, 0x6b, 0x03, 0x00, cn, 0x45, 0x31) // error correction level M (~15%)
 
@@ -170,23 +195,6 @@ export class EscPosBuilder {
   image(packed: Uint8Array, widthBytes: number, heightDots: number): this {
     this.push(GS, 0x76, 0x30, 0x00, widthBytes & 0xff, (widthBytes >> 8) & 0xff, heightDots & 0xff, (heightDots >> 8) & 0xff)
     for (const b of packed) this.bytes.push(b)
-    return this
-  }
-
-  /**
-   * Slices a large full-receipt monochrome bitmap into vertical bands (default 48 dot-lines).
-   * Emits `GS v 0` for each band to avoid overflowing the printer's serial FIFO buffer.
-   */
-  rasterReceiptBands(packed: Uint8Array, widthBytes: number, heightDots: number, bandHeight = 48): this {
-    let y = 0
-    while (y < heightDots) {
-      const bh = Math.min(bandHeight, heightDots - y)
-      const start = y * widthBytes
-      const end = (y + bh) * widthBytes
-      const slice = packed.subarray(start, end)
-      this.image(slice, widthBytes, bh)
-      y += bh
-    }
     return this
   }
 

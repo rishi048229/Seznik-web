@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
@@ -14,7 +14,7 @@ import { HelpChatBot } from '@/components/ui/HelpChatBot'
 import { ROUTES } from '@/constants/routes'
 import { useAuth } from '@/contexts/AuthContext'
 import { prefetchCorePages } from '@/utils/prefetchPages'
-import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import { installNumberInputWheelGuard } from '@/utils/disableNumberInputWheel'
 import type { UserPermissions } from '@/types/auth.types'
 
 // Helper to lazy-load named exports as default components.
@@ -60,14 +60,12 @@ const DashboardPage = lazyPage(() => import('@/pages/dashboard/DashboardPage'), 
 const POSPage = lazyPage(() => import('@/pages/pos/POSPage'), 'POSPage')
 const POSLitePage = lazyPage(() => import('@/pages/pos/POSLitePage'), 'POSLitePage')
 const QuickTokensPage = lazyPage(() => import('@/pages/tokens/QuickTokensPage'), 'QuickTokensPage')
+const UtilityKioskPage = lazyPage(() => import('@/pages/utility/UtilityKioskPage'), 'UtilityKioskPage')
 const ProductsPage = lazyPage(() => import('@/pages/products/ProductsPage'), 'ProductsPage')
 const CategoriesPage = lazyPage(() => import('@/pages/categories/CategoriesPage'), 'CategoriesPage')
-// Multi-store implementation temporarily hidden
-// const LocationsPage = lazyPage(() => import('@/pages/locations/LocationsPage'), 'LocationsPage')
 const CustomersPage = lazyPage(() => import('@/pages/customers/CustomersPage'), 'CustomersPage')
 const CustomerDetailPage = lazyPage(() => import('@/pages/customers/CustomerDetailPage'), 'CustomerDetailPage')
 const SuppliersPage = lazyPage(() => import('@/pages/suppliers/SuppliersPage'), 'SuppliersPage')
-const SupplierDetailPage = lazyPage(() => import('@/pages/suppliers/SupplierDetailPage'), 'SupplierDetailPage')
 const SalesPage = lazyPage(() => import('@/pages/sales/SalesPage'), 'SalesPage')
 const SaleDetailPage = lazyPage(() => import('@/pages/sales/SaleDetailPage'), 'SaleDetailPage')
 const PurchasesPage = lazyPage(() => import('@/pages/purchases/PurchasesPage'), 'PurchasesPage')
@@ -77,12 +75,11 @@ const DaybookPage = lazyPage(() => import('@/pages/credits/DaybookPage'), 'Daybo
 const ReportsPage = lazyPage(() => import('@/pages/reports/ReportsPage'), 'ReportsPage')
 const SalesReportPage = lazyPage(() => import('@/pages/reports/SalesReportPage'), 'SalesReportPage')
 const ProfitLossPage = lazyPage(() => import('@/pages/reports/ProfitLossPage'), 'ProfitLossPage')
-const TaxReportPage = lazyPage(() => import('@/pages/reports/TaxReportPage'), 'TaxReportPage')
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage')
-const ProfilePage = lazyPage(() => import('@/pages/profile/ProfilePage'), 'ProfilePage')
 const PrintersPage = lazyPage(() => import('@/pages/printers/PrintersPage'), 'PrintersPage')
 const KOTPage = lazyPage(() => import('@/pages/kot/KOTPage'), 'KOTPage')
 const KDSPage = lazyPage(() => import('@/pages/kot/KDSPage'), 'KDSPage')
+const PublicInvoicePage = lazyPage(() => import('@/pages/receipt/PublicInvoicePage'), 'PublicInvoicePage')
 
 const LoadingFallback = (
   <div className="flex justify-center py-12">
@@ -109,9 +106,7 @@ const MainLayout = () => {
       topbar={<Topbar onMenuClick={() => setSidebarOpen(true)} />}
     >
       <Suspense fallback={LoadingFallback}>
-        <PageTransition>
-          <Outlet />
-        </PageTransition>
+        <PageTransition />
       </Suspense>
       <MobileNav />
       <HelpChatBot />
@@ -211,36 +206,36 @@ const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Permission-gated route: admins bypass; agents need the specific flag, else
 // they're bounced to the dashboard (they also can't see the nav link).
-const PermissionRoute = ({ permission, children }: { permission: keyof UserPermissions; children: React.ReactNode }) => {
+const PermissionRoute = ({
+  permission,
+  anyOf,
+  children,
+}: {
+  permission?: keyof UserPermissions
+  anyOf?: (keyof UserPermissions)[]
+  children: React.ReactNode
+}) => {
   const { userProfile, permissions } = useAuth()
 
   if (userProfile?.role === 'admin') {
     return <>{children}</>
   }
-  if (!permissions || !permissions[permission]) {
-    return <Navigate to={ROUTES.DASHBOARD} replace />
+  const keys = anyOf ?? (permission ? [permission] : [])
+  if (keys.some(key => permissions?.[key] === true)) {
+    return <>{children}</>
   }
-  return <>{children}</>
+  return <Navigate to={ROUTES.DASHBOARD} replace />
 }
 
-// Business-type feature gate (e.g. KOT / tokens only for restaurant_cafe).
-const BusinessFeatureRoute = ({
-  feature,
-  children,
-}: {
-  feature: 'kot' | 'tokens'
-  children: React.ReactNode
-}) => {
-  const { userProfile } = useAuth()
-  if (!isNavFeatureVisible(userProfile?.businessType, feature)) {
-    return <Navigate to={ROUTES.DASHBOARD} replace />
-  }
-  return <>{children}</>
+function NumberInputWheelGuard() {
+  useEffect(() => installNumberInputWheelGuard(), [])
+  return null
 }
 
 function App() {
   return (
     <BrowserRouter>
+      <NumberInputWheelGuard />
       <ThemeProvider>
         <LanguageProvider>
         <AuthProvider>
@@ -265,34 +260,34 @@ function App() {
                 }
               />
               <Route path={ROUTES.ONBOARDING} element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
+              <Route path={ROUTES.PUBLIC_RECEIPT} element={<PublicInvoicePage />} />
+              <Route path={ROUTES.PUBLIC_BILL} element={<PublicInvoicePage />} />
               <Route element={<AuthenticatedRoute><MainLayout /></AuthenticatedRoute>}>
                 <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-                <Route path={ROUTES.POS} element={<POSPage />} />
-                <Route path={ROUTES.POS_LITE} element={<POSLitePage />} />
-                <Route path={ROUTES.TOKENS} element={<BusinessFeatureRoute feature="tokens"><QuickTokensPage /></BusinessFeatureRoute>} />
-                <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
-                <Route path={ROUTES.CATEGORIES} element={<CategoriesPage />} />
-                {/* Multi-store implementation temporarily hidden */}
-                {/* <Route path={ROUTES.LOCATIONS} element={<LocationsPage />} /> */}
-                <Route path={ROUTES.CUSTOMERS} element={<CustomersPage />} />
-                <Route path="/customers/:id" element={<CustomerDetailPage />} />
+                <Route path={ROUTES.POS} element={<PermissionRoute permission="canAccessSales"><POSPage /></PermissionRoute>} />
+                <Route path={ROUTES.POS_LITE} element={<PermissionRoute permission="canAccessSales"><POSLitePage /></PermissionRoute>} />
+                <Route path={ROUTES.TOKENS} element={<PermissionRoute permission="canAccessSales"><QuickTokensPage /></PermissionRoute>} />
+                <Route path={ROUTES.UTILITY_KIOSK} element={<PermissionRoute permission="canAccessSales"><UtilityKioskPage /></PermissionRoute>} />
+                <Route path={ROUTES.PRODUCTS} element={<PermissionRoute permission="canAccessProducts"><ProductsPage /></PermissionRoute>} />
+                <Route path={ROUTES.CATEGORIES} element={<PermissionRoute permission="canAccessProducts"><CategoriesPage /></PermissionRoute>} />
+                <Route path={ROUTES.LOCATIONS} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+                <Route path={ROUTES.CUSTOMERS} element={<PermissionRoute permission="canAccessCustomers"><CustomersPage /></PermissionRoute>} />
+                <Route path="/customers/:id" element={<PermissionRoute permission="canAccessCustomers"><CustomerDetailPage /></PermissionRoute>} />
                 <Route path={ROUTES.SUPPLIERS} element={<PermissionRoute permission="canAccessSuppliers"><SuppliersPage /></PermissionRoute>} />
-                <Route path="/suppliers/:id" element={<PermissionRoute permission="canAccessSuppliers"><SupplierDetailPage /></PermissionRoute>} />
-                <Route path={ROUTES.SALES} element={<SalesPage />} />
-                <Route path="/sales/:id" element={<SaleDetailPage />} />
+                <Route path={ROUTES.SALES} element={<PermissionRoute permission="canAccessSales"><SalesPage /></PermissionRoute>} />
+                <Route path="/sales/:id" element={<PermissionRoute anyOf={['canAccessSales', 'canAccessReports']}><SaleDetailPage /></PermissionRoute>} />
                 <Route path={ROUTES.PURCHASES} element={<PermissionRoute permission="canAccessPurchases"><PurchasesPage /></PermissionRoute>} />
                 <Route path={ROUTES.EXPENSES} element={<PermissionRoute permission="canAccessExpenses"><ExpensesPage /></PermissionRoute>} />
-                <Route path={ROUTES.CREDITS} element={<CreditsPage />} />
-                <Route path={ROUTES.DAYBOOK} element={<DaybookPage />} />
+                <Route path={ROUTES.CREDITS} element={<PermissionRoute anyOf={['canAccessCustomers', 'canAccessSales']}><CreditsPage /></PermissionRoute>} />
+                <Route path={ROUTES.DAYBOOK} element={<PermissionRoute anyOf={['canAccessSales', 'canAccessReports']}><DaybookPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS} element={<PermissionRoute permission="canAccessReports"><ReportsPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_SALES} element={<PermissionRoute permission="canAccessReports"><SalesReportPage /></PermissionRoute>} />
                 <Route path={ROUTES.REPORTS_PL} element={<PermissionRoute permission="canAccessReports"><ProfitLossPage /></PermissionRoute>} />
-                <Route path={ROUTES.REPORTS_TAX} element={<PermissionRoute permission="canAccessReports"><TaxReportPage /></PermissionRoute>} />
+                <Route path={ROUTES.REPORTS_TAX} element={<Navigate to={ROUTES.DAYBOOK} replace />} />
                 <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
-                <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
-                <Route path={ROUTES.PRINTERS} element={<PrintersPage />} />
-                <Route path={ROUTES.KOT_KDS} element={<BusinessFeatureRoute feature="kot"><KDSPage /></BusinessFeatureRoute>} />
-                <Route path={ROUTES.KOT} element={<BusinessFeatureRoute feature="kot"><KOTPage /></BusinessFeatureRoute>} />
+                <Route path={ROUTES.PRINTERS} element={<PermissionRoute anyOf={['canAccessSettings', 'canAccessSales']}><PrintersPage /></PermissionRoute>} />
+                <Route path={ROUTES.KOT_KDS} element={<PermissionRoute permission="canAccessSales"><KDSPage /></PermissionRoute>} />
+                <Route path={ROUTES.KOT} element={<PermissionRoute permission="canAccessSales"><KOTPage /></PermissionRoute>} />
               </Route>
               <Route path="*" element={<Navigate to={ROUTES.ACCESS_SELECTION} replace />} />
             </Routes>

@@ -1,28 +1,6 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
-import type { GstBreakdownStyle } from '@/constants/gstBilling'
-import { formatItemGstRate } from '@shared/receiptPrintGeometry'
-import { receiptFontCharWidthDots, receiptFontCols, type ReceiptFontId } from '@shared/receiptFonts'
-import { gstSummaryFromCart } from '@/utils/gst'
-import { toPrinterSafeText } from './escpos'
-
-/** Plain decimal amount for thermal columns — no ₹, no Indian grouping. */
-export function formatThermalAmount(num: number): string {
-  return num.toFixed(2)
-}
-
-/** Pad left/right to exactly totalCols using printer-safe string lengths (ASCII / Rs.). */
-export function padTwoCol(left: string, right: string, totalCols: number): string {
-  const safeLeft = toPrinterSafeText(left ?? '')
-  const safeRight = toPrinterSafeText(right ?? '')
-  const availableLeft = totalCols - safeRight.length - 1
-  if (availableLeft < 1) {
-    return safeRight.slice(-totalCols).padStart(totalCols, ' ')
-  }
-  const leftStr = safeLeft.length > availableLeft ? safeLeft.slice(0, availableLeft) : safeLeft
-  const padding = totalCols - leftStr.length - safeRight.length
-  return leftStr + ' '.repeat(Math.max(0, padding)) + safeRight
-}
+import { composeReceiptDateLabel } from './date'
 
 export interface CompileReceiptParams {
   sale: Sale
@@ -36,14 +14,10 @@ export interface CompileReceiptParams {
   dateLabel?: string
   paperSize?: '58mm' | '80mm' | string
   widthDots?: number
-  /** Shared receipt font library id — paper column width for Font A bill fonts. */
-  receiptFont?: ReceiptFontId
   pricesIncludeGst?: boolean
   cashierName?: string
   isDuplicate?: boolean
-  /** From resolveReceiptPrintGst — overrides receiptConfig.showTaxBreakdown when set. */
-  gstStyle?: GstBreakdownStyle
-  itemWiseGst?: boolean
+  receiptFont?: string | null
   isRestaurant?: boolean
 }
 
@@ -52,13 +26,24 @@ export interface CompileReceiptParams {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Derives column width from paper size (Font A bill fonts: 32 @ 58mm / 48 @ 80mm).
+ * Derives column width: 32 for 58mm (384 dots), 48 for 80mm (576 dots)
  */
-export function getCols(paperSize?: string, widthDots?: number, receiptFont?: ReceiptFontId): number {
-  if (widthDots && widthDots > 0) {
-    return Math.floor(widthDots / receiptFontCharWidthDots(receiptFont))
-  }
-  return receiptFontCols(paperSize === '80mm' ? '80mm' : '58mm', receiptFont)
+export function getCols(paperSize?: string, widthDots?: number, _receiptFont?: unknown): number {
+  if (widthDots && widthDots > 0) return Math.floor(widthDots / 12)
+  if (paperSize === '80mm') return 48
+  return 32
+}
+
+export function padTwoCol(left: string, right: string, totalCols = 32): string {
+  return row(left, right, totalCols)
+}
+
+export function formatThermalAmount(value: number, decimals = 2): string {
+  return Number(value || 0).toFixed(decimals)
+}
+
+export function formatThermalMoney(value: number): string {
+  return Number(value || 0).toFixed(2)
 }
 
 /**
@@ -66,12 +51,14 @@ export function getCols(paperSize?: string, widthDots?: number, receiptFont?: Re
  * Truncates left text if overflowing so right-aligned numeric value is preserved.
  */
 export function row(left: string, right: string, totalCols: number): string {
-  return padTwoCol(left, right, totalCols)
-}
-
-/** Format money for thermal totals — ASCII-only so column padding stays exact. */
-export function formatThermalMoney(num: number): string {
-  return `Rs.${formatThermalAmount(num)}`
+  const rightStr = (right ?? '').toString()
+  const availableLeft = totalCols - rightStr.length - 1
+  if (availableLeft < 1) {
+    return rightStr.slice(-totalCols).padStart(totalCols, ' ')
+  }
+  const leftStr = left.length > availableLeft ? left.slice(0, availableLeft) : left
+  const padding = totalCols - leftStr.length - rightStr.length
+  return leftStr + ' '.repeat(Math.max(0, padding)) + rightStr
 }
 
 export interface ColField {
@@ -92,7 +79,7 @@ export function cols(fields: ColField[], totalCols: number): string {
 
     let cell = ''
     if (textStr.length > f.width) {
-      cell = align === 'R' ? textStr.slice(-f.width) : textStr.slice(0, f.width)
+      cell = textStr.slice(0, f.width)
     } else if (align === 'R') {
       cell = textStr.padStart(f.width, ' ')
     } else {
@@ -242,8 +229,7 @@ export function calculateReceiptTotals(
 ): ReceiptTotalsResult {
   const items = sale.items ?? []
   const docTitle = getDocumentTitle(gstin, items)
-  const hasItemTax = items.some(item => (item.taxRate || 0) > 0 || (item.taxAmount || 0) > 0)
-  const hasTax = hasItemTax || (sale.totalTax != null && sale.totalTax > 0)
+  const isTaxInvoice = docTitle === 'TAX INVOICE'
 
   let totalQty = 0
   let rawSubTotal = 0
@@ -256,54 +242,77 @@ export function calculateReceiptTotals(
   })
 
   const subTotal = sale.subtotal || rawSubTotal
-  const totalDiscount = (sale.totalDiscount != null && sale.totalDiscount > 0) ? sale.totalDiscount : itemDiscounts
+  const totalDiscount = sale.totalDiscount || itemDiscounts
   const orderDiscount = Math.max(0, totalDiscount - itemDiscounts)
-  const netPayableBeforeTax = subTotal - totalDiscount
 
-  let taxGroups: GstTaxGroup[] = []
+  // Group items by taxRate (accounting for both item discounts and proportional order discount)
+  const groupMap = new Map<number, number>() // rate -> sum of line net amounts
+
+  items.forEach(item => {
+    const rate = isTaxInvoice ? (item.taxRate || 0) : 0
+    const lineNetBeforeOrderDisc = item.sellingPrice * item.quantity - (item.discount || 0)
+    const lineOrderDisc = rawSubTotal > 0 ? (lineNetBeforeOrderDisc / rawSubTotal) * orderDiscount : 0
+    const lineNet = lineNetBeforeOrderDisc - lineOrderDisc
+    groupMap.set(rate, (groupMap.get(rate) || 0) + lineNet)
+  })
+
+  const taxGroups: GstTaxGroup[] = []
   let taxableSum = 0
   let totalTaxSum = 0
   let cgstSum = 0
   let sgstSum = 0
 
-  if (hasTax) {
-    const gstSummary = gstSummaryFromCart(
-      items.map((item) => ({
-        sellingPrice: item.sellingPrice,
-        quantity: item.quantity,
-        discount: item.discount || 0,
-        taxRate: item.taxRate || 0,
-        priceIncludesGst: item.priceIncludesGst ?? pricesIncludeGst,
-      })),
-      orderDiscount
-    )
-    taxGroups = gstSummary.slabs
-      .filter((s) => s.gstRate > 0)
-      .map((s) => ({
-        taxRate: s.gstRate,
-        taxableAmount: s.taxableValue,
-        totalTax: s.totalGst,
-        cgst: s.cgstAmount,
-        sgst: s.sgstAmount,
-      }))
-    taxableSum = gstSummary.taxableValue
-    totalTaxSum = gstSummary.totalGst > 0 ? gstSummary.totalGst : (sale.totalTax || 0)
-    cgstSum = gstSummary.cgstAmount > 0 ? gstSummary.cgstAmount : (totalTaxSum / 2)
-    sgstSum = gstSummary.sgstAmount > 0 ? gstSummary.sgstAmount : (totalTaxSum / 2)
+  if (isTaxInvoice) {
+    Array.from(groupMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([rate, groupAmt]) => {
+        let taxable = 0
+        let tax = 0
+
+        if (rate === 0) {
+          taxable = groupAmt
+          tax = 0
+        } else if (pricesIncludeGst) {
+          taxable = groupAmt / (1 + rate / 100)
+          tax = groupAmt - taxable
+        } else {
+          taxable = groupAmt
+          tax = groupAmt * (rate / 100)
+        }
+
+        taxable = Number(taxable.toFixed(2))
+        tax = Number(tax.toFixed(2))
+
+        // Split tax evenly into CGST and SGST
+        let sgst = Number((tax / 2).toFixed(2))
+        let cgst = Number((tax - sgst).toFixed(2)) // Put any odd 1 paisa rounding on CGST
+
+        if (rate > 0) {
+          taxGroups.push({
+            taxRate: rate,
+            taxableAmount: taxable,
+            totalTax: tax,
+            cgst,
+            sgst
+          })
+        }
+
+        taxableSum += taxable
+        totalTaxSum += tax
+        cgstSum += cgst
+        sgstSum += sgst
+      })
   }
 
-  const taxableAmount = taxableSum > 0 ? Number(taxableSum.toFixed(2)) : netPayableBeforeTax
-  const totalTax = totalTaxSum > 0 ? Number(totalTaxSum.toFixed(2)) : (sale.totalTax ? Number(sale.totalTax.toFixed(2)) : 0)
-  const cgstTotal = cgstSum > 0 ? Number(cgstSum.toFixed(2)) : Number((totalTax / 2).toFixed(2))
-  const sgstTotal = sgstSum > 0 ? Number(sgstSum.toFixed(2)) : Number((totalTax / 2).toFixed(2))
+  const netPayableBeforeTax = subTotal - totalDiscount
+  const taxableAmount = isTaxInvoice ? Number(taxableSum.toFixed(2)) : netPayableBeforeTax
+  const totalTax = isTaxInvoice ? Number(totalTaxSum.toFixed(2)) : 0
+  const cgstTotal = isTaxInvoice ? Number(cgstSum.toFixed(2)) : 0
+  const sgstTotal = isTaxInvoice ? Number(sgstSum.toFixed(2)) : 0
 
-  const hasExclGst = items.some((i) => !i.priceIncludesGst && (i.taxRate || 0) > 0)
-  const rawGrandTotal =
-    sale.grandTotal != null && sale.grandTotal > 0
-      ? sale.grandTotal
-      : hasExclGst
-        ? netPayableBeforeTax + totalTax
-        : netPayableBeforeTax
+  const rawGrandTotal = pricesIncludeGst
+    ? netPayableBeforeTax
+    : (netPayableBeforeTax + totalTax)
 
   const finalGrandTotal = Math.round(rawGrandTotal)
   const roundOff = Number((finalGrandTotal - rawGrandTotal).toFixed(2))
@@ -342,16 +351,12 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     dateLabel,
     paperSize = '58mm',
     widthDots,
-    receiptFont,
     pricesIncludeGst = true,
     cashierName,
     isDuplicate = false,
-    gstStyle,
-    itemWiseGst,
-    isRestaurant,
   } = params
 
-  const COLS = getCols(paperSize, widthDots, receiptFont)
+  const COLS = getCols(paperSize, widthDots)
   const lines: string[] = []
 
   // Extract all user customization switches
@@ -361,52 +366,33 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const showGSTIN = receiptConfig?.showGSTIN ?? true
   const showCustomerDetails = receiptConfig?.showCustomerDetails ?? true
   const showInvoiceNoAndDate = receiptConfig?.showInvoiceNoAndDate ?? true
+  const showPrintTime = receiptConfig?.showPrintTime ?? true
   const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
-  const effectiveGstStyle: GstBreakdownStyle | undefined =
-    gstStyle ?? (showTaxBreakdown ? 'tax_invoice' : undefined)
-  const showItemGst =
-    itemWiseGst !== undefined ? itemWiseGst : showTaxBreakdown
   const showSubtotalDiscount = receiptConfig?.showSubtotalDiscount ?? true
   const showFooterMessage = receiptConfig?.showFooterMessage ?? true
   const showTerms = receiptConfig?.showTerms ?? true
   const showBarcode = receiptConfig?.showBarcode ?? true
-  const showPaymentQR = receiptConfig?.showPaymentQR ?? false
   const compactMode = receiptConfig?.compactMode ?? false
 
-  const companyName = (receiptConfig?.companyName || businessName || '').trim()
-  const companyAddr = (receiptConfig?.address || businessAddress || '').trim()
-  const companyPh = (receiptConfig?.phone || businessPhone || '').trim()
-  const companyGst = (receiptConfig?.gstin || businessGSTIN || '').trim()
-  const footerText = (receiptConfig?.footerMessage || '').trim()
+  const companyName = receiptConfig?.companyName || businessName || 'SEZNIK STORE'
+  const companyAddr = receiptConfig?.address || businessAddress || ''
+  const companyPh = receiptConfig?.phone || businessPhone || ''
+  const companyGst = receiptConfig?.gstin || businessGSTIN || ''
+  const footerText = receiptConfig?.footerMessage || 'Thank You! Visit Again'
 
   const totals = calculateReceiptTotals(sale, companyGst, pricesIncludeGst)
 
   // ── 1. HEADER ──
   if (showCompanyHeader) {
-    let hasHeader = false
-    if (companyName) {
-      lines.push(...wrapProse(companyName, COLS, true))
-      hasHeader = true
-    }
-    if (showAddress && companyAddr) {
-      lines.push(...wrapProse(companyAddr, COLS, true))
-      hasHeader = true
-    }
-    if (showPhone && companyPh) {
-      lines.push(centerText(`Phone: ${companyPh}`, COLS))
-      hasHeader = true
-    }
-    if (showGSTIN && companyGst) {
-      lines.push(centerText(`GSTIN: ${companyGst}`, COLS))
-      hasHeader = true
-    }
-    if (hasHeader) {
-      lines.push(divider('=', COLS))
-    }
+    if (companyName) lines.push(...wrapProse(companyName, COLS, true))
+    if (showAddress && companyAddr) lines.push(...wrapProse(companyAddr, COLS, true))
+    if (showPhone && companyPh) lines.push(centerText(`Ph: ${companyPh}`, COLS))
+    if (showGSTIN && companyGst) lines.push(centerText(`GSTIN: ${companyGst}`, COLS))
+    lines.push(divider('=', COLS))
   }
 
-  const customTitle = receiptConfig?.headerTitle?.trim()
-  const titleText = (customTitle !== undefined && customTitle !== null && customTitle !== '')
+  const customTitle = receiptConfig?.headerTitle
+  const titleText = (customTitle !== undefined && customTitle !== null)
     ? customTitle
     : totals.docTitle
 
@@ -419,11 +405,8 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   }
 
   // ── 2. META DETAILS ──
-  const hasCust = showCustomerDetails && Boolean(customerName?.trim() || customerPhone?.trim())
-  if (showInvoiceNoAndDate || hasCust) {
-    const dateObj = sale.createdAt ? new Date(sale.createdAt) : new Date()
-    const dateStr = dateLabel
-      || `${dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+  if (showInvoiceNoAndDate || (showCustomerDetails && customerName)) {
+    const dateStr = composeReceiptDateLabel(dateLabel, sale.createdAt, showPrintTime)
 
     if (showInvoiceNoAndDate) {
       if (compactMode) {
@@ -431,38 +414,13 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       } else {
         lines.push(row('Bill No :', sale.invoiceNumber || 'INV-00000', COLS))
         lines.push(row('Date    :', dateStr, COLS))
-        if (cashierName?.trim()) lines.push(row('Cashier :', cashierName.trim(), COLS))
+        if (cashierName) lines.push(row('Cashier :', cashierName, COLS))
       }
     }
-    if (showCustomerDetails) {
-      if (customerName?.trim()) lines.push(row('Customer:', customerName.trim(), COLS))
-      if (customerPhone?.trim()) lines.push(row('Phone   :', customerPhone.trim(), COLS))
+    if (showCustomerDetails && customerName) {
+      lines.push(row('Customer:', customerName, COLS))
+      if (customerPhone) lines.push(row('Phone   :', customerPhone, COLS))
     }
-
-    // Delivery & Order Fulfillment Block
-    const isDelivery = (sale as any).orderType === 'delivery'
-    if (isDelivery) {
-      lines.push(divider('-', COLS))
-      lines.push(centerText('*** DELIVERY ORDER ***', COLS))
-      const delivAddress = (sale as any).deliveryAddress?.trim()
-      const delivPhone = (sale as any).deliveryPhone?.trim()
-      const schedDate = (sale as any).scheduledDeliveryDate
-      if (delivAddress) {
-        lines.push(...wrapProse(`Address: ${delivAddress}`, COLS, false))
-      }
-      if (delivPhone) {
-        lines.push(row('Deliv Ph:', delivPhone, COLS))
-      }
-      if (schedDate) {
-        const schedStr = new Date(schedDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })
-        lines.push(row('Delivery:', schedStr, COLS))
-      }
-      const payStatus = (sale as any).paymentStatus
-      if (payStatus === 'pending') {
-        lines.push(centerText(`*** PAYMENT PENDING (COD): Rs.${totals.finalGrandTotal.toFixed(2)} ***`, COLS))
-      }
-    }
-
     lines.push(divider('-', COLS))
   }
 
@@ -471,48 +429,40 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
   if (COLS >= 48) {
     // 48-Column One-Line Layout
-    const headerFields: ColField[] = [
-      { text: 'ITEM', width: showItemGst ? 22 : 27, align: 'L' },
+    lines.push(cols([
+      { text: 'ITEM', width: 22, align: 'L' },
       { text: 'QTY', width: 5, align: 'R' },
-    ]
-    if (showItemGst) headerFields.push({ text: 'GST', width: 5, align: 'R' })
-    headerFields.push(
+      { text: 'GST', width: 5, align: 'R' },
       { text: 'RATE', width: 8, align: 'R' },
-      { text: 'AMOUNT', width: 8, align: 'R' }
-    )
-    lines.push(cols(headerFields, COLS))
+      { text: 'AMOUNT', width: 8, align: 'R' },
+    ], COLS))
     lines.push(divider('-', COLS))
 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstStr =
-        showItemGst && totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0
-          ? formatItemGstRate(item.taxRate)
-          : ''
+      const gstStr = (totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0)
+        ? `${Math.round(item.taxRate * 100) / 100}%`
+        : ''
 
-      const nameWidth = showItemGst ? 22 : 27
-      const fullName = isRestaurant ? `${index + 1} ${item.productName}` : item.productName
+      const nameWidth = 22
+      const fullName = `${index + 1} ${item.productName}`
 
       const firstLineName = fullName.slice(0, nameWidth)
-      const rowFields: ColField[] = [
-        { text: firstLineName, width: nameWidth, align: 'L' },
+      lines.push(cols([
+        { text: firstLineName, width: 22, align: 'L' },
         { text: item.quantity.toString(), width: 5, align: 'R' },
-      ]
-      if (showItemGst) rowFields.push({ text: gstStr, width: 5, align: 'R' })
-      rowFields.push(
-        { text: formatThermalAmount(item.sellingPrice), width: 8, align: 'R' },
-        { text: formatThermalAmount(lineAmt), width: 8, align: 'R' }
-      )
-      lines.push(cols(rowFields, COLS))
+        { text: gstStr, width: 5, align: 'R' },
+        { text: formatIndianNumber(item.sellingPrice), width: 8, align: 'R' },
+        { text: formatIndianNumber(lineAmt), width: 8, align: 'R' },
+      ], COLS))
 
       let remainingName = fullName.slice(nameWidth)
-      const padWidth = showItemGst ? 26 : 21
       while (remainingName.length > 0) {
         const chunk = '  ' + remainingName.slice(0, nameWidth - 2)
         remainingName = remainingName.slice(nameWidth - 2)
         lines.push(cols([
-          { text: chunk, width: nameWidth, align: 'L' },
-          { text: '', width: padWidth, align: 'L' }
+          { text: chunk, width: 22, align: 'L' },
+          { text: '', width: 26, align: 'L' }
         ], COLS))
       }
     })
@@ -523,30 +473,21 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstStr =
-        showItemGst && totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0
-          ? formatItemGstRate(item.taxRate)
-          : ''
+      const gstStr = (totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0)
+        ? `${Math.round(item.taxRate * 100) / 100}%`
+        : ''
 
-      const fullName = isRestaurant ? `${index + 1} ${item.productName}` : item.productName
+      const fullName = `${index + 1} ${item.productName}`
       const nameLines = wrapProse(fullName, COLS, false)
       lines.push(...nameLines)
 
-      const qtyRateStr = `${item.quantity} x ${formatThermalAmount(item.sellingPrice)}`
-      if (showItemGst && gstStr) {
-        lines.push(cols([
-          { text: '  ', width: 2, align: 'L' },
-          { text: qtyRateStr, width: 20, align: 'L' },
-          { text: formatThermalAmount(lineAmt), width: 10, align: 'R' },
-        ], COLS))
-        lines.push(`   ${gstStr} GST`.padEnd(COLS, ' '))
-      } else {
-        lines.push(cols([
-          { text: '  ', width: 2, align: 'L' },
-          { text: qtyRateStr, width: 20, align: 'L' },
-          { text: formatThermalAmount(lineAmt), width: 10, align: 'R' },
-        ], COLS))
-      }
+      const qtyRateStr = `${item.quantity} x ${formatIndianNumber(item.sellingPrice)}`
+      lines.push(cols([
+        { text: '  ', width: 2, align: 'L' },
+        { text: qtyRateStr, width: 16, align: 'L' },
+        { text: gstStr, width: 4, align: 'R' },
+        { text: formatIndianNumber(lineAmt), width: 10, align: 'R' },
+      ], COLS))
     })
   }
 
@@ -554,41 +495,64 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
   // ── 4. TOTALS BLOCK ──
   if (showSubtotalDiscount) {
-    lines.push(row('Sub Total', formatThermalAmount(totals.subTotal), COLS))
+    lines.push(row('Sub Total', formatIndianNumber(totals.subTotal), COLS))
     if (totals.totalDiscount > 0) {
-      lines.push(row('Discount', `-${formatThermalAmount(totals.totalDiscount)}`, COLS))
+      lines.push(row('Discount', `-${formatIndianNumber(totals.totalDiscount)}`, COLS))
     }
     lines.push(divider('-', COLS))
   }
 
-  if (totals.totalTax > 0) {
-    if (showTaxBreakdown && totals.docTitle === 'TAX INVOICE') {
-      if (effectiveGstStyle === 'compact') {
-        lines.push(row('GST', formatThermalAmount(totals.totalTax), COLS))
-      } else if (effectiveGstStyle === 'slab_wise' && totals.taxGroups.length > 0) {
-        totals.taxGroups.forEach((g) => {
-          lines.push(row(`Taxable @ ${g.taxRate}%`, formatThermalAmount(g.taxableAmount), COLS))
-          lines.push(row(`  CGST @ ${g.taxRate / 2}%`, formatThermalAmount(g.cgst), COLS))
-          lines.push(row(`  SGST @ ${g.taxRate / 2}%`, formatThermalAmount(g.sgst), COLS))
-        })
-      } else {
-        lines.push(row('Taxable Value', formatThermalAmount(totals.taxableAmount), COLS))
-        lines.push(row('  CGST', formatThermalAmount(totals.cgstTotal), COLS))
-        lines.push(row('  SGST', formatThermalAmount(totals.sgstTotal), COLS))
-      }
-    } else {
-      lines.push(row('GST / Tax', formatThermalAmount(totals.totalTax), COLS))
-    }
+  if (showTaxBreakdown && totals.docTitle === 'TAX INVOICE' && totals.totalTax > 0) {
+    lines.push(row('Taxable Value', formatIndianNumber(totals.taxableAmount), COLS))
+    lines.push(row('  CGST', formatIndianNumber(totals.cgstTotal), COLS))
+    lines.push(row('  SGST', formatIndianNumber(totals.sgstTotal), COLS))
     lines.push(divider('-', COLS))
   }
 
   if (totals.roundOff !== 0) {
-    lines.push(row('Round Off', formatThermalAmount(totals.roundOff), COLS))
+    lines.push(row('Round Off', formatIndianNumber(totals.roundOff), COLS))
   }
 
   lines.push(divider('=', COLS))
-  lines.push(row('GRAND TOTAL', formatThermalAmount(totals.finalGrandTotal), COLS))
+  lines.push(row('GRAND TOTAL', formatIndianNumber(totals.finalGrandTotal), COLS))
   lines.push(divider('=', COLS))
+
+  // ── 5. GST SUMMARY TABLE (TAX INVOICE ONLY) ──
+  if (showTaxBreakdown && totals.docTitle === 'TAX INVOICE' && totals.taxGroups.length > 0) {
+    lines.push(centerText('GST SUMMARY', COLS))
+    if (COLS >= 48) {
+      lines.push(cols([
+        { text: 'Rate', width: 6, align: 'R' },
+        { text: 'Taxable', width: 14, align: 'R' },
+        { text: 'CGST', width: 14, align: 'R' },
+        { text: 'SGST', width: 14, align: 'R' },
+      ], COLS))
+      totals.taxGroups.forEach(g => {
+        lines.push(cols([
+          { text: `${Math.round(g.taxRate * 100) / 100}%`, width: 6, align: 'R' },
+          { text: formatIndianNumber(g.taxableAmount), width: 14, align: 'R' },
+          { text: formatIndianNumber(g.cgst), width: 14, align: 'R' },
+          { text: formatIndianNumber(g.sgst), width: 14, align: 'R' },
+        ], COLS))
+      })
+    } else {
+      lines.push(cols([
+        { text: 'Rate', width: 4, align: 'R' },
+        { text: 'Taxable', width: 10, align: 'R' },
+        { text: 'CGST', width: 9, align: 'R' },
+        { text: 'SGST', width: 9, align: 'R' },
+      ], COLS))
+      totals.taxGroups.forEach(g => {
+        lines.push(cols([
+          { text: `${Math.round(g.taxRate * 100) / 100}%`, width: 4, align: 'R' },
+          { text: formatIndianNumber(g.taxableAmount), width: 10, align: 'R' },
+          { text: formatIndianNumber(g.cgst), width: 9, align: 'R' },
+          { text: formatIndianNumber(g.sgst), width: 9, align: 'R' },
+        ], COLS))
+      })
+    }
+    lines.push(divider('-', COLS))
+  }
 
   // ── 6. SUMMARY STATS & PAYMENT ──
   lines.push(row(`Items: ${totals.itemCount}`, `Total Qty: ${totals.totalQty}`, COLS))
@@ -614,9 +578,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     if (receiptConfig?.termsLine3) lines.push(...wrapProse(`3. ${receiptConfig.termsLine3}`, COLS, false))
   }
 
-  // Skip invoice-number barcode footer when a payment QR follows — otherwise the
-  // invoice number prints directly above the UPI QR and looks like a stray caption.
-  if (showBarcode && sale.invoiceNumber && !showPaymentQR) {
+  if (showBarcode && sale.invoiceNumber) {
     lines.push(divider('-', COLS))
     lines.push(centerText('', COLS))
     lines.push(centerText(sale.invoiceNumber, COLS))

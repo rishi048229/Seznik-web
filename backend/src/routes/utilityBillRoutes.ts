@@ -7,15 +7,14 @@ import {
   deleteUtilityBill,
 } from '../controllers/utilityBillController';
 import { protect } from '../middlewares/authMiddleware';
+import { requirePermission } from '../middlewares/requirePermission';
 
 const router = express.Router();
 
 router.use(protect);
+router.use(requirePermission('canAccessSales'));
 
-// Extraction endpoint (10MB body limit handled in app.ts)
 router.post('/extract', extractUtilityBill);
-
-// CRUD & Stats endpoints
 router.get('/stats', getUtilityBillStats);
 router.get('/', getUtilityBills);
 router.post('/', createUtilityBill);

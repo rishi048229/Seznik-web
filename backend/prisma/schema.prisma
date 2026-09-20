@@ -49,6 +49,7 @@ model User {
   restaurantTables      RestaurantTable[]
   kotOrders             KOTOrder[]
   kotOrderItems         KOTOrderItem[]
+  kotPrintEvents        KOTPrintEvent[]
   locations             Location[]
   productLocationStocks ProductLocationStock[]
   stockTransfers        StockTransfer[]
@@ -311,6 +312,11 @@ model Sale {
   isRemotePrint         Boolean   @default(false)
   lastRemotePrintJobId  String?
   printJobs             PrintJob[]
+
+  status          String    @default("completed") // completed | cancelled
+  cancelReason    String?
+  cancelledAt     DateTime?
+  cancelledByName String?
 
   createdAt      DateTime  @default(now())
 
@@ -578,10 +584,14 @@ model KOTOrder {
   locationId      String?
   location        Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
   sentToKitchenAt DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  cancelledByName String?
   // Set once billed. SetNull (not Cascade): the order predates and outlives the sale it produces.
   saleId          String?          @unique
   sale            Sale?            @relation(fields: [saleId], references: [id], onDelete: SetNull)
   items           KOTOrderItem[]
+  printEvents     KOTPrintEvent[]
   userId          String
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime         @default(now())
@@ -609,6 +619,7 @@ model KOTOrderItem {
   modifiers   String[] @default([])
   status      String   @default("pending")
   sentToKitchenAt DateTime?
+  kotBatchNumber Int?
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
@@ -896,5 +907,18 @@ model PrintJobEvent {
   @@index([printJobId])
 }
 
+model KOTPrintEvent {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         KOTOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  batchNumber   Int
+  kind          String   @default("kot") // kot | cancel
+  itemSnapshot  Json
+  printedByName String?
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 
-
+  @@index([orderId])
+  @@index([userId])
+}

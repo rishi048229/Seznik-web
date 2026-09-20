@@ -8,15 +8,15 @@ import {
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { formatINR } from '@/utils/currency'
+import { formatReceiptDateTime } from '@/utils/date'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { resolveThermalPaper } from '@/utils/printerThermal'
-import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
+import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
-import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { buildUpiPayLink } from '@/utils/upiQr'
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 
 export interface EditableReceiptItem {
   id?: string
@@ -81,8 +81,6 @@ export const RealisticReceiptModal = ({
   onDone,
   blePrinter,
 }: RealisticReceiptModalProps) => {
-  const hookBlePrinter = useBlePrinter()
-  const activeBlePrinter = blePrinter || hookBlePrinter
   const receiptConfig = resolveEffectiveReceiptConfig(settings)
 
   // Initialize receipt editable state from sale & settings
@@ -119,8 +117,8 @@ export const RealisticReceiptModal = ({
       businessGSTIN: receiptConfig?.gstin || settings?.businessGSTIN || '',
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL || '',
       invoiceNumber: sale?.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-      date: sale?.createdAt ? new Date(sale.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
-      customerName: initialCustomerName || (sale as any)?.customerName || (sale as any)?.customer?.name || 'Walk-in Customer',
+      date: formatReceiptDateTime(sale?.createdAt || new Date(), receiptConfig?.showPrintTime ?? true),
+      customerName: initialCustomerName || (sale as any)?.customer?.name || 'Walk-in Customer',
       customerPhone: initialCustomerPhone || (sale as any)?.customer?.phone || '',
       items: mappedItems.length > 0 ? mappedItems : [
         { productName: 'Standard Item', quantity: 1, unitPrice: grand || 100, discount: 0, taxRate: 0, total: grand || 100 }
@@ -135,7 +133,7 @@ export const RealisticReceiptModal = ({
       footerMessage: receiptConfig?.footerMessage || 'Thank you for your visit! Goods once sold can be exchanged within 7 days.',
       showTaxBreakdown: receiptConfig?.showTaxBreakdown ?? true,
       showUpiQr: !!settings?.receiptConfig?.upiId,
-      paperSize: resolveThermalPaper(settings?.printerConfig),
+      paperSize: (settings?.printerConfig?.paperSize === '80mm' ? '80mm' : '58mm'),
     }
   }, [sale, settings, receiptConfig, initialCustomerName, initialCustomerPhone])
 
@@ -143,6 +141,7 @@ export const RealisticReceiptModal = ({
   const [isEditing, setIsEditing] = useState(false)
   const [upiQrDataUrl, setUpiQrDataUrl] = useState<string>('')
   const [isPrintingBle, setIsPrintingBle] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
 
   const prevOpenRef = useRef(false)
@@ -285,8 +284,6 @@ export const RealisticReceiptModal = ({
     printerConfig: settings?.printerConfig,
     businessName: receipt.businessName,
     businessAddress: receipt.businessAddress,
-    businessPhone: receipt.businessPhone,
-    businessGSTIN: receipt.businessGSTIN,
     customerName: receipt.customerName,
     customerPhone: receipt.customerPhone,
     dateLabel: receipt.date,
@@ -297,57 +294,59 @@ export const RealisticReceiptModal = ({
   const handlePrintThermal = async () => {
     const payload = printPayload()
     const width: '50mm' | '80mm' = receipt.paperSize === '80mm' ? '80mm' : '50mm'
-    const preferBle = shouldPrintThermalOverBle(settings, activeBlePrinter) || settings?.printerConfig?.connectionType === 'bluetooth'
+    const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
-    if (preferBle || activeBlePrinter?.status === 'connected') {
+    if (useBle && blePrinter) {
       setIsPrintingBle(true)
       try {
-        if (activeBlePrinter.status !== 'connected') {
-          await activeBlePrinter.connect()
+        if (blePrinter.status !== 'connected') {
+          await blePrinter.connect()
         }
         const bytes = await generateReceiptEscPos({
           sale: payload.sale,
           receiptConfig: payload.receiptConfig,
           paperSize: receipt.paperSize,
-          printerConfig: settings?.printerConfig,
-          receiptFont: settings?.printerConfig?.receiptFont,
           businessName: receipt.businessName,
           businessAddress: receipt.businessAddress,
-          businessPhone: receipt.businessPhone,
-          businessGSTIN: receipt.businessGSTIN,
           customerName: receipt.customerName,
           customerPhone: receipt.customerPhone,
-          businessLogoURL: receipt.logoURL,
-          invoiceConfig: settings?.invoiceConfig,
+          dateLabel: receipt.date,
         })
-        await activeBlePrinter.print(bytes)
-        toast.success(`Printed to ${activeBlePrinter.deviceName || 'Bluetooth printer'}`)
-        setIsPrintingBle(false)
-        return
+        await blePrinter.print(bytes)
+        toast.success(`Printed to ${blePrinter.deviceName || 'Bluetooth printer'}`)
       } catch (err: unknown) {
-        console.warn('Bluetooth print failed:', err)
-        const msg = err instanceof Error ? err.message : 'Bluetooth print failed'
-        toast.error(msg)
+        const msg = err instanceof Error ? err.message : 'Bluetooth printing failed'
+        toast.error(`${msg}. Connect the printer on the Printers page.`)
+      } finally {
         setIsPrintingBle(false)
-        return
       }
+      return
     }
 
     const html = generateReceiptHTML({ ...payload, width })
-    printReceipt(html, width, payload.sale.invoiceNumber, undefined, settings?.printerConfig?.receiptFont)
+    printReceipt(html, width, payload.sale.invoiceNumber)
   }
 
   const handlePrintA4 = () => {
     const payload = printPayload()
     const html = generateReceiptHTML({ ...payload, width: '210mm' })
-    printReceipt(html, '210mm', payload.sale.invoiceNumber, undefined, settings?.printerConfig?.receiptFont)
+    printReceipt(html, '210mm', payload.sale.invoiceNumber)
   }
 
-  const handleDownloadA4Pdf = () => {
+  const handleDownloadA4Pdf = async () => {
     const payload = printPayload()
     const html = generateReceiptHTML({ ...payload, width: '210mm' })
-    downloadA4InvoicePdf(html, `${payload.sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-    toast.success('Invoice opened — click Save as PDF')
+    const toastId = toast.loading('Preparing PDF…')
+    setIsDownloadingPdf(true)
+    try {
+      await downloadA4InvoicePdf(html, `${payload.sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+      toast.success('Invoice downloaded', { id: toastId })
+    } catch (error) {
+      toast.dismiss(toastId)
+      toastError(error, 'Could not download the invoice PDF')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
   }
 
   return (
@@ -404,6 +403,7 @@ export const RealisticReceiptModal = ({
               size="sm"
               leftIcon={<Download size={15} />}
               onClick={handleDownloadA4Pdf}
+              loading={isDownloadingPdf}
               className="min-h-10 font-semibold"
             >
               Download PDF
@@ -411,14 +411,14 @@ export const RealisticReceiptModal = ({
             <Button
               type="button"
               size="sm"
-              leftIcon={shouldPrintThermalOverBle(settings, activeBlePrinter) ? <Bluetooth size={16} /> : <Printer size={16} />}
+              leftIcon={shouldPrintThermalOverBle(settings, blePrinter) ? <Bluetooth size={16} /> : <Printer size={16} />}
               onClick={handlePrintThermal}
               loading={isPrintingBle}
               className="min-h-10 col-span-2 sm:col-span-1 sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md"
             >
-              {activeBlePrinter?.status === 'connected'
-                ? `Print to ${activeBlePrinter.deviceName || 'printer'}`
-                : shouldPrintThermalOverBle(settings, activeBlePrinter)
+              {blePrinter?.status === 'connected'
+                ? `Print to ${blePrinter.deviceName || 'printer'}`
+                : shouldPrintThermalOverBle(settings, blePrinter)
                   ? 'Connect & print receipt'
                   : `Print receipt (${receipt.paperSize})`}
             </Button>
@@ -439,7 +439,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Store & Merchant Details */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                 <Building2 size={14} /> Store &amp; Merchant Info
               </h4>
@@ -492,7 +492,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Bill Meta & Customer */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                 <Hash size={14} /> Bill &amp; Customer
               </h4>
@@ -536,7 +536,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Itemized Lines Editor */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   Bill Items ({receipt.items.length})
@@ -548,7 +548,7 @@ export const RealisticReceiptModal = ({
 
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {receipt.items.map((it, idx) => (
-                  <div key={it.id || idx} className="p-2.5 rounded-lg bg-gray-50 dark:bg-dark-bg/60 border border-gray-200 dark:border-dark-border text-xs space-y-2">
+                  <div key={it.id || idx} className="p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-xs space-y-2">
                     <div className="flex items-center gap-2">
                       <Input
                         value={it.productName}
@@ -573,7 +573,7 @@ export const RealisticReceiptModal = ({
                           min="1"
                           value={it.quantity}
                           onChange={e => handleItemChange(idx, 'quantity', Number(e.target.value) || 1)}
-                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-card text-xs font-bold"
+                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
                         />
                       </div>
                       <div>
@@ -583,7 +583,7 @@ export const RealisticReceiptModal = ({
                           step="0.01"
                           value={it.unitPrice}
                           onChange={e => handleItemChange(idx, 'unitPrice', Number(e.target.value) || 0)}
-                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-card text-xs font-bold"
+                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
                         />
                       </div>
                       <div>
@@ -599,7 +599,7 @@ export const RealisticReceiptModal = ({
             </div>
 
             {/* Discount & UPI ID & Footer */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card/80 space-y-3">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Payment &amp; Footer Notes
               </h4>
@@ -611,7 +611,7 @@ export const RealisticReceiptModal = ({
                     step="0.01"
                     value={receipt.orderDiscount}
                     onChange={e => recalcTotals(receipt.items, Number(e.target.value) || 0)}
-                    className="w-full h-8 px-2.5 rounded-lg border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-elevated text-xs font-semibold"
+                    className="w-full h-8 px-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs font-semibold"
                   />
                 </div>
                 <div>
@@ -640,7 +640,7 @@ export const RealisticReceiptModal = ({
                   rows={2}
                   value={receipt.footerMessage}
                   onChange={e => setReceipt(prev => ({ ...prev, footerMessage: e.target.value }))}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-elevated"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
                 />
               </div>
             </div>
@@ -648,7 +648,7 @@ export const RealisticReceiptModal = ({
         )}
 
         {/* RIGHT / MAIN COLUMN: HYPER-REALISTIC THERMAL RECEIPT CONTAINER */}
-        <div className={`${isEditing ? 'hidden lg:flex lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-start p-2 sm:p-4 bg-slate-100 dark:bg-dark-bg/60 rounded-2xl border border-slate-200 dark:border-dark-border min-w-0`}>
+        <div className={`${isEditing ? 'hidden lg:flex lg:col-span-6' : 'lg:col-span-12'} flex flex-col items-center justify-start p-2 sm:p-4 bg-slate-100 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 min-w-0`}>
           {/* Realistic Thermal Paper Component */}
           <div className="relative w-full max-w-[340px] transition-all duration-300">
             {/* Serrated Top Edge */}
@@ -667,7 +667,7 @@ export const RealisticReceiptModal = ({
               <div className="text-center pb-3 mb-3 border-b-2 border-dashed border-slate-400">
                 {receipt.logoURL && (
                   <div className="flex justify-center mb-2">
-                    <img src={receipt.logoURL} alt="Logo" className="max-h-14 max-w-[180px] object-contain" style={{ filter: 'grayscale(100%) contrast(250%)' }} />
+                    <img src={receipt.logoURL} alt="Logo" className="max-h-12 max-w-[120px] object-contain filter grayscale contrast-150" />
                   </div>
                 )}
                 <h2 className="font-extrabold text-base tracking-wider uppercase text-slate-950 font-sans leading-tight">
@@ -779,9 +779,9 @@ export const RealisticReceiptModal = ({
               {upiQrDataUrl && receipt.showUpiQr && (
                 <div className="mt-4 pt-3 border-t border-dashed border-slate-300 text-center flex flex-col items-center">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 mb-1 font-sans">
-                    SCAN TO PAY VIA UPI
+                    Scan &amp; Pay Exact Bill Amount
                   </span>
-                  <img src={upiQrDataUrl} alt="UPI QR" className="border border-slate-300 rounded p-1 bg-white" style={{ width: receipt.paperSize === '80mm' ? 130 : 110, height: receipt.paperSize === '80mm' ? 130 : 110 }} />
+                  <img src={upiQrDataUrl} alt="UPI QR" className="w-28 h-28 border border-slate-300 rounded p-1 bg-white" />
                   <span className="text-[9px] text-slate-500 mt-1 font-mono">{receipt.upiId}</span>
                 </div>
               )}

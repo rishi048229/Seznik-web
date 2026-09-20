@@ -312,7 +312,7 @@ export const ConsecutiveLabelModal: React.FC<ConsecutiveLabelModalProps> = ({
         if (mode === 'escpos') {
           bytes = generateLabelEscPos(template, labelFormat, labelData)
         } else {
-          bytes = generateLabelTspl(template, labelFormat, labelData, w, h, offX, offY, 38, dir)
+          bytes = generateLabelTspl(template, labelFormat, labelData, w, h, offX, offY, 38, dir, 0)
         }
 
         await sendBleData(bytes)

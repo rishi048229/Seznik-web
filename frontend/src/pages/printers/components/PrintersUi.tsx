@@ -32,9 +32,9 @@ export function Section({
 }) {
   return (
     <section
-      className={`rounded-2xl border border-slate-200/90 dark:border-dark-border bg-white dark:bg-dark-card shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${className}`}
+      className={`ui-card rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[transform,box-shadow] duration-300 ease-out ${className}`}
     >
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 px-5 py-4 border-b border-slate-100 dark:border-dark-border">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800">
         <div className="min-w-0">
           {eyebrow && (
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-1">
@@ -60,9 +60,9 @@ export function Section({
 export const chipClass = (active: boolean) =>
   `rounded-xl border text-xs font-semibold transition-colors duration-150 ${
     active
-      ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:text-white dark:border-blue-500'
-      : 'bg-white dark:bg-dark-elevated border-slate-200 dark:border-dark-border-strong text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-dark-card'
+      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white'
+      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
   }`
 
 export const fieldClass =
-  'w-full px-3 py-2 border border-slate-200 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-white/15'
+  'w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950/40 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-white/15'

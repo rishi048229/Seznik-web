@@ -1,46 +1,37 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { useAuth } from '@/contexts/AuthContext'
 import type { CartItem, Product } from '@/types/product.types'
 import { isExpiringSoon, formatExpiryMessage } from '@/utils/expiry'
+import { useAuth } from '@/contexts/AuthContext'
+import { adoptLegacyJson, writeAccountJson } from '@/utils/accountStorage'
+import { useProducts } from '@/hooks/useProducts'
 
-import { roundCurrency } from '@/utils/currency'
+const CART_STORAGE_KEY = 'pos_cart'
 
 export const useCart = () => {
   const { user } = useAuth()
-  const userId = user?.id || user?.uid || 'guest'
-  const storageKey = `pos_cart_${userId}`
+  const userId = user?.id || user?.uid
+  const { data: products, isFetched } = useProducts()
+  const ownedIds = useMemo(() => new Set((products ?? []).map(p => p.id)), [products])
+  const hydratedFor = useRef<string | null>(null)
 
-  const [items, setItems] = useState<CartItem[]>(() => {
-    // Remove legacy un-scoped key to avoid showing foreign/stale items across sessions
-    try {
-      localStorage.removeItem('pos_cart')
-      const saved = localStorage.getItem(storageKey)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+  const [items, setItems] = useState<CartItem[]>([])
 
-  // Whenever the active user changes (login, register, logout, switch account), sync to that user's cart
   useEffect(() => {
-    try {
-      localStorage.removeItem('pos_cart')
-      const saved = localStorage.getItem(storageKey)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setItems(saved ? JSON.parse(saved) : [])
-    } catch {
+    if (!userId) {
+      hydratedFor.current = null
       setItems([])
+      return
     }
-  }, [storageKey])
+    if (!isFetched) return
+    setItems(adoptLegacyJson<CartItem>(CART_STORAGE_KEY, userId, ownedIds, []))
+    hydratedFor.current = userId
+  }, [userId, isFetched, ownedIds])
 
   useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(items))
-    } catch (e) {
-      console.error('Failed to persist POS cart', e)
-    }
-  }, [storageKey, items])
+    if (!userId || hydratedFor.current !== userId) return
+    writeAccountJson(CART_STORAGE_KEY, userId, items)
+  }, [items, userId])
 
   const addItem = useCallback((product: Product) => {
     if (isExpiringSoon(product.expiryDate)) {
@@ -111,7 +102,7 @@ export const useCart = () => {
   }, [])
 
   const totals = useMemo(() => {
-    const rawSubtotal = items.reduce((s, i) => {
+    const subtotal = items.reduce((s, i) => {
       const lineTotal = (i.sellingPrice * i.quantity) - i.discount
       if (i.priceIncludesGst && i.taxRate > 0) {
         return s + (lineTotal / (1 + i.taxRate / 100))
@@ -119,7 +110,7 @@ export const useCart = () => {
       return s + lineTotal
     }, 0)
 
-    const rawTax = items.reduce((s, i) => {
+    const tax = items.reduce((s, i) => {
       const lineTotal = (i.sellingPrice * i.quantity) - i.discount
       if (i.priceIncludesGst && i.taxRate > 0) {
         const baseAmt = lineTotal / (1 + i.taxRate / 100)
@@ -128,14 +119,10 @@ export const useCart = () => {
       return s + (lineTotal * (i.taxRate || 0) / 100)
     }, 0)
 
-    const subtotal = roundCurrency(rawSubtotal)
-    const tax = roundCurrency(rawTax)
-    const grandTotal = roundCurrency(subtotal + tax)
-
     return {
       subtotal,
       tax,
-      grandTotal,
+      grandTotal: subtotal + tax,
       itemCount: items.reduce((s, i) => s + i.quantity, 0),
     }
   }, [items])

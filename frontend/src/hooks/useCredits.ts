@@ -13,11 +13,14 @@ export const useCredits = () => {
   })
 }
 
-export const useCreditTransactions = () => {
+export const useCreditTransactions = (opts?: { refetchInterval?: number | false }) => {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['credit-transactions', user?.uid],
     queryFn: () => creditService.getCreditTransactions(user!.uid),
     enabled: !!user,
+    staleTime: opts?.refetchInterval ? 0 : 1 * 60 * 1000,
+    refetchOnWindowFocus: Boolean(opts?.refetchInterval),
+    refetchInterval: opts?.refetchInterval,
   })
 }

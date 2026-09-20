@@ -155,6 +155,7 @@ export function createRestaurantReceiptTemplate(): CustomReceiptTemplate {
   }
 }
 
-export function isRestaurantReceiptTemplate(template: Pick<CustomReceiptTemplate, 'id' | 'name'>): boolean {
+export function isRestaurantReceiptTemplate(template?: Pick<CustomReceiptTemplate, 'id' | 'name'> | null): boolean {
+  if (!template) return false
   return template.id === RESTAURANT_RECEIPT_TEMPLATE_ID || template.name === RESTAURANT_RECEIPT_TEMPLATE_NAME
 }

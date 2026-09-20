@@ -802,7 +802,7 @@ export const RecordPurchaseModal = ({
         onClose={() => setIsQuickAddProductOpen(false)}
         defaultSupplierId={supplierId}
         onProductCreated={(newProd) => {
-          handleSelectProduct(newProd)
+          handleSelectProduct(newProd as Product)
         }}
       />
 

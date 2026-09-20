@@ -4,6 +4,7 @@ import { Crown, Package, TrendingUp, Users } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useSales } from '@/hooks/useSales'
+import { completedSales } from '@/utils/saleStatus'
 import { useTopCustomers, useTopProducts } from '@/hooks/useReports'
 import { ROUTES } from '@/constants/routes'
 import { formatINR } from '@/utils/currency'
@@ -29,7 +30,7 @@ export const KotInsightsPanel = () => {
 
   const today = useMemo(() => {
     const from = startOfToday()
-    const todays = (sales ?? []).filter((sale) => {
+    const todays = completedSales(sales).filter((sale) => {
       const d = saleDate(sale.createdAt)
       return d ? d >= from : false
     })

@@ -214,23 +214,22 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
   },
   reports: {
     pageKey: 'reports',
-    title: 'Analytics, Reports & GST Filings',
-    subtitle: 'Analyze Profit & Loss, Sales breakdown, GST Tax reports, and export Excel data',
+    title: 'Analytics & Reports',
+    subtitle: 'Analyze Profit & Loss, Sales breakdown, and export Excel data',
     videoUrl: '/assets/videos/guide-reports.mp4',
-    summary: 'Comprehensive business intelligence suite including Sales Reports, Profit & Loss Statements, GST Tax Filing summaries, and Excel export tools.',
+    summary: 'Business reports including Sales Reports, Profit & Loss Statements, and Excel export. Daily GST collected vs paid lives on Daybook — this is not a GST filing form.',
     keyFeatures: [
       { title: 'Sales Performance Analytics', description: 'View total sales, discounts, net revenue, and average transaction values.' },
       { title: 'Profit & Loss Statement', description: 'Calculate Gross Profit (Sales - Cost) and Net Profit (Gross Profit - Expenses).' },
-      { title: 'GST Tax Report', description: 'View taxable turnover, CGST, SGST, IGST totals ready for GSTR-1 / GSTR-3B filing.' },
-      { title: 'One-Click Excel Export', description: 'Export full sales registers and tax data directly to Microsoft Excel format.' },
+      { title: 'Daybook GST', description: 'See GST collected from customers vs GST paid on purchases, by rate and product, on Daybook.' },
+      { title: 'One-Click Excel Export', description: 'Export full sales registers and daybook GST totals to Microsoft Excel.' },
     ],
     proTips: [
-      'Use the Date Range picker to generate monthly or quarterly tax totals for your accountant.',
+      'GST collected and paid is on Daybook. File GST returns only on the government GST portal.',
     ],
     tourSteps: [
       { title: 'Sales Report Card', description: 'View daily revenue, invoice registers, and export to Excel.', targetSelector: '[data-tour="report-card-sales"]' },
       { title: 'Profit & Loss Card', description: 'Calculate net profit after deducting store expenses and stock costs.', targetSelector: '[data-tour="report-card-pl"]' },
-      { title: 'GST Tax Report Card', description: 'View taxable turnover and tax collected ready for monthly GST filing.', targetSelector: '[data-tour="report-card-tax"]' },
     ],
   },
   printers: {
@@ -242,7 +241,7 @@ export const PAGE_TUTORIALS: Record<string, PageTutorialData> = {
     keyFeatures: [
       { title: 'Web Bluetooth Scanner', description: 'Scan, pair, and connect Bluetooth thermal receipt printers with one click.' },
       { title: 'Receipt Customizer', description: 'Customize business header, address, phone, GSTIN, receipt logo, and thank you notes.' },
-      { title: 'Label Printer Designer', description: 'Choose sticker size (40x30, 50x30, and more), printer type (label vs receipt), and barcode layout.' },
+      { title: 'Label Printer Designer', description: 'Choose 50 mm sticker sizes (50×30, 25, 50, 75, 100), printer type (label vs receipt), and barcode layout.' },
       { title: 'Test Receipt Print', description: 'Send a test receipt or barcode label to verify printer alignment and quality.' },
     ],
     proTips: [

@@ -6,7 +6,7 @@ import type { ReceiptConfig, UserSettings } from '@/types/settings.types'
 import type { CustomReceiptTemplate } from '@/types/customReceipt'
 import { isRestaurantReceiptTemplate } from '@/utils/restaurantReceiptTemplate'
 import { CustomReceiptPreview } from '../receipt-builder/CustomReceiptPreview'
-import type { ReceiptPrintContext } from '@/utils/customReceiptEngine'
+import type { CustomReceiptGstOpts, ReceiptPrintContext } from '@/utils/customReceiptEngine'
 import { receiptLogoHtmlMaxPxFromChip, receiptStandardQrHtmlPxFromChip } from '@shared/receiptPrintGeometry'
 import {
   isReceiptFontMonospace,

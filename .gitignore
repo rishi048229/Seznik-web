@@ -8,3 +8,12 @@ build/
 .vite/
 expo-env.d.ts
 .vercel
+
+# Vendor printer SDKs and binaries do not belong in the API tree.
+backend/src/Android SDK*
+backend/src/Demo_small/
+backend/src/**/*.jar
+backend/src/**/*.apk
+backend/src/**/*.exe
+backend/src/**/*.rar
+backend/src/**/*.zip
