@@ -75,11 +75,27 @@ async function resolveBusinessType(userId: string): Promise<string | null> {
   return businessType;
 }
 
+// Announced once at boot rather than per request. When these fallbacks are on, ANY caller —
+// including one with no credentials at all — is treated as the shared owner@seznik.com account,
+// so an operator must never have to guess whether they are enabled.
+let devAuthWarningShown = false;
+function warnIfDevAuthEnabled() {
+  if (devAuthWarningShown) return;
+  devAuthWarningShown = true;
+  console.warn(
+    '\n*** AUTH BYPASS ACTIVE (NODE_ENV=%s) ***\n' +
+      'Unauthenticated requests are being served as owner@seznik.com with full admin permissions.\n' +
+      'This is for local development only. Set NODE_ENV=production before exposing this server.\n',
+    process.env.NODE_ENV || 'unset'
+  );
+}
+
 export const protect = async (req: Request, res: Response, next: NextFunction) => {
   let token;
 
   const authHeader = req.headers.authorization;
   const isDevMode = process.env.NODE_ENV !== 'production';
+  if (isDevMode) warnIfDevAuthEnabled();
 
   const getDevUser = async () => {
     let devUser = await prisma.user.findFirst({
@@ -129,10 +145,21 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     try {
       token = authHeader.split(' ')[1];
 
-      // Support dev mode token bypass seamlessly for testing - consistently routes to owner@seznik.com
-      if (!token || token === 'dev-token-bypass' || token === 'null' || token === 'undefined') {
+      // Local-development convenience ONLY.
+      //
+      // This block used to run in every environment. That meant a request carrying
+      // `Authorization: Bearer null` — or the literal string `dev-token-bypass` — was silently
+      // authenticated in PRODUCTION as the shared owner@seznik.com account, with full
+      // ADMIN_PERMISSIONS over that business's data. Any unauthenticated caller could reach it,
+      // and a client that lost its stored token (sending the string "null"/"undefined") landed
+      // in that shared account too, which is why real merchants saw the "Seznik POS Store"
+      // demo business profile instead of their own.
+      if (isDevMode && (!token || token === 'dev-token-bypass' || token === 'null' || token === 'undefined')) {
         if (await applyDevUser(req, res)) return next();
         return;
+      }
+      if (!token || token === 'null' || token === 'undefined') {
+        return res.status(401).json({ error: 'Not authorized, no token' });
       }
 
       let decoded: any;

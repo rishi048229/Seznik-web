@@ -4168,58 +4168,35 @@ class ThermalPrinterServiceManager {
         continue;
       }
 
-      const colMatch = rawLine.match(/^(\s*\S(?:.*?\S)?)\s{2,}(\S.*)$/);
-      if (colMatch) {
-        const leftPart = colMatch[1].trim();
-        const rightPart = colMatch[2].trim();
-        const isTotalLine = /^(total|grand\s*total|net\s*payable|amount\s*paid|balance|total received)/i.test(leftPart);
-        const fontH = isTotalLine ? (is80 ? 3.2 : 3.0) : baseFontH;
-        elements.push({
-          type: 'text',
-          value: leftPart,
-          x: 0,
-          y,
-          width: printableWidth,
-          fontHeight: fontH,
-          bold: isTotalLine,
-          align: 0,
-          fontFamily: 'monospace',
-          monospace: true,
-          ...(isTotalLine ? {} : { monospaceCols: colsTarget }),
-        });
-        elements.push({
-          type: 'text',
-          value: rightPart,
-          x: 0,
-          y,
-          width: printableWidth,
-          fontHeight: fontH,
-          bold: isTotalLine,
-          align: 2,
-          fontFamily: 'monospace',
-          monospace: true,
-          ...(isTotalLine ? {} : { monospaceCols: colsTarget }),
-        });
-        y += fontH + (is80 ? 0.5 : 0.8);
-        continue;
-      }
-
-      const isHeader = /^[A-Z0-9\s.,&/-]{4,}$/.test(trimmed);
-      const fontH = isHeader ? (is80 ? 2.6 : 3.0) : baseFontH;
+      // Render the line EXACTLY as the formatter produced it.
+      //
+      // This used to split each line on "2+ spaces" into a left part and a right part and
+      // re-align them to opposite edges. That works for a two-column money line, but a KOT line
+      // is a THREE-column grid ("  1x   Wonder Gun Plain        note"): the split grabbed "1x"
+      // as the left column and right-aligned everything after it, so the ITEM column printed
+      // blank and the dish name landed under the NOTE heading.
+      //
+      // formatKotText/formatReceiptText already pad every line to an exact character grid, so
+      // the faithful thing is to print that grid verbatim — left-aligned, leading spaces kept,
+      // pinned to `colsTarget` columns. Bold is safe for emphasis (monospace bold keeps the same
+      // advance); changing font SIZE per line is not, because it breaks the shared grid.
+      const gridLine = rawLine.replace(/\s+$/, '');
+      const isTotalLine = /^\s*(total|grand\s*total|net\s*payable|amount\s*paid|balance|total received)/i.test(gridLine);
+      const isHeader = /^[A-Z0-9\s.,&/-]{4,}$/.test(trimmed) && !isTotalLine;
       elements.push({
         type: 'text',
-        value: trimmed,
+        value: gridLine,
         x: 0,
         y,
         width: printableWidth,
-        fontHeight: fontH,
-        bold: isHeader,
-        align: isHeader ? 1 : 0,
+        fontHeight: baseFontH,
+        bold: isTotalLine || isHeader,
+        align: 0,
         fontFamily: 'monospace',
         monospace: true,
-        ...(isHeader ? {} : { monospaceCols: colsTarget }),
+        monospaceCols: colsTarget,
       });
-      y += fontH + (is80 ? 0.45 : 0.8);
+      y += baseFontH + (is80 ? 0.45 : 0.8);
     }
 
     const totalHeightMm = Math.max(30, Math.ceil(y + 8));

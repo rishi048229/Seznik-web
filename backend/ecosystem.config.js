@@ -13,7 +13,17 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',
+      // The DEFAULT env must be production. This block applies whenever PM2 is started without an
+      // explicit `--env`, which is the normal `pm2 restart seznik-backend` path — and it used to
+      // say NODE_ENV: 'development'. On the live server that turned on every development auth
+      // fallback in authMiddleware: a request with no Authorization header at all, or an expired
+      // token, was silently authenticated as the shared owner@seznik.com demo account with full
+      // admin permissions. Use `--env development` locally if you want those fallbacks.
       env: {
+        NODE_ENV: 'production',
+        PORT: 5000
+      },
+      env_development: {
         NODE_ENV: 'development',
         PORT: 5000
       },

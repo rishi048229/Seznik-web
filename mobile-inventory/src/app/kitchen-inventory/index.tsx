@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -64,7 +65,8 @@ export default function KitchenInventoryScreen() {
   };
 
   const askQty = (title: string, onQty: (qty: number) => void) => {
-    if (Alert.prompt) {
+    // Alert.prompt is iOS-only at runtime; the type says otherwise, so gate on the platform.
+    if (Platform.OS === 'ios') {
       promptQty(title, onQty);
       return;
     }

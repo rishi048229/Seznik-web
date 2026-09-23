@@ -30,6 +30,7 @@ import {
   X,
   QrCode,
 } from 'lucide-react-native';
+import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { authApi } from '@/api/auth';
@@ -475,61 +476,94 @@ export default function LoginScreen() {
         </Modal>
 
         <Modal visible={showAgentLogin} transparent animationType="slide" onRequestClose={() => setShowAgentLogin(false)}>
-          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
-            <View style={{ backgroundColor: theme.cardBg, padding: 20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, marginBottom: 8 }}>Agent login</Text>
-              <Text style={{ color: theme.textSecondary, marginBottom: 12 }}>
-                Store email, then the code we send there, then your name. Two agents per store.
-              </Text>
-              <TextInput
-                value={agentEmail}
-                onChangeText={setAgentEmail}
-                placeholder="Store email"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholderTextColor="#94A3B8"
-                style={[styles.input, { color: theme.textPrimary, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 12, marginBottom: 8 }]}
-              />
-              {agentSent ? (
-                <>
+          {/* inModal: a <Modal> renders on its own Android surface and does NOT inherit the
+              activity's adjustResize, so without this the keyboard sat on top of every field in
+              this bottom-anchored sheet and you could not see what you were typing into. */}
+          <KeyboardAvoidingWrapper inModal>
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+              <View style={{ backgroundColor: theme.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92%' }}>
+                <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, marginBottom: 6 }}>Agent login</Text>
+                  <Text style={{ color: theme.textSecondary, marginBottom: 16, lineHeight: 19 }}>
+                    Enter your store&apos;s email, then the code we send there, then pick your name.
+                  </Text>
+
+                  <Text style={[styles.agentFieldLabel, { color: theme.textSecondary }]}>STORE EMAIL</Text>
                   <TextInput
-                    value={agentOtp}
-                    onChangeText={setAgentOtp}
-                    placeholder="6-digit code"
-                    keyboardType="number-pad"
-                    placeholderTextColor="#94A3B8"
-                    style={[styles.input, { color: theme.textPrimary, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 12, marginBottom: 8 }]}
+                    value={agentEmail}
+                    onChangeText={setAgentEmail}
+                    placeholder="store@example.com"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
                   />
-                  {agentNames.length > 0 ? (
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                      {agentNames.map((name) => (
-                        <TouchableOpacity key={name} onPress={() => setAgentName(name)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: theme.bg }}>
-                          <Text style={{ color: theme.textPrimary, fontWeight: '700' }}>{name}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  ) : null}
-                  <TextInput
-                    value={agentName}
-                    onChangeText={setAgentName}
-                    placeholder="Agent name"
-                    placeholderTextColor="#94A3B8"
-                    style={[styles.input, { color: theme.textPrimary, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 12, marginBottom: 8 }]}
-                  />
-                  <TouchableOpacity onPress={verifyAgent} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }]}>
-                    <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Signing in…' : 'Enter store'}</Text>
+
+                  {agentSent ? (
+                    <>
+                      <Text style={[styles.agentFieldLabel, { color: theme.textSecondary }]}>6-DIGIT CODE</Text>
+                      <TextInput
+                        value={agentOtp}
+                        onChangeText={setAgentOtp}
+                        placeholder="Check the store email"
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                      />
+
+                      <Text style={[styles.agentFieldLabel, { color: theme.textSecondary }]}>YOUR NAME</Text>
+                      {agentNames.length > 0 ? (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                          {agentNames.map((name) => {
+                            const picked = agentName === name;
+                            return (
+                              <TouchableOpacity
+                                key={name}
+                                onPress={() => setAgentName(name)}
+                                style={{
+                                  paddingHorizontal: 14,
+                                  paddingVertical: 9,
+                                  borderRadius: 999,
+                                  borderWidth: 1.5,
+                                  borderColor: picked ? BRAND_COLORS.blue600 : theme.borderColor,
+                                  backgroundColor: picked ? 'rgba(37, 99, 235, 0.12)' : theme.bg,
+                                }}
+                              >
+                                <Text style={{ color: picked ? BRAND_COLORS.blue600 : theme.textPrimary, fontWeight: '700' }}>
+                                  {name}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ) : null}
+                      <TextInput
+                        value={agentName}
+                        onChangeText={setAgentName}
+                        placeholder="Tap your name above, or type it"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                      />
+
+                      <TouchableOpacity onPress={verifyAgent} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk, opacity: agentBusy ? 0.6 : 1 }]}>
+                        <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Signing in…' : 'Enter store'}</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity onPress={sendAgentCode} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk, opacity: agentBusy ? 0.6 : 1 }]}>
+                      <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Sending…' : 'Send code'}</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity onPress={() => setShowAgentLogin(false)} style={{ marginTop: 14, alignItems: 'center', paddingVertical: 6 }}>
+                    <Text style={{ color: theme.textSecondary, fontWeight: '600' }}>Close</Text>
                   </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity onPress={sendAgentCode} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }]}>
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Sending…' : 'Send code'}</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => setShowAgentLogin(false)} style={{ marginTop: 12, alignItems: 'center' }}>
-                <Text style={{ color: theme.textSecondary }}>Close</Text>
-              </TouchableOpacity>
+                </ScrollView>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingWrapper>
         </Modal>
 
         <LoginQrScanner
@@ -661,6 +695,20 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
+  },
+  agentFieldLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    marginBottom: 6,
+  },
+  agentInput: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    marginBottom: 14,
   },
   fieldError: {
     color: '#EF4444',
