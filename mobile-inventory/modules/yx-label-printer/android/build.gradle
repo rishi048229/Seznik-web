@@ -43,6 +43,11 @@ dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib:${safeExtGet('kotlinVersion', '2.0.21')}"
   // Ships arm64-v8a / armeabi-v7a / x86 / x86_64 native libs, minSdk 21 — verified by
   // unpacking the AAR. Pinned to an exact version so a repo-side change cannot alter builds.
+  // Still 68, NOT the 69 the vendor's new Demo_small targets: PrintSDK is served only from
+  // https://gitee.com/it_space/bluetooth-sdk, which is unreachable from this build machine
+  // (DNS failure), and the archive ships no local .aar. Only 68 is in the Gradle cache.
+  // To move to 69: restore network access to gitee.com, bump this to 69, and bump SDK_KEY in
+  // YxLabelPrinterModule to the v69 demo's key — they are a matched pair, change both together.
   implementation 'com.yx.print:PrintSDK:68'
   // Barcode/QR rasterization, same version the Josh module already uses.
   implementation 'com.google.zxing:core:3.5.3'

@@ -60,14 +60,16 @@ import java.util.concurrent.ConcurrentHashMap
 class YxLabelPrinterModule : Module() {
 
   companion object {
-    // Reverted from "TC1N6F77FaWH+Djsj5ymYA==" (the key shown in the vendor's official
-    // "Flashlabel Doc.docx", backend/src/Flaslabel_SDK_JavaDoc/) — tested against the
-    // real TEJ unit and it broke the connection outright: 10s connect timeout, never
-    // reaching onConneted at all, confirmed via logcat. This demo-app key at least
-    // connects successfully (misalignment aside), so it stays until the manufacturer
-    // issues one confirmed for com.rishi048229.seznikapp. Concrete report for them: the
-    // demo key connects; the docx's merchant key does not connect at all on this
-    // hardware — sounds like it needs one actually issued for our package/signature.
+    // Paired with PrintSDK:68 in build.gradle — this is the key from that SDK's demo, and it
+    // connects on the real TEJ unit.
+    //
+    // The vendor's new Demo_small (PrintSDK:69) ships a different key,
+    // "I3BGt2y5oVcVLj6fa+j2EQ==". Do NOT adopt it while pinned to 68: key and SDK version are a
+    // matched pair. Move both together once gitee.com is reachable and 69 can actually resolve.
+    //
+    // History, because this field has burned us before: the key from the vendor's
+    // "Flashlabel Doc.docx" ("TC1N6F77FaWH+Djsj5ymYA==") broke the connection outright on the
+    // real unit — 10s connect timeout, onConneted never fired, confirmed via logcat.
     private const val SDK_KEY = "d2fnGqzf2Rs="
 
     @Volatile private var sdkInitialized = false
@@ -730,19 +732,26 @@ class YxLabelPrinterModule : Module() {
         finishJob(h, false, "The printer timed out.")
         return
       }
-      var acked = bean.type == PrinterConstantPool.Command.PRINT_IMG || bean.status == PrinterConstantPool.Status.OK
-      val data = bean.data ?: byteArrayOf()
-      if (data.isNotEmpty()) {
-        if ((data.size == 1 && data[0] == 0xAA.toByte()) ||
-            (data.size >= 3 && data[2] == 0xAA.toByte()) ||
-            data[0] == 0xAA.toByte()) {
-          acked = true
-        } else {
-          for (j in 0 until data.size - 1) {
-            if (data[j] == 0x4F.toByte() && data[j + 1] == 0x4B.toByte()) {
-              acked = true
-              break
-            }
+      // The "printed" acknowledgement differs by paper type, and this now matches the vendor's
+      // reference (YXSDK.readCall) exactly instead of accepting any of several patterns.
+      //
+      // It used to seed `acked` from bean.type == PRINT_IMG / status == OK, which are only
+      // "the printer received the command", not "the label finished printing". On a multi-copy
+      // run that advanced to the next image while the previous one was still feeding, so labels
+      // drifted further out of position with every copy. Only the real end-of-print byte counts.
+      if (bean.type != PrinterConstantPool.Command.PRINT_IMG) return
+      val data = bean.data ?: return
+      var acked = false
+      if (jobPaperType == PrinterConstantPool.PaperType.CONTINUOUS) {
+        // Continuous roll reports a bare 0xAA.
+        acked = (data.size == 1 && data[0] == 0xAA.toByte()) ||
+          (data.size == 3 && data[2] == 0xAA.toByte())
+      } else {
+        // Gap / black-mark stock reports ASCII "OK".
+        for (j in 0 until data.size - 1) {
+          if (data[j] == 0x4F.toByte() && data[j + 1] == 0x4B.toByte()) {
+            acked = true
+            break
           }
         }
       }
