@@ -4,6 +4,7 @@ import type { ReceiptFontId } from '@shared/receiptFonts';
 
 const TOKEN_KEY = 'seznik_auth_token';
 const USER_KEY = 'seznik_user_data';
+const OWNER_SESSION_BACKUP_KEY = 'seznik_owner_session_backup';
 
 export async function setAuthToken(token: string): Promise<void> {
   try {
@@ -91,6 +92,53 @@ export async function removeStoredUser(): Promise<void> {
     }
   } catch (error) {
     console.error('Error deleting user data:', error);
+  }
+}
+
+/** Owner JWT + profile saved when switching into an agent session — restore to return to admin. */
+export async function setOwnerSessionBackup(payload: { token: string; user: any }): Promise<void> {
+  try {
+    const json = JSON.stringify(payload);
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(OWNER_SESSION_BACKUP_KEY, json);
+      }
+    } else {
+      await SecureStore.setItemAsync(OWNER_SESSION_BACKUP_KEY, json);
+    }
+  } catch (error) {
+    console.error('Error saving owner session backup:', error);
+  }
+}
+
+export async function getOwnerSessionBackup<T = { token: string; user: any }>(): Promise<T | null> {
+  try {
+    let json: string | null = null;
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        json = window.localStorage.getItem(OWNER_SESSION_BACKUP_KEY);
+      }
+    } else {
+      json = await SecureStore.getItemAsync(OWNER_SESSION_BACKUP_KEY);
+    }
+    return json ? (JSON.parse(json) as T) : null;
+  } catch (error) {
+    console.error('Error reading owner session backup:', error);
+    return null;
+  }
+}
+
+export async function clearOwnerSessionBackup(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(OWNER_SESSION_BACKUP_KEY);
+      }
+    } else {
+      await SecureStore.deleteItemAsync(OWNER_SESSION_BACKUP_KEY);
+    }
+  } catch (error) {
+    console.error('Error clearing owner session backup:', error);
   }
 }
 

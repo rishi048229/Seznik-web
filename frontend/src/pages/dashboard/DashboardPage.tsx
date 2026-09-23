@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
+import { MobileLoginQrCard } from '@/components/dashboard/MobileLoginQrCard'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import {
   useDashboardStats,
@@ -18,6 +19,7 @@ import {
   useTopProducts,
   useTopCategories,
   useExpenseSummary,
+  useRestaurantDashboard,
 } from '@/hooks/useReports'
 import { useProducts } from '@/hooks/useProducts'
 import { useSales } from '@/hooks/useSales'
@@ -28,6 +30,8 @@ import { dayBounds, toDateInputValue } from '@/utils/daybook'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import { getBlePrinterState, getBluetoothUnsupportedReason } from '@/utils/blePrinter'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { isKotFirstNav } from '@/utils/businessFeatures'
 import type { TranslationKey } from '@/i18n/translations'
 import { formatINR, formatINRCompact } from '@/utils/currency'
 import { ROUTES } from '@/constants/routes'
@@ -43,7 +47,6 @@ import {
   Users,
   Crown,
   Bluetooth,
-  Compass,
   BluetoothConnected,
   Tag,
   ExternalLink,
@@ -225,6 +228,9 @@ export const DashboardPage = () => {
   const [chartPeriod, setChartPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly')
   const printer = useBlePrinter()
   const { t } = useLanguage()
+  const { user } = useAuth()
+  const restaurantMode = isKotFirstNav(user?.businessType)
+  const { data: restaurantDash } = useRestaurantDashboard(restaurantMode)
   const [isConnectingPrinter, setIsConnectingPrinter] = useState(false)
 
   const handleConnectPrinter = async () => {
@@ -315,13 +321,80 @@ export const DashboardPage = () => {
         <PageHeader
           title={t('page.dashboard')}
           onWatchTutorial={pageTutorial.openTutorial}
-          action={
-            <Button data-tour="pos-shortcut" size="sm" onClick={() => navigate(ROUTES.POS)} leftIcon={<Compass size={16} />}>
-              {t('dashboard.openScanToBill')}
-            </Button>
-          }
         />
       </div>
+
+      {restaurantMode ? (
+        <div className="mb-4 sm:mb-6 space-y-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+            {[
+              ['Running orders', restaurantDash ? String(restaurantDash.runningCount) : '—'],
+              ['Orders today', restaurantDash ? String(restaurantDash.ordersToday) : '—'],
+              ['Revenue today', restaurantDash ? formatINR(restaurantDash.revenueToday) : '—'],
+              ['Occupancy', restaurantDash ? `${restaurantDash.occupancyPct}%` : '—'],
+              ['Avg wait', restaurantDash ? `${restaurantDash.avgWaitMinutes} min` : '—'],
+            ].map(([label, value]) => (
+              <Card key={label} className="p-3">
+                <p className="text-[11px] text-gray-500">{label}</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{value}</p>
+              </Card>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <Card className="p-4 lg:col-span-2">
+              <h3 className="font-semibold mb-2">Running orders</h3>
+              {!restaurantDash || restaurantDash.runningOrders.length === 0 ? (
+                <p className="text-sm text-gray-500">No open tickets.</p>
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {restaurantDash.runningOrders.map((order) => (
+                    <li key={order.id}>
+                      <button className="w-full text-left py-2" onClick={() => navigate(`${ROUTES.KOT}`)}>
+                        <span className="font-medium">#{order.orderNumber} · {order.tableName}</span>
+                        <span className="block text-xs text-gray-500">
+                          {order.status === 'open' ? 'Open' : order.status === 'ready' ? 'Ready' : order.status === 'served' ? 'Served' : 'In kitchen'} · {order.itemCount} items
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+            <Card className="p-4 space-y-3">
+              <button className="w-full text-left" onClick={() => navigate(ROUTES.KITCHEN_INVENTORY)}>
+                <h3 className="font-semibold">Kitchen inventory</h3>
+                <p className="text-sm text-gray-500">
+                  {!restaurantDash || restaurantDash.kitchen.tracked === 0
+                    ? 'No ingredients tracked yet'
+                    : `${restaurantDash.kitchen.lowStock} low · ${restaurantDash.kitchen.outOfStock} out`}
+                </p>
+              </button>
+              <div>
+                <h3 className="font-semibold mb-1">Top items today</h3>
+                {!restaurantDash || restaurantDash.topItems.length === 0 ? (
+                  <p className="text-sm text-gray-500">No sales yet today.</p>
+                ) : (
+                  restaurantDash.topItems.map((item) => (
+                    <p key={item.name} className="text-sm flex justify-between">
+                      <span>{item.name}</span>
+                      <span>{item.qty}</span>
+                    </p>
+                  ))
+                )}
+              </div>
+              <div>
+                <h3 className="font-semibold mb-1">Categories</h3>
+                {(restaurantDash?.categories ?? []).map((cat) => (
+                  <p key={cat.name} className="text-sm flex justify-between">
+                    <span>{cat.name}</span>
+                    <span>{formatINR(cat.amount)}</span>
+                  </p>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      ) : null}
 
       {/* Stats Cards — 2×2 on phone so the whole row fits in one view */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-4 sm:mb-6">
@@ -356,8 +429,8 @@ export const DashboardPage = () => {
             <CreditCard size={22} className="text-sky-600 dark:text-sky-400 hidden sm:block" />
           </div>
           <p className="text-[11px] sm:text-sm text-gray-500 dark:text-gray-400 leading-tight">{t('dashboard.grossProfit')}</p>
-          <p className="text-base sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate" title={formatINR(grossProfit)}>
-            {formatINR(grossProfit)}
+          <p className="text-base sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate" title={formatINR(profitBreakdown?.profit ?? 0)}>
+            {loadingProfitBreakdown ? '—' : formatINR(Math.max(0, profitBreakdown?.profit ?? 0))}
           </p>
         </Card>
 
@@ -435,6 +508,9 @@ export const DashboardPage = () => {
           )}
         </div>
       </Card>
+
+      {/* Mobile QR Login */}
+      <MobileLoginQrCard />
 
       {/* Overview widgets: Payment Modes + Profit Breakdown */}
       <div data-tour="charts-section" className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -533,7 +609,7 @@ export const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         {/* Top Products */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<Package size={18} className="text-amber-600" />} iconWrap="bg-amber-50 dark:bg-amber-950/40" title={t('dashboard.topProducts')} onView={() => navigate(ROUTES.PRODUCTS)} />
+          <WidgetHeader icon={<Package size={18} className="text-amber-500" />} title={t('dashboard.topProducts')} onView={() => navigate(ROUTES.PRODUCTS)} />
           {loadingTopProducts ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topProducts || topProducts.length === 0 ? (
@@ -560,7 +636,7 @@ export const DashboardPage = () => {
 
         {/* Top Categories */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<Tag size={18} className="text-violet-600" />} iconWrap="bg-violet-50 dark:bg-violet-950/40" title={t('dashboard.topCategories')} onView={() => navigate(ROUTES.CATEGORIES)} />
+          <WidgetHeader icon={<Tag size={18} className="text-purple-500" />} title={t('dashboard.topCategories')} onView={() => navigate(ROUTES.CATEGORIES)} />
           {loadingTopCategories ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !topCategories || topCategories.length === 0 ? (
@@ -581,7 +657,7 @@ export const DashboardPage = () => {
 
         {/* Expense Summary */}
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
-          <WidgetHeader icon={<IndianRupee size={18} className="text-red-600" />} iconWrap="bg-red-50 dark:bg-red-950/40" title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
+          <WidgetHeader icon={<IndianRupee size={18} className="text-red-500" />} title={t('dashboard.expenseSummary')} onView={() => navigate(ROUTES.EXPENSES)} />
           {loadingExpenseSummary ? (
             <div className="flex justify-center py-10"><Spinner /></div>
           ) : !expenseSummary ? (

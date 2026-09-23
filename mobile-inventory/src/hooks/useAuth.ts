@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { CompleteOnboardingPayload, LoginPayload, RegisterPayload } from '@/types/auth';
@@ -6,7 +7,7 @@ import { setCachedTrackStockSetting } from '@/hooks/useSettings';
 
 export function useAuth() {
   const queryClient = useQueryClient();
-  const { user, token, isAuthenticated, isLoading, setAuth, logout, updateUser } = useAuthStore();
+  const { user, token, isAuthenticated, isLoading, setAuth, logout, updateUser, hasPermission } = useAuthStore();
 
   const profileQuery = useQuery({
     queryKey: ['auth', 'profile'],
@@ -14,6 +15,24 @@ export function useAuth() {
     enabled: !!token,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  useEffect(() => {
+    const profile = profileQuery.data;
+    if (!profile) return;
+    const current = useAuthStore.getState().user;
+    if (!current) return;
+    const nextPerms = profile.permissions ?? current.permissions;
+    const nextId = profile.id || current.id;
+    const permsChanged = JSON.stringify(nextPerms) !== JSON.stringify(current.permissions);
+    if (nextId !== current.id || permsChanged || profile.role !== current.role || profile.accountType !== current.accountType) {
+      void updateUser({
+        ...current,
+        ...profile,
+        id: nextId,
+        permissions: nextPerms,
+      });
+    }
+  }, [profileQuery.data, updateUser]);
 
   const loginMutation = useMutation({
     mutationFn: (payload: LoginPayload) => authApi.login(payload),
@@ -140,6 +159,6 @@ export function useAuth() {
     isUpdatingBusinessType: updateBusinessTypeMutation.isPending,
     logout: handleLogout,
     refetchProfile: profileQuery.refetch,
-    hasPermission: useAuthStore.getState().hasPermission,
+    hasPermission,
   };
 }

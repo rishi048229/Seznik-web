@@ -11,30 +11,51 @@ export const PERMISSION_KEYS: (keyof UserPermissions)[] = [
   'canAccessReports',
   'canAccessSettings',
   'canManageUsers',
+  'canAccessKOT',
+  'canSendRemotePrint',
 ]
 
+const parsePermissionsSource = (raw: unknown): Partial<UserPermissions> => {
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Partial<UserPermissions>
+      }
+    } catch {
+      return {}
+    }
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Partial<UserPermissions>
+  }
+  return {}
+}
+
 export const normalizePermissions = (
-  raw: Partial<UserPermissions> | null | undefined,
+  raw: Partial<UserPermissions> | null | undefined | unknown,
   role: UserRole | null | undefined = 'agent'
 ): UserPermissions => {
   const defaults = role === 'admin' ? ADMIN_PERMISSIONS : AGENT_PERMISSIONS
-  return {
-    canAccessProducts: raw?.canAccessProducts ?? defaults.canAccessProducts,
-    canManipulateStock: raw?.canManipulateStock ?? defaults.canManipulateStock,
-    canAccessSuppliers: raw?.canAccessSuppliers ?? defaults.canAccessSuppliers,
-    canAccessPurchases: raw?.canAccessPurchases ?? defaults.canAccessPurchases,
-    canAccessExpenses: raw?.canAccessExpenses ?? defaults.canAccessExpenses,
-    canAccessSales: raw?.canAccessSales ?? defaults.canAccessSales,
-    canAccessCustomers: raw?.canAccessCustomers ?? defaults.canAccessCustomers,
-    canAccessReports: raw?.canAccessReports ?? defaults.canAccessReports,
-    canAccessSettings: raw?.canAccessSettings ?? defaults.canAccessSettings,
-    canManageUsers: raw?.canManageUsers ?? defaults.canManageUsers,
+  const src = parsePermissionsSource(raw)
+  const result: UserPermissions = { ...defaults }
+  for (const key of PERMISSION_KEYS) {
+    if (typeof src[key] === 'boolean') {
+      result[key] = src[key] as boolean
+    }
   }
+  if (typeof src.canAccessKOT !== 'boolean' && typeof src.canAccessSales === 'boolean') {
+    result.canAccessKOT = src.canAccessSales
+  }
+  if (typeof src.canSendRemotePrint !== 'boolean' && typeof src.canAccessSales === 'boolean') {
+    result.canSendRemotePrint = src.canAccessSales
+  }
+  return result
 }
 
 export const resolveUserPermissions = (profile: UserProfile | null | undefined): UserPermissions | null => {
   if (!profile) return null
-  if (profile.role === 'admin') return ADMIN_PERMISSIONS
+  if (profile.role === 'admin' && profile.accountType !== 'managed') return ADMIN_PERMISSIONS
   return normalizePermissions(profile.permissions, profile.role || 'agent')
 }
 
@@ -43,7 +64,11 @@ export const hasPermission = (
   permission: keyof UserPermissions
 ): boolean => {
   if (!permissions) return false
-  return permissions[permission] === true
+  if (typeof permissions[permission] === 'boolean') return permissions[permission] === true
+  if (permission === 'canAccessKOT' || permission === 'canSendRemotePrint') {
+    return permissions.canAccessSales === true
+  }
+  return false
 }
 
 export const hasAnyPermission = (

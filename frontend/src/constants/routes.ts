@@ -27,10 +27,13 @@ export const ROUTES = {
   SETTINGS: '/settings',
   PROFILE: '/profile',
   PRINTERS: '/printers',
+  PRINT_JOBS: '/print-jobs',
   LOCATIONS: '/locations',
   KOT: '/kot',
   KOT_KDS: '/kot/kds',
+  KITCHEN_INVENTORY: '/kitchen-inventory',
   PUBLIC_RECEIPT: '/receipt/:id',
   PUBLIC_BILL: '/bill/:id',
+  PUBLIC_INVOICE: '/invoice/:id',
   FEEDBACK: '/settings',
 } as const

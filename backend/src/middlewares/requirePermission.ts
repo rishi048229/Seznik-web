@@ -8,7 +8,9 @@ export const requirePermission = (...keys: PermissionKey[]) => {
     if (!user) {
       return res.status(401).json({ error: 'Not authorized' });
     }
-    if (user.role === 'admin') {
+    const ownerId = user.ownerId || user.id;
+    const isStoreOwner = user.role === 'admin' && user.id === ownerId;
+    if (isStoreOwner) {
       return next();
     }
 

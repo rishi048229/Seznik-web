@@ -14,9 +14,12 @@ export const utilityBillsApi = {
     const res = await fetchApi<any>('/utility-bills/extract', {
       method: 'POST',
       body: JSON.stringify({ imageBase64, mimeType }),
-      timeoutMs: 40000,
+      timeoutMs: 20000,
     });
-    return res.data;
+    if (res && typeof res === 'object' && 'data' in res && res.data) {
+      return res.data;
+    }
+    return res;
   },
 
   getStats: async (): Promise<UtilityBillStats> => {
@@ -50,7 +53,7 @@ export const utilityBillsApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    return res.data;
+    return res?.data ?? res;
   },
 
   deleteBill: async (id: string): Promise<void> => {

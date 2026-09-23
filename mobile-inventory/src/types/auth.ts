@@ -23,6 +23,7 @@ export interface UserProfile {
   onboardingCompleted?: boolean;
   seznikUser?: boolean;
   accountType?: 'user' | 'managed';
+  adminId?: string | null;
   permissions?: UserPermissions | null;
 }
 
@@ -58,6 +59,7 @@ export interface ManagedUser {
   businessName?: string | null;
   plan?: string;
   createdAt?: string;
+  lastSeenAt?: string | null;
 }
 
 export interface CreateManagedUserPayload {

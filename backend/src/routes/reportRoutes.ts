@@ -14,6 +14,7 @@ import {
   getDaybook,
   getDayCloseStatus,
   closeDayRegister,
+  getRestaurantDashboard,
 } from '../controllers/reportController';
 import { protect } from '../middlewares/authMiddleware';
 
@@ -22,6 +23,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/dashboard', getDashboardStats);
+router.get('/restaurant-dashboard', getRestaurantDashboard);
 router.get('/sales', getSalesReport);
 router.get('/pl', getPLReport);
 router.get('/tax', getTaxReport);

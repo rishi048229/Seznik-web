@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { protect } from '../middlewares/authMiddleware';
 import prisma from '../config/db';
+import { getOwnerUserId } from '../utils/getOwnerUserId';
 import {
   sendPushNotificationToUser,
   checkAndSendLowStockPush,
@@ -22,7 +23,7 @@ const router = Router();
 router.post('/register-token', protect, async (req: any, res: any) => {
   try {
     const { pushToken } = req.body;
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
 
     if (!pushToken || typeof pushToken !== 'string') {
       return res.status(400).json({ error: 'Valid pushToken string is required' });
@@ -31,6 +32,7 @@ router.post('/register-token', protect, async (req: any, res: any) => {
     const settings = await prisma.settings.findUnique({ where: { userId } });
     const config = (settings?.notificationConfig as Record<string, any>) || {};
     const tokens: string[] = Array.isArray(config.pushTokens) ? config.pushTokens : [];
+    const isFirstToken = tokens.length === 0;
 
     if (!tokens.includes(pushToken)) {
       tokens.push(pushToken);
@@ -53,6 +55,15 @@ router.post('/register-token', protect, async (req: any, res: any) => {
           },
         },
       });
+
+      if (isFirstToken) {
+        sendPushNotificationToUser(userId, {
+          title: 'Welcome to Seznik POS',
+          body: 'You are all set. Low-stock, daybook, and remote print alerts will appear here.',
+          data: { type: 'welcome' },
+          channelId: 'inventory-alerts',
+        }).catch(() => {});
+      }
     }
 
     return res.json({ success: true, registered: true });
@@ -68,7 +79,7 @@ router.post('/register-token', protect, async (req: any, res: any) => {
 router.post('/unregister-token', protect, async (req: any, res: any) => {
   try {
     const { pushToken } = req.body;
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
 
     if (!pushToken) {
       return res.status(400).json({ error: 'pushToken is required' });
@@ -103,7 +114,7 @@ router.post('/unregister-token', protect, async (req: any, res: any) => {
  */
 router.get('/feed', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const feed: any[] = [];
     const now = new Date();
 
@@ -311,7 +322,7 @@ router.get('/feed', protect, async (req: any, res: any) => {
  */
 router.post('/check-stock', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const count = await checkAndSendLowStockPush(userId);
     return res.json({ success: true, lowStockCount: count });
   } catch (err) {
@@ -325,7 +336,7 @@ router.post('/check-stock', protect, async (req: any, res: any) => {
  */
 router.post('/check-credit-due', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const count = await checkAndSendCustomerCreditDuePush(userId);
     return res.json({ success: true, customersDueCount: count });
   } catch (err) {
@@ -339,7 +350,7 @@ router.post('/check-credit-due', protect, async (req: any, res: any) => {
  */
 router.post('/check-supplier-due', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const count = await checkAndSendSupplierPayableDuePush(userId);
     return res.json({ success: true, suppliersDueCount: count });
   } catch (err) {
@@ -354,7 +365,7 @@ router.post('/check-supplier-due', protect, async (req: any, res: any) => {
  */
 router.post('/send-daily-summary', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const result = await sendDailyNightSalesSummaryPush(userId);
     return res.json({ success: true, ...result });
   } catch (err) {
@@ -368,7 +379,7 @@ router.post('/send-daily-summary', protect, async (req: any, res: any) => {
  */
 router.post('/send-announcement', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const { title = 'Important Store Update', body = 'Please review your store configurations.' } = req.body;
     const success = await sendImportantAnnouncementPush(userId, title, body);
     return res.json({ success });
@@ -383,7 +394,7 @@ router.post('/send-announcement', protect, async (req: any, res: any) => {
  */
 router.post('/send-supplies-refill', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const success = await sendPaperRollsRefillPush(userId);
     return res.json({ success });
   } catch (err) {
@@ -397,7 +408,7 @@ router.post('/send-supplies-refill', protect, async (req: any, res: any) => {
  */
 router.post('/send-product-launch', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const { productName, price, category } = req.body;
     if (!productName) {
       return res.status(400).json({ error: 'productName is required' });
@@ -415,7 +426,7 @@ router.post('/send-product-launch', protect, async (req: any, res: any) => {
  */
 router.post('/send-feature-tip', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const { tipType } = req.body;
     const success = await sendFeatureTipPush(userId, tipType);
     return res.json({ success });
@@ -430,7 +441,7 @@ router.post('/send-feature-tip', protect, async (req: any, res: any) => {
  */
 router.post('/send-weekly-summary', protect, async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = await getOwnerUserId(req.user.id);
     const success = await sendWeeklySummaryPush(userId);
     return res.json({ success });
   } catch (err) {

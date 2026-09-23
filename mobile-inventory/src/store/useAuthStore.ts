@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { UserPermissions, UserProfile } from '@/types/auth';
-import { getAuthToken, getStoredUser, removeAuthToken, removeStoredUser, setAuthToken, setStoredUser } from '@/services/secureStore';
+import { getAuthToken, getStoredUser, removeAuthToken, removeStoredUser, setAuthToken, setStoredUser, setOwnerSessionBackup, getOwnerSessionBackup, clearOwnerSessionBackup } from '@/services/secureStore';
 
 interface AuthState {
   token: string | null;
@@ -91,7 +91,67 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUserRole: async (role: 'admin' | 'agent', password?: string, agentUid?: string) => {
     const { authApi } = await import('@/api/auth');
+    const prevToken = get().token;
+    const prevUser = get().user;
+    const wasOwner =
+      !!prevToken &&
+      !!prevUser &&
+      prevUser.accountType !== 'managed' &&
+      !(prevUser as any)?.adminId;
+
+    // Returning to Store Admin from an agent session: restore the saved owner JWT after
+    // verifying the owner password against setRole using that backup token.
+    if (role === 'admin' && (prevUser?.accountType === 'managed' || Boolean((prevUser as any)?.adminId))) {
+      const backup = await getOwnerSessionBackup<{ token: string; user: UserProfile }>();
+      if (backup?.token && backup?.user) {
+        await setAuthToken(backup.token);
+        try {
+          const res = await authApi.setRole({
+            role: 'admin',
+            password,
+            name: backup.user.displayName || backup.user.email || undefined,
+          });
+          await clearOwnerSessionBackup();
+          if (res?.token && res?.user) {
+            await get().setAuth(res.token, res.user);
+          } else {
+            await get().setAuth(backup.token, { ...backup.user, role: 'admin', accountType: 'user' });
+          }
+        } catch (err) {
+          // Put the agent session back if owner password was wrong.
+          if (prevToken && prevUser) {
+            await setAuthToken(prevToken);
+            await setStoredUser(prevUser);
+            set({ token: prevToken, user: prevUser, isAuthenticated: true });
+          }
+          throw err;
+        }
+        return;
+      }
+
+      // No owner backup on this device — still allow elevating via owner password
+      // verified server-side against the agent's store owner account.
+      const res = await authApi.setRole({ role: 'admin', password });
+      if (res?.token && res?.user) {
+        await clearOwnerSessionBackup();
+        await get().setAuth(res.token, res.user);
+        return;
+      }
+      throw new Error(
+        'No saved Store Owner session on this device. Log out and sign in with the store owner account, then choose Admin.'
+      );
+    }
+
     const res = await authApi.setRole({ role, password, agentUid });
+    if (role === 'agent' && res?.user?.accountType !== 'managed' && !(res?.user as any)?.adminId) {
+      throw new Error('Could not switch into the agent account. Pick the agent from the list and try again.');
+    }
+    if (role === 'agent' && !res?.token) {
+      throw new Error('Agent login did not issue a new session. Pick the agent from the list and try again.');
+    }
+    if (role === 'agent' && wasOwner && prevToken && prevUser) {
+      await setOwnerSessionBackup({ token: prevToken, user: prevUser });
+    }
     if (res?.token && res?.user) {
       await get().setAuth(res.token, res.user);
     } else if (res?.user) {
@@ -102,6 +162,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await removeAuthToken();
     await removeStoredUser();
+    await clearOwnerSessionBackup();
     try {
       const { setStoredSettings } = await import('@/services/secureStore');
       const { setCachedSettings } = await import('@/hooks/useSettings');
@@ -136,13 +197,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) return false;
 
-    // Store Owner with Admin role has all permissions by default
     if (user.role === 'admin' && user.accountType !== 'managed') {
       return true;
     }
 
-    // ManagedUser (agent) relies on granular permissions object
-    let perms = user.permissions;
+    let perms = user.permissions as UserPermissions | string | null | undefined;
     if (typeof perms === 'string') {
       try {
         perms = JSON.parse(perms);
@@ -151,8 +210,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
-    if (perms && typeof (perms as any)[permission] === 'boolean') {
-      return !!(perms as any)[permission];
+    if (perms && typeof (perms as UserPermissions)[permission] === 'boolean') {
+      return !!(perms as UserPermissions)[permission];
+    }
+
+    if (permission === 'canAccessKOT' || permission === 'canSendRemotePrint') {
+      return !!(perms && (perms as UserPermissions).canAccessSales);
     }
 
     return false;

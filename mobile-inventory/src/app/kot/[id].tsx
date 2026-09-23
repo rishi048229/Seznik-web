@@ -38,6 +38,8 @@ import {
   UserCheck,
 } from 'lucide-react-native';
 import { useKotOrder, useKotOrders } from '@/hooks/useKotOrders';
+import { kotOrdersApi } from '@/api/kotOrders';
+import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { useProducts } from '@/hooks/useProducts';
 import { KOTOrderStatus, KOTOrderItem, KOTDeltaChange } from '@/types/kot';
 import { Product } from '@/types/product';
@@ -93,6 +95,10 @@ export default function KotOrderDetailScreen() {
     { enabled: false }
   );
   const { products } = useProducts();
+  const { tables } = useRestaurantTables();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [assignOpen, setAssignOpen] = useState(false);
   const {
     paperWidth,
     connectionState,
@@ -335,6 +341,8 @@ export default function KotOrderDetailScreen() {
         },
       });
 
+      await kotOrdersApi.sendToKitchen(order.id);
+
       if (autoPrintDelta) {
         try {
           await ThermalPrinterService.printKotDeltaTicket(
@@ -509,6 +517,14 @@ export default function KotOrderDetailScreen() {
             </View>
 
             <View style={{ flexDirection: 'row', gap: 6 }}>
+              {isOrderEditable ? (
+                <TouchableOpacity
+                  onPress={() => setCancelOpen(true)}
+                  style={[styles.printSlipBtn, { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
+                >
+                  <Text style={[styles.printSlipBtnText, { color: '#EF4444' }]}>Cancel</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={handlePrintKitchenSlip}
                 style={[styles.printSlipBtn, { backgroundColor: 'rgba(37, 99, 235, 0.12)', borderColor: 'rgba(37, 99, 235, 0.3)' }]}
@@ -543,6 +559,11 @@ export default function KotOrderDetailScreen() {
                 <Text style={{ fontSize: 11, color: theme.textSecondary }}>Order Note: {order.notes}</Text>
               </View>
             )}
+            {!order.tableId && isOrderEditable ? (
+              <TouchableOpacity onPress={() => setAssignOpen(true)} style={{ marginTop: 10 }}>
+                <Text style={{ color: BRAND_COLORS.blue600, fontWeight: '800' }}>Assign table</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           {/* Kitchen Progress Pipeline */}
@@ -1210,6 +1231,71 @@ export default function KotOrderDetailScreen() {
             }
           }}
         />
+        <Modal visible={cancelOpen} transparent animationType="fade" onRequestClose={() => setCancelOpen(false)}>
+          <View style={{ flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)', padding: 20 }}>
+            <View style={{ backgroundColor: theme.cardBg, borderRadius: 16, padding: 16 }}>
+              <Text style={{ fontWeight: '800', fontSize: 16, color: theme.textPrimary, marginBottom: 8 }}>Cancel order</Text>
+              <TextInput
+                value={cancelReason}
+                onChangeText={setCancelReason}
+                placeholder="Reason"
+                placeholderTextColor="#94A3B8"
+                style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 10, color: theme.textPrimary, marginBottom: 10 }}
+              />
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!order || !cancelReason.trim()) {
+                    Alert.alert('Reason required', 'Enter why this order is being cancelled.');
+                    return;
+                  }
+                  try {
+                    await kotOrdersApi.cancelOrder(order.id, cancelReason.trim());
+                    setCancelOpen(false);
+                    router.replace('/kot' as any);
+                  } catch (e: any) {
+                    Alert.alert('Could not cancel', e?.message || 'Try again');
+                  }
+                }}
+                style={{ backgroundColor: '#EF4444', borderRadius: 10, padding: 12, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800' }}>Cancel order</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCancelOpen(false)} style={{ marginTop: 10, alignItems: 'center' }}>
+                <Text style={{ color: theme.textSecondary }}>Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+        <Modal visible={assignOpen} transparent animationType="fade" onRequestClose={() => setAssignOpen(false)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+            <View style={{ backgroundColor: theme.cardBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, maxHeight: '60%' }}>
+              <Text style={{ fontWeight: '800', fontSize: 16, color: theme.textPrimary, marginBottom: 8 }}>Assign table</Text>
+              <ScrollView>
+                {tables.filter((table) => !table.isOccupied).map((table) => (
+                  <TouchableOpacity
+                    key={table.id}
+                    onPress={async () => {
+                      if (!order) return;
+                      try {
+                        await kotOrdersApi.assignTable(order.id, table.id);
+                        setAssignOpen(false);
+                        refetch();
+                      } catch (e: any) {
+                        Alert.alert('Could not assign', e?.message || 'Try again');
+                      }
+                    }}
+                    style={{ paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.borderColor }}
+                  >
+                    <Text style={{ color: theme.textPrimary, fontWeight: '700' }}>{table.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity onPress={() => setAssignOpen(false)} style={{ marginTop: 10, alignItems: 'center' }}>
+                <Text style={{ color: theme.textSecondary }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </ScreenBackground>
   );

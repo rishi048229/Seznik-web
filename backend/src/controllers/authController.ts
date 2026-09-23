@@ -9,6 +9,8 @@ import { isValidBusinessType } from '../constants/businessTypes';
 import { syncTrackStockForUser } from '../utils/stockTracking';
 import { isValidUpiVpa } from '../utils/upiVpa';
 import { buildReceiptConfigFromProfile } from '../utils/enrichSettingsProfile';
+import { normalizePermissions, ADMIN_PERMISSIONS, parsePermissionsSource } from '../utils/ownerUser';
+import { getOwnerUserId } from '../utils/getOwnerUserId';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // code valid for 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 request per email per minute
@@ -42,6 +44,7 @@ const getAdminBusinessType = async (adminId: string): Promise<string | null> => 
 
 const serializeOwnerAuthUser = (user: {
   id: string;
+  uid?: string | null;
   email?: string | null;
   displayName?: string | null;
   phone?: string | null;
@@ -52,12 +55,13 @@ const serializeOwnerAuthUser = (user: {
   seznikUser?: boolean;
 }) => ({
   id: user.id,
+  uid: user.uid || user.id,
   email: user.email,
   displayName: user.displayName,
   phone: user.phone ?? null,
   businessName: user.businessName,
   businessType: user.businessType ?? null,
-  role: user.role || 'admin',
+  role: user.role === 'agent' ? 'admin' : (user.role || 'admin'),
   onboardingCompleted: user.onboardingCompleted ?? false,
   seznikUser: Boolean(user.seznikUser),
   accountType: 'user' as const,
@@ -65,21 +69,30 @@ const serializeOwnerAuthUser = (user: {
 
 const serializeManagedAuthUser = async (managedUser: {
   id: string;
+  uid?: string | null;
   email?: string | null;
   displayName?: string | null;
   role?: string | null;
   permissions?: unknown;
   adminId: string;
-}) => ({
-  id: managedUser.id,
-  email: managedUser.email,
-  displayName: managedUser.displayName,
-  role: managedUser.role || 'agent',
-  onboardingCompleted: true,
-  permissions: managedUser.permissions,
-  businessType: await getAdminBusinessType(managedUser.adminId),
-  accountType: 'managed' as const,
-});
+}) => {
+  const role = managedUser.role || 'agent';
+  const raw = parsePermissionsSource(managedUser.permissions);
+  const unrestricted = raw._customized === false;
+  return {
+    id: managedUser.id,
+    uid: managedUser.uid || managedUser.id,
+    email: managedUser.email,
+    displayName: managedUser.displayName,
+    role,
+    adminId: managedUser.adminId,
+    onboardingCompleted: true,
+    permissions: unrestricted ? ADMIN_PERMISSIONS : normalizePermissions(managedUser.permissions, role),
+    permissionsCustomized: !unrestricted,
+    businessType: await getAdminBusinessType(managedUser.adminId),
+    accountType: 'managed' as const,
+  };
+};
 
 // Step 1 of signup: email in → 6-digit code out (via SMTP).
 export const sendEmailOtp = async (req: Request, res: Response) => {
@@ -573,47 +586,78 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
+const passwordMatches = async (plain: string, hash?: string | null) =>
+  Boolean(hash) && (await bcrypt.compare(plain, hash || ''));
+
 export const login = async (req: Request, res: Response) => {
   try {
-    const email = String(req.body.email || '').trim().toLowerCase();
+    const identifier = String(req.body.email || '').trim();
     const { password } = req.body;
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // 1. Check main User table (Admin / Store Owner)
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (user && user.password) {
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (isMatch) {
-        if ((user as any).isBanned) {
-          return res.status(403).json({
-            error: `Your account has been suspended by system administrator. Reason: ${(user as any).banReason || 'Policy violation'}. Please contact support.`,
-            isBanned: true,
-            banReason: (user as any).banReason,
-          });
-        }
+    const email = identifier.toLowerCase();
 
-        const token = generateToken(user.id, user.role || 'admin');
-        return res.json({
-          user: serializeOwnerAuthUser(user),
-          token,
-        });
-      }
+    const owner = await prisma.user.findUnique({ where: { email } });
+    const managedByEmail = await prisma.managedUser.findFirst({ where: { email } });
+    const managedByHandle =
+      managedByEmail
+        ? null
+        : await prisma.managedUser.findFirst({
+            where: {
+              OR: [
+                { displayName: { equals: identifier, mode: 'insensitive' } },
+                { uid: identifier },
+                { id: identifier },
+              ],
+            },
+          });
+    const managedUser = managedByEmail || managedByHandle;
+
+    const ownerMatch = owner ? await passwordMatches(password, owner.password) : false;
+    const managedMatch = managedUser ? await passwordMatches(password, managedUser.password) : false;
+
+    // Agent-specific credentials always win so staff never land on the owner's session.
+    if (managedMatch && !ownerMatch) {
+      const token = generateToken(managedUser!.id, managedUser!.role || 'agent');
+      return res.json({
+        user: await serializeManagedAuthUser(managedUser!),
+        token,
+      });
     }
 
-    // 2. Check ManagedUser table (Agents / Sub-accounts)
-    const managedUser = await prisma.managedUser.findFirst({ where: { email } });
-    if (managedUser && managedUser.password) {
-      const isMatch = await bcrypt.compare(password, managedUser.password);
-      if (isMatch) {
-        const token = generateToken(managedUser.id, managedUser.role || 'agent');
-        return res.json({
-          user: await serializeManagedAuthUser(managedUser),
-          token,
+    if (ownerMatch && owner) {
+      if ((owner as any).isBanned) {
+        return res.status(403).json({
+          error: `Your account has been suspended by system administrator. Reason: ${(owner as any).banReason || 'Policy violation'}. Please contact support.`,
+          isBanned: true,
+          banReason: (owner as any).banReason,
         });
       }
+
+      let ownerForSession = owner;
+      if (owner.role === 'agent') {
+        ownerForSession = await prisma.user.update({
+          where: { id: owner.id },
+          data: { role: 'admin' },
+        });
+      }
+
+      const token = generateToken(ownerForSession.id, ownerForSession.role || 'admin');
+      return res.json({
+        user: serializeOwnerAuthUser(ownerForSession),
+        token,
+      });
+    }
+
+    if (managedMatch && managedUser) {
+      const token = generateToken(managedUser.id, managedUser.role || 'agent');
+      return res.json({
+        user: await serializeManagedAuthUser(managedUser),
+        token,
+      });
     }
 
     return res.status(400).json({ error: 'Invalid email or password' });
@@ -670,6 +714,8 @@ export const getProfile = async (req: Request, res: Response) => {
       const { password, ...userWithoutPassword } = user;
       return res.json({
         ...userWithoutPassword,
+        uid: user.uid || user.id,
+        role: user.role === 'agent' ? 'admin' : (user.role || 'admin'),
         accountType: 'user',
       });
     }
@@ -677,11 +723,18 @@ export const getProfile = async (req: Request, res: Response) => {
     const managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
     if (managedUser) {
       const { password, ...userWithoutPassword } = managedUser;
+      const role = managedUser.role || 'agent';
+      const raw = parsePermissionsSource(managedUser.permissions);
+      const unrestricted = raw._customized === false;
       return res.json({
         ...userWithoutPassword,
+        uid: managedUser.uid || managedUser.id,
         onboardingCompleted: true,
+        permissions: unrestricted ? ADMIN_PERMISSIONS : normalizePermissions(managedUser.permissions, role),
+        permissionsCustomized: !unrestricted,
         businessType: await getAdminBusinessType(managedUser.adminId),
         accountType: 'managed',
+        role,
       });
     }
 
@@ -696,10 +749,32 @@ export const setRole = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const { role, password, agentUid } = req.body;
 
-    // 1. If switching to a specific agent account from access selection
+    // Agent already logged in as a managed account — confirm password and stay in that session.
+    if (role === 'agent') {
+      const selfManaged = await prisma.managedUser.findUnique({ where: { id: userId } });
+      if (selfManaged) {
+        if (password) {
+          const isMatch = await bcrypt.compare(password, selfManaged.password || '');
+          if (!isMatch) {
+            return res.status(400).json({ error: 'Invalid password for selected agent' });
+          }
+        }
+        const token = generateToken(selfManaged.id, selfManaged.role || 'agent');
+        return res.json({
+          user: await serializeManagedAuthUser(selfManaged),
+          token,
+        });
+      }
+    }
+
+    // Owner switching to a specific agent account from access selection.
+    // Look up by uid OR id because older clients send one or the other.
     if (role === 'agent' && agentUid) {
       const managedUser = await prisma.managedUser.findFirst({
-        where: { uid: agentUid, adminId: userId },
+        where: {
+          adminId: userId,
+          OR: [{ uid: agentUid }, { id: agentUid }],
+        },
       });
 
       if (!managedUser) {
@@ -713,7 +788,6 @@ export const setRole = async (req: Request, res: Response) => {
         }
       }
 
-      // Generate new token for the managed user
       const token = generateToken(managedUser.id, managedUser.role || 'agent');
       return res.json({
         user: await serializeManagedAuthUser(managedUser),
@@ -724,6 +798,11 @@ export const setRole = async (req: Request, res: Response) => {
     // 2. Regular user role confirmation (Admin or Direct user)
     let user = await prisma.user.findUnique({ where: { id: userId } });
     if (user) {
+      if (role === 'agent') {
+        return res.status(400).json({
+          error: 'Select an agent account to continue as agent. Owner login cannot become an agent session.',
+        });
+      }
       if (password) {
         const isMatch = await bcrypt.compare(password, user.password || '');
         if (!isMatch) {
@@ -734,19 +813,36 @@ export const setRole = async (req: Request, res: Response) => {
         where: { id: userId },
         data: { role: role || user.role || 'admin' },
       });
-      return res.json({ user: serializeOwnerAuthUser(updatedUser) });
+      const token = generateToken(updatedUser.id, updatedUser.role || 'admin');
+      return res.json({ user: serializeOwnerAuthUser(updatedUser), token });
     }
 
     let managedUser = await prisma.managedUser.findUnique({ where: { id: userId } });
     if (managedUser) {
+      // Agent elevating to Store Admin: verify against the OWNER password and
+      // issue an owner JWT — never grant admin on the managed account itself.
+      if (role === 'admin') {
+        const ownerId = await getOwnerUserId(managedUser.adminId);
+        const owner = await prisma.user.findUnique({ where: { id: ownerId } });
+        if (!owner) {
+          return res.status(404).json({ error: 'Store owner account not found for this agent' });
+        }
+        if (!password) {
+          return res.status(400).json({ error: 'Store Admin password is required' });
+        }
+        const isMatch = await bcrypt.compare(password, owner.password || '');
+        if (!isMatch) {
+          return res.status(400).json({ error: 'Invalid password for account' });
+        }
+        const token = generateToken(owner.id, owner.role || 'admin');
+        return res.json({ user: serializeOwnerAuthUser(owner), token });
+      }
+
       if (password) {
         const isMatch = await bcrypt.compare(password, managedUser.password || '');
         if (!isMatch) {
           return res.status(400).json({ error: 'Invalid password for account' });
         }
-      }
-      if (role === 'admin' && managedUser.role !== 'admin') {
-        return res.status(403).json({ error: 'Access Denied: Agent account does not have Admin privileges' });
       }
       const updatedManaged = await prisma.managedUser.update({
         where: { id: userId },
@@ -956,31 +1052,61 @@ export const updateBusinessType = async (req: Request, res: Response) => {
 // back that with the ManagedUser table. Data always belongs to the admin, so
 // managed users are configuration only (role + permission flags + password).
 
-const serializeManagedUser = (m: any) => ({
-  // The primary key — this is what generateToken() signs as the JWT subject at login, and what
-  // Remote Print's targetAgentId must match. `uid` below is a separate, older field (originally
-  // for Firebase migration) that every other existing caller of this roster already keys off of —
-  // kept as-is, `id` is purely additive.
-  id: m.id,
-  uid: m.uid,
-  displayName: m.displayName,
-  email: m.email,
-  role: m.role,
-  permissions: m.permissions,
-  photoURL: m.photoURL,
-  businessName: m.businessName,
-  plan: m.plan,
-  createdAt: m.createdAt,
-});
+const serializeManagedUser = (m: any) => {
+  const raw = parsePermissionsSource(m.permissions);
+  const unrestricted = raw._customized === false;
+  return {
+    id: m.id,
+    uid: m.uid || m.id,
+    displayName: m.displayName,
+    email: m.email,
+    role: m.role || 'agent',
+    permissions: unrestricted ? ADMIN_PERMISSIONS : normalizePermissions(m.permissions, m.role || 'agent'),
+    permissionsCustomized: !unrestricted,
+    photoURL: m.photoURL,
+    businessName: m.businessName,
+    plan: m.plan,
+    createdAt: m.createdAt,
+    accountType: 'managed' as const,
+    adminId: m.adminId,
+    lastSeenAt: m.lastSeenAt || null,
+  };
+};
 
 export const getManagedUsers = async (req: Request, res: Response) => {
   try {
-    const adminId = (req as any).user.id;
+    const actorId = (req as any).user.id;
+    const ownerId = await getOwnerUserId(actorId);
+    const owner = await prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { id: true, uid: true },
+    });
+    const adminIds = Array.from(new Set([ownerId, owner?.uid].filter(Boolean))) as string[];
+
+    if (owner?.uid && owner.uid !== owner.id) {
+      await prisma.managedUser.updateMany({
+        where: { adminId: owner.uid },
+        data: { adminId: owner.id },
+      });
+    }
+
     const managed = await prisma.managedUser.findMany({
-      where: { adminId },
+      where: { adminId: { in: adminIds } },
       orderBy: { createdAt: 'asc' },
     });
-    res.json(managed.map(serializeManagedUser));
+    const tokens = await prisma.deviceToken.findMany({
+      where: { actorId: { in: managed.flatMap((m) => [m.id, m.uid].filter(Boolean) as string[]) } },
+      select: { actorId: true, lastSeenAt: true },
+    });
+    const seen = new Map<string, Date>();
+    for (const token of tokens) {
+      const prev = seen.get(token.actorId);
+      if (!prev || token.lastSeenAt > prev) seen.set(token.actorId, token.lastSeenAt);
+    }
+    res.json(managed.map((m) => serializeManagedUser({
+      ...m,
+      lastSeenAt: seen.get(m.id) || (m.uid ? seen.get(m.uid) : null) || null,
+    })));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch managed users' });
@@ -989,8 +1115,28 @@ export const getManagedUsers = async (req: Request, res: Response) => {
 
 export const createManagedUser = async (req: Request, res: Response) => {
   try {
-    const adminId = (req as any).user.id;
+    const actorId = (req as any).user.id;
+    const actorIsManaged = await prisma.managedUser.findUnique({
+      where: { id: actorId },
+      select: { id: true },
+    });
+    if (actorIsManaged) {
+      return res.status(403).json({ error: 'Only the store owner can create staff accounts' });
+    }
+
+    const adminId = await getOwnerUserId(actorId);
     const { uid, displayName, email, role, permissions, password, photoURL, businessName, plan } = req.body;
+    const owner = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { id: true, uid: true },
+    });
+    const adminIds = Array.from(new Set([adminId, owner?.uid].filter(Boolean))) as string[];
+    const existingAgentCount = await prisma.managedUser.count({
+      where: { adminId: { in: adminIds }, role: { not: 'admin' } },
+    });
+    if (existingAgentCount >= 2 && (role || 'agent') !== 'admin') {
+      return res.status(400).json({ error: 'Each store can have at most 2 agent accounts.' });
+    }
 
     if (!displayName || !password) {
       return res.status(400).json({ error: 'Name and password are required' });
@@ -1033,11 +1179,22 @@ export const createManagedUser = async (req: Request, res: Response) => {
 // (re)hashed when a plaintext password is included for that user.
 export const syncManagedUsers = async (req: Request, res: Response) => {
   try {
-    const adminId = (req as any).user.id;
+    const adminId = await getOwnerUserId((req as any).user.id);
     const incoming: any[] = req.body.users ?? [];
 
-    const existing = await prisma.managedUser.findMany({ where: { adminId } });
-    const incomingUids = new Set(incoming.map(u => u.uid));
+    if (!Array.isArray(incoming) || incoming.length === 0) {
+      return res.status(400).json({ error: 'Staff list cannot be empty. Refusing to delete existing agent accounts.' });
+    }
+
+    const owner = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { id: true, uid: true },
+    });
+    const adminIds = Array.from(new Set([adminId, owner?.uid].filter(Boolean))) as string[];
+    const existing = await prisma.managedUser.findMany({ where: { adminId: { in: adminIds } } });
+    const incomingUids = new Set(
+      incoming.flatMap((u: any) => [u.uid, u.id].filter(Boolean))
+    );
 
     // Validate every email before writing anything — no two accounts (managed
     // or primary) may share one, and the incoming payload itself can't either.
@@ -1051,7 +1208,7 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
       }
       seenInPayload.add(normalizedEmail);
 
-      const existingUser = existing.find(e => e.uid === u.uid);
+      const existingUser = existing.find(e => e.uid === u.uid || e.id === u.uid || e.id === u.id);
       const account = await findAccountByEmail(normalizedEmail);
       if (account && account.record.id !== existingUser?.id) {
         return res.status(400).json({ error: `An account with this email already exists: ${normalizedEmail}` });
@@ -1059,7 +1216,7 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
     }
 
     // Delete users no longer in the list.
-    const toDelete = existing.filter(e => !incomingUids.has(e.uid));
+    const toDelete = existing.filter(e => !incomingUids.has(e.uid) && !incomingUids.has(e.id));
     if (toDelete.length > 0) {
       await prisma.managedUser.deleteMany({
         where: { adminId, uid: { in: toDelete.map(e => e.uid) } },
@@ -1068,22 +1225,25 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
 
     // Upsert everyone in the incoming list.
     for (const u of incoming) {
-      const existingUser = existing.find(e => e.uid === u.uid);
+      const existingUser = existing.find(e => e.uid === u.uid || e.id === u.uid || e.id === u.id);
       const data: any = {
         displayName: u.displayName,
         email: u.email ? normalizeEmail(u.email) : null,
         role: u.role || 'agent',
-        permissions: u.permissions ?? undefined,
+        permissions: u.permissions
+          ? { ...(typeof u.permissions === 'object' ? u.permissions : {}), _customized: true }
+          : undefined,
         photoURL: u.photoURL || null,
         businessName: u.businessName || '',
         plan: u.plan || 'free',
+        adminId,
       };
       if (u.password) {
         data.password = await bcrypt.hash(u.password, await bcrypt.genSalt(10));
       }
 
       if (existingUser) {
-        await prisma.managedUser.update({ where: { uid: u.uid }, data });
+        await prisma.managedUser.update({ where: { id: existingUser.id }, data });
       } else {
         await prisma.managedUser.create({
           data: {
@@ -1313,5 +1473,106 @@ export const consumeQrLogin = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('consumeQrLogin error:', error);
     res.status(500).json({ error: 'Failed to sign in with QR code' });
+  }
+};
+
+/** OTP to the store's registered email. Phone OTP is a later DLT step. */
+export const requestAgentOtp = async (req: Request, res: Response) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: 'Enter the store email this agent belongs to' });
+    }
+    const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true } });
+    if (!owner) {
+      return res.status(404).json({ error: 'No store is registered with that email' });
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+    await prisma.emailOtp.upsert({
+      where: { email },
+      create: { email, codeHash, expiresAt },
+      update: { codeHash, expiresAt, attempts: 0, verifiedAt: null },
+    });
+    console.log(`\n🔑 [AGENT OTP]: ${otp} for ${email}\n`);
+    try {
+      await sendOtpEmail(email, otp);
+    } catch (err) {
+      console.error('agent OTP email failed', err);
+    }
+    const agents = await prisma.managedUser.findMany({
+      where: { adminId: owner.id, role: { not: 'admin' } },
+      select: { displayName: true },
+      take: 2,
+    });
+    res.json({
+      message: 'Verification code sent to the store email',
+      existingAgents: agents.map((a) => a.displayName).filter(Boolean),
+    });
+  } catch (error) {
+    console.error('requestAgentOtp error:', error);
+    res.status(500).json({ error: 'Failed to send agent code' });
+  }
+};
+
+export const verifyAgentOtp = async (req: Request, res: Response) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const otp = String(req.body.otp || '').trim();
+    const displayName = String(req.body.displayName || '').trim();
+    if (!displayName) {
+      return res.status(400).json({ error: 'Enter the agent name' });
+    }
+
+    const record = await prisma.emailOtp.findUnique({ where: { email } });
+    if (!record || record.expiresAt.getTime() < Date.now()) {
+      return res.status(400).json({ error: 'Code expired. Request a new one' });
+    }
+    if (record.attempts >= OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({ error: 'Too many wrong attempts. Request a new code' });
+    }
+    const isMatch = await bcrypt.compare(otp, record.codeHash);
+    if (!isMatch) {
+      await prisma.emailOtp.update({ where: { email }, data: { attempts: { increment: 1 } } });
+      return res.status(400).json({ error: 'Incorrect code' });
+    }
+
+    const owner = await prisma.user.findUnique({ where: { email } });
+    if (!owner) return res.status(404).json({ error: 'Store not found' });
+
+    const agents = await prisma.managedUser.findMany({
+      where: { adminId: owner.id, role: { not: 'admin' } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const match = agents.find((a) => (a.displayName || '').trim().toLowerCase() === displayName.toLowerCase());
+    let agent = match;
+    if (!agent) {
+      if (agents.length >= 2) {
+        return res.status(400).json({
+          error: 'This store already has 2 agents. Pick an existing name.',
+          existingAgents: agents.map((a) => a.displayName),
+        });
+      }
+      agent = await prisma.managedUser.create({
+        data: {
+          uid: `agent_${Date.now()}`,
+          displayName,
+          email: null,
+          role: 'agent',
+          adminId: owner.id,
+          permissions: { ...ADMIN_PERMISSIONS, _customized: false },
+          businessName: owner.businessName || '',
+        },
+      });
+    }
+
+    await prisma.emailOtp.update({ where: { email }, data: { verifiedAt: new Date() } });
+    const token = generateToken(agent.id, agent.role || 'agent');
+    res.json({ token, user: await serializeManagedAuthUser(agent) });
+  } catch (error) {
+    console.error('verifyAgentOtp error:', error);
+    res.status(500).json({ error: 'Failed to sign in as agent' });
   }
 };

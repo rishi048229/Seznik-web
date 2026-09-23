@@ -94,8 +94,13 @@ export async function sendPushToActor(
   payload: PushMessagePayload
 ): Promise<{ success: boolean; sentCount: number; error?: string }> {
   try {
+    const managed = await prisma.managedUser.findFirst({
+      where: { OR: [{ id: actorId }, { uid: actorId }] },
+      select: { id: true, uid: true },
+    });
+    const actorIds = Array.from(new Set([actorId, managed?.id, managed?.uid].filter(Boolean))) as string[];
     const devices = await prisma.deviceToken.findMany({
-      where: { actorId },
+      where: { actorId: { in: actorIds } },
       select: { expoPushToken: true },
     });
     return await sendExpoMessages(devices.map((d) => d.expoPushToken), payload);

@@ -52,6 +52,27 @@ export const kotOrdersApi = {
     });
   },
 
+  sendToKitchen: async (id: string): Promise<KOTOrder> => {
+    return fetchApi<KOTOrder>(`/kot-orders/${id}/send-to-kitchen`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  },
+
+  cancelOrder: async (id: string, reason: string): Promise<KOTOrder> => {
+    return fetchApi<KOTOrder>(`/kot-orders/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  assignTable: async (id: string, tableId: string): Promise<KOTOrder> => {
+    return fetchApi<KOTOrder>(`/kot-orders/${id}/assign-table`, {
+      method: 'POST',
+      body: JSON.stringify({ tableId }),
+    });
+  },
+
   generateBill: async (
     id: string,
     payload: GenerateKOTBillPayload

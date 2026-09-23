@@ -5,8 +5,10 @@ import {
   getSafeNotificationsModule,
   initializeNotificationChannel,
   dispatchLocalStockNotification,
+  scheduleDailyDaybookReminder,
 } from './notificationService';
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { debugFa19Log } from '@/utils/debugFa19Log';
 
 let isRegistered = false;
 let lastRegisteredToken: string | null = null;
@@ -36,6 +38,14 @@ export async function registerPushTokenWithBackend(): Promise<string | null> {
     }
 
     if (finalStatus !== 'granted') {
+      // #region agent log
+      debugFa19Log({
+        hypothesisId: 'E',
+        location: 'pushRegistration.ts:permission',
+        message: 'Notification permission not granted',
+        data: { finalStatus },
+      });
+      // #endregion
       return null;
     }
 
@@ -69,6 +79,22 @@ export async function registerPushTokenWithBackend(): Promise<string | null> {
             }
             isRegistered = true;
             lastRegisteredToken = pushToken;
+            // #region agent log
+            debugFa19Log({
+              hypothesisId: 'E',
+              location: 'pushRegistration.ts:registered',
+              message: 'Push token registered with backend',
+              data: { tokenPrefix: pushToken.slice(0, 24) },
+            });
+            // #endregion
+
+            // Fire background alert scans so low-stock / credit-due can reach the phone
+            // even when the app is later closed (Expo delivery uses the registered token).
+            Promise.allSettled([
+              fetchApi('/notifications/check-stock', { method: 'POST', body: '{}' }),
+              fetchApi('/notifications/check-credit-due', { method: 'POST', body: '{}' }),
+              scheduleDailyDaybookReminder(21, 0),
+            ]).catch(() => {});
           }
           return pushToken;
         }

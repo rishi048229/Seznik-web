@@ -121,8 +121,9 @@ export const getUserProfile = async (): Promise<UserProfile | null> => {
   try {
     const user = await fetchApi('/auth/profile')
     return {
-      uid: user.id,
       ...user,
+      id: user.id,
+      uid: user.uid || user.id,
     } as UserProfile
   } catch {
     return null
@@ -154,6 +155,22 @@ export const completeOnboarding = async (
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export const requestAgentOtp = async (email: string): Promise<{ message?: string; existingAgents?: string[] }> => {
+  return fetchApi('/auth/agent/request-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+export const verifyAgentOtp = async (email: string, otp: string, displayName: string): Promise<AuthResponse> => {
+  const data = await fetchApi('/auth/agent/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp, displayName }),
+  })
+  setAuthToken(data.token)
+  return data
 }
 
 export const updateBusinessType = async (businessType: BusinessType): Promise<UserProfile> => {
@@ -204,7 +221,11 @@ export const resetUserPassword = async (
 
 export const getAllUsers = async (adminUid: string): Promise<UserProfile[]> => {
   const data = await fetchApi(`/auth/managed-users/${adminUid}`)
-  return data as UserProfile[]
+  if (Array.isArray(data)) return data as UserProfile[]
+  if (data && typeof data === 'object' && Array.isArray((data as any).data)) {
+    return (data as any).data as UserProfile[]
+  }
+  return []
 }
 
 export const saveManagedUser = async (

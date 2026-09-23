@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { debugFa19Log } from '../utils/debugFa19Log';
 
 /**
  * Registers (or refreshes) THIS specific login's Expo push token for targeted delivery —
@@ -56,9 +57,25 @@ export const registerDeviceToken = async (req: Request, res: Response) => {
       },
     });
 
+    // #region agent log
+    debugFa19Log({
+      hypothesisId: 'E',
+      location: 'deviceTokenController.ts:register:ok',
+      message: 'Device token registered',
+      data: { actorId, ownerUserId, isManagedUser, platform: platform === 'ios' ? 'ios' : 'android' },
+    });
+    // #endregion
     return res.json({ success: true });
   } catch (error: any) {
     console.error('[DeviceToken] register failed:', error);
+    // #region agent log
+    debugFa19Log({
+      hypothesisId: 'E',
+      location: 'deviceTokenController.ts:register:error',
+      message: 'Device token register failed',
+      data: { errorMessage: error?.message || String(error) },
+    });
+    // #endregion
     return res.status(500).json({ success: false, message: 'Failed to register device token' });
   }
 };

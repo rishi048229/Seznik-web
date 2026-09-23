@@ -504,7 +504,30 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
     await get().connectDevice(device.id, device.name);
   },
 
-  setPaperWidth: (paperWidth) => set({ paperWidth, paperWidthSource: 'user' }),
+  setPaperWidth: (paperWidth) => {
+    set({ paperWidth, paperWidthSource: 'user' });
+    const state = get();
+    setStoredPrinterCalibration({
+      paperWidth,
+      printDensity: state.printDensity,
+      topMargin: state.topMargin,
+      autoCut: state.autoCut,
+      printCopies: state.printCopies,
+      fontSize: state.fontSize,
+      receiptFont: state.receiptFont,
+      receiptLogoSize: state.receiptLogoSize,
+      receiptQrSize: state.receiptQrSize,
+      labelPaperMode: state.labelPaperMode,
+      labelWidthMm: state.labelWidthMm,
+      labelHeightMm: state.labelHeightMm,
+      labelGapMm: state.labelGapMm,
+      labelOffsetMm: state.labelOffsetMm,
+    }).catch(() => {});
+    settingsApi.updatePrinterConfig({
+      paperWidth,
+      paperSize: paperWidth,
+    }).catch(() => {});
+  },
   setFontSize: (fontSize) => set({ fontSize }),
   setReceiptFont: (receiptFont) => set({ receiptFont: resolveReceiptFontId(receiptFont) }),
   setAutoConnect: (autoConnect) => {

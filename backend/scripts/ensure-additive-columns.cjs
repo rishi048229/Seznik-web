@@ -156,6 +156,45 @@ const STATEMENTS = [
   'ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "rawText" TEXT',
   'ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "metadata" JSONB',
   'ALTER TABLE "UtilityBill" ADD COLUMN IF NOT EXISTS "date" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP',
+  `CREATE TABLE IF NOT EXISTS "KitchenIngredient" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "unit" TEXT NOT NULL DEFAULT 'g',
+    "currentStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "lowStockThreshold" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "KitchenIngredient_pkey" PRIMARY KEY ("id")
+  )`,
+  'CREATE INDEX IF NOT EXISTS "KitchenIngredient_userId_idx" ON "KitchenIngredient"("userId")',
+  `CREATE TABLE IF NOT EXISTS "RecipeLine" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "ingredientId" TEXT NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+    CONSTRAINT "RecipeLine_pkey" PRIMARY KEY ("id")
+  )`,
+  'CREATE INDEX IF NOT EXISTS "RecipeLine_userId_productId_idx" ON "RecipeLine"("userId", "productId")',
+  `CREATE TABLE IF NOT EXISTS "WastageLog" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "ingredientId" TEXT NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+    "reason" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "WastageLog_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "KitchenPurchase" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "ingredientId" TEXT NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+    "supplierName" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "KitchenPurchase_pkey" PRIMARY KEY ("id")
+  )`,
 ]
 
 async function main() {

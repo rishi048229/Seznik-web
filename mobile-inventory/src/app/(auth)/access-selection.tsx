@@ -30,6 +30,8 @@ import { ScreenBackground } from '@/components/ui/ScreenBackground';
 import { useAuthStore } from '@/store/useAuthStore';
 import { authApi } from '@/api/auth';
 import { UserProfile } from '@/types/auth';
+import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { getOwnerSessionBackup } from '@/services/secureStore';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function AccessSelectionScreen() {
@@ -47,14 +49,30 @@ export default function AccessSelectionScreen() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
+  const [hasOwnerBackup, setHasOwnerBackup] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getOwnerSessionBackup().then((backup) => {
+      if (isMounted) setHasOwnerBackup(Boolean((backup as any)?.token));
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
     const loadAgents = async () => {
       try {
-        const list = await authApi.getAllUsers(user?.id);
+        // Always load via authenticated owner scope ("me") so agents list works even when
+        // adminId was stored as a legacy uid, or when the current session is already an agent
+        // with an owner backup who is switching roles.
+        const list = await authApi.getAllUsers('me');
         if (isMounted) {
-          const agentList = ((list || []) as (UserProfile & { uid?: string })[]).filter((u) => u.role === 'agent');
+          const agentList = ((list || []) as (UserProfile & { uid?: string })[]).filter(
+            (u) => (u.role || 'agent') !== 'admin'
+          );
           setAgents(agentList);
           if (agentList.length > 0) {
             setSelectedAgentUid(agentList[0].uid || agentList[0].id || '');
@@ -73,14 +91,14 @@ export default function AccessSelectionScreen() {
     };
   }, [user]);
 
-  const isCurrentUserAgent = user?.role === 'agent';
+  const isCurrentUserAgent = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
   const hasAgents = isCurrentUserAgent || agents.length > 0;
 
   const handleRoleCardClick = (role: 'admin' | 'agent') => {
-    if (role === 'admin' && user?.role === 'agent') {
+    if (role === 'admin' && isCurrentUserAgent && !hasOwnerBackup) {
       Alert.alert(
-        'Access Restricted',
-        'Your current session is an Agent account. To access Store Admin, please log in with your primary Store Owner credentials.'
+        'Store Owner only',
+        'An agent cannot become Store Admin from this phone. Log out and sign in with the store owner email.'
       );
       return;
     }
@@ -88,7 +106,7 @@ export default function AccessSelectionScreen() {
     if (role === 'agent' && !hasAgents) {
       Alert.alert(
         'No Agent Accounts Found',
-        'Agent workstation is currently unavailable because no agent profiles have been created yet.\n\nPlease log in as Admin first, then create staff accounts under Settings > Staff & Permissions.'
+        'Create up to 2 staff accounts from Store Admin > Settings > Staff. Agents sign in with their own password.'
       );
       return;
     }
@@ -224,7 +242,7 @@ export default function AccessSelectionScreen() {
 
               <View style={styles.cardFooter}>
                 <Text style={[styles.cardActionText, { color: hasAgents ? '#10B981' : theme.textSecondary }]}>
-                  {hasAgents ? 'Enter as Agent' : 'Create Agent Account'}
+                  {hasAgents ? 'Enter as Agent' : 'Ask Admin to Create Staff'}
                 </Text>
                 <ArrowRight size={16} color={hasAgents ? '#10B981' : theme.textSecondary} />
               </View>
@@ -246,20 +264,36 @@ export default function AccessSelectionScreen() {
 
         {/* PASSWORD / AGENT SELECTION MODAL */}
         <Modal visible={isModalOpen} transparent animationType="slide" onRequestClose={() => setIsModalOpen(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+          <KeyboardAvoidingWrapper inModal style={{ flex: 1 }}>
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 12 }}
+                >
               {/* Header */}
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Lock size={20} color={selectedRole === 'admin' ? BRAND_COLORS.blue600 : '#10B981'} style={{ marginRight: 8 }} />
                   <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                    {selectedRole === 'admin' ? 'Admin Verification' : 'Agent Workstation Login'}
+                    {selectedRole === 'admin'
+                      ? isCurrentUserAgent
+                        ? 'Return to Store Admin'
+                        : 'Admin Verification'
+                      : 'Agent Workstation Login'}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setIsModalOpen(false)} style={styles.modalCloseBtn}>
                   <X size={20} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
+
+              {selectedRole === 'admin' && isCurrentUserAgent ? (
+                <Text style={[styles.inputLabel, { color: theme.textSecondary, marginBottom: 12 }]}>
+                  Enter the Store Owner password to switch back to full admin access.
+                </Text>
+              ) : null}
 
               {/* Agent Picker Dropdown (If Agent Role) */}
               {selectedRole === 'agent' && !isCurrentUserAgent && agents.length > 0 && (
@@ -320,6 +354,11 @@ export default function AccessSelectionScreen() {
                 <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                   {selectedRole === 'admin' ? 'Store Admin Password' : 'Agent Password'}
                 </Text>
+                {selectedRole === 'agent' ? (
+                  <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 8 }}>
+                    Use this agent's own password. The store owner password will not work here.
+                  </Text>
+                ) : null}
                 <TextInput
                   value={password}
                   onChangeText={setPassword}
@@ -354,14 +393,20 @@ export default function AccessSelectionScreen() {
                 ) : (
                   <>
                     <Text style={styles.confirmBtnText}>
-                      {selectedRole === 'admin' ? 'Verify & Enter as Admin' : 'Login as Agent'}
+                      {selectedRole === 'admin'
+                        ? isCurrentUserAgent
+                          ? 'Switch to Store Admin'
+                          : 'Verify & Enter as Admin'
+                        : 'Login as Agent'}
                     </Text>
                     <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
                   </>
                 )}
               </TouchableOpacity>
+                </ScrollView>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingWrapper>
         </Modal>
       </SafeAreaView>
     </ScreenBackground>

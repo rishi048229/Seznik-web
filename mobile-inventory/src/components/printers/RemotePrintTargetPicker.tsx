@@ -49,7 +49,8 @@ export const RemotePrintTargetPicker: React.FC<RemotePrintTargetPickerProps> = (
   const targets = useMemo(() => {
     const byId = new Map<string, { id: string; name: string }>();
     for (const member of staff) {
-      if (member.id) byId.set(member.id, { id: member.id, name: member.displayName || member.email || 'Staff' });
+      const id = member.id || member.uid;
+      if (id) byId.set(id, { id, name: member.displayName || member.email || 'Staff' });
     }
     for (const device of devices) {
       if (!byId.has(device.actorId)) byId.set(device.actorId, { id: device.actorId, name: device.actorName });

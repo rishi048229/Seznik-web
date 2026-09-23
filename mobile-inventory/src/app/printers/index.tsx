@@ -114,6 +114,7 @@ export default function PrintersScreen() {
     nativeModuleAvailable,
     activeTemplateId,
     savePrinterCalibration,
+    setPaperWidth,
     setActiveTemplate,
     hydrateFromSettings,
     labelPaperMode,
@@ -153,6 +154,7 @@ export default function PrintersScreen() {
     nativeModuleAvailable: s.nativeModuleAvailable,
     activeTemplateId: s.activeTemplateId,
     savePrinterCalibration: s.savePrinterCalibration,
+    setPaperWidth: s.setPaperWidth,
     setActiveTemplate: s.setActiveTemplate,
     hydrateFromSettings: s.hydrateFromSettings,
     labelPaperMode: s.labelPaperMode,
@@ -1635,6 +1637,32 @@ export default function PrintersScreen() {
 
               {/* HARDWARE CALIBRATION */}
               <Text style={[styles.sectionHeader, { marginTop: 6 }]}>HARDWARE CALIBRATION & PRINT SETTINGS</Text>
+
+              {/* Paper width — must be selectable here; home toggle alone was not enough */}
+              <View style={[styles.stepperCardStacked, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Receipt Paper Width</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                    58mm = 32 columns · 80mm = 48 columns. Applies to POS, KOT, quick bill, and A4 receipts.
+                  </Text>
+                </View>
+                <View style={styles.chipRowFull}>
+                  {([58, 80] as const).map((w) => (
+                    <TouchableOpacity
+                      key={w}
+                      onPress={() => {
+                        setPaperWidthVal(w);
+                        setPaperWidth(w === 80 ? '80mm' : '58mm');
+                      }}
+                      style={[styles.stackedChip, paperWidthVal === w && styles.widthChipActive]}
+                    >
+                      <Text style={[styles.widthChipText, paperWidthVal === w && styles.widthChipTextActive]}>
+                        {w}mm
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
 
               {/* Stepper 2: Top Offset Margin */}
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>

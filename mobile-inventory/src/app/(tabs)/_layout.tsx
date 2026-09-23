@@ -9,7 +9,7 @@ import {
   Menu,
   LayoutGrid,
   Plus,
-  BookOpen,
+  ChefHat,
 } from 'lucide-react-native';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +31,9 @@ export default function TabsLayout() {
   const kotFirst = isKotFirstNav(user?.businessType);
   const canAccessKot = hasPermission('canAccessKOT');
   const restaurantPrimary = kotFirst && canAccessKot;
-  const catalogLabel = getCatalogNavLabel(user?.businessType);
+  const catalogLabel = restaurantPrimary
+    ? t('kotBoard', 'KOT Board')
+    : getCatalogNavLabel(user?.businessType);
   const showCenterTab = restaurantPrimary
     ? true
     : isNavFeatureVisible(user?.businessType, 'calculator');
@@ -167,7 +169,15 @@ export default function TabsLayout() {
         />
         <Tabs.Screen
           name="products"
-          listeners={{ tabPress: closeMoreMenu }}
+          listeners={{
+            tabPress: (e) => {
+              closeMoreMenu();
+              if (restaurantPrimary) {
+                e.preventDefault();
+                router.push('/kot' as any);
+              }
+            },
+          }}
           options={{
             title: catalogLabel,
             tabBarLabel: ({ color, focused }) => (
@@ -180,14 +190,16 @@ export default function TabsLayout() {
                 }}
                 numberOfLines={1}
               >
-                {catalogLabel === 'Menu'
+                {restaurantPrimary
+                  ? t('kotBoard', 'KOT Board')
+                  : catalogLabel === 'Menu'
                   ? t('menu', 'Menu')
                   : t('products', 'Products')}
               </Text>
             ),
             tabBarIcon: ({ color, size }) =>
-              kotFirst ? (
-                <BookOpen size={size} color={color} />
+              restaurantPrimary ? (
+                <ChefHat size={size} color={color} />
               ) : (
                 <Package size={size} color={color} />
               ),
@@ -208,7 +220,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="more"
           options={{
-            title: t('more', 'More'),
+            href: restaurantPrimary ? null : undefined,
             tabBarLabel: ({ color, focused }) => (
               <Text
                 style={{

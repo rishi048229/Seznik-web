@@ -67,7 +67,11 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
             </Button>
           )}
           
-          <div className="flex flex-col">
+          <div
+            className="flex flex-col cursor-pointer"
+            onClick={() => navigate(ROUTES.PROFILE)}
+            title="Profile"
+          >
             <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100 leading-tight">
               {settings?.businessName || 'My Store'}
             </h1>

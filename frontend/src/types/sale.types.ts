@@ -49,6 +49,9 @@ export interface Sale {
   paymentStatus?: PaymentStatus
   paymentDueDate?: Date | string | null
 
+  isRemotePrint?: boolean
+  lastRemotePrintJobId?: string | null
+
   createdAt: Date | string
   status?: 'completed' | 'cancelled' | string
   cancelReason?: string | null

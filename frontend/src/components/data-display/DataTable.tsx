@@ -21,6 +21,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void
   emptyMessage?: string
   pageSize?: number
+  rowClassName?: (row: T) => string | undefined
 }
 
 export function DataTable<T>({
@@ -32,6 +33,7 @@ export function DataTable<T>({
   onRowClick,
   emptyMessage = 'No data found',
   pageSize: initialPageSize = 10,
+  rowClassName,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('')
   const [sortColumn, setSortColumn] = useState<string | null>(null)
@@ -165,7 +167,8 @@ export function DataTable<T>({
                     onClick={() => onRowClick?.(row)}
                     className={clsx(
                       'transition-colors duration-150',
-                      onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10' : 'hover:bg-gray-50/60 dark:hover:bg-dark-card/40'
+                      onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10' : 'hover:bg-gray-50/60 dark:hover:bg-dark-card/40',
+                      rowClassName?.(row)
                     )}
                   >
                     {columns.map(col => (
@@ -187,7 +190,8 @@ export function DataTable<T>({
                 onClick={() => onRowClick?.(row)}
                 className={clsx(
                   'bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border/80 p-3.5 shadow-sm transition-all',
-                  onRowClick && 'cursor-pointer active:scale-[0.99] active:bg-gray-50 dark:active:bg-dark-elevated/60'
+                  onRowClick && 'cursor-pointer active:scale-[0.99] active:bg-gray-50 dark:active:bg-dark-elevated/60',
+                  rowClassName?.(row)
                 )}
               >
                 {columns.map(col => {

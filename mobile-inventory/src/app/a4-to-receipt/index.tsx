@@ -49,16 +49,17 @@ import {
   UtilityReceiptSlip,
   formatUtilityWhatsAppMessage,
 } from '@/components/bill-converter/UtilityReceiptSlip';
-import ThermalPrinterService from '@/services/PrinterService';
+import { PrintSaleData } from '@/services/PrinterService';
+import { ReceiptPreviewModal } from '@/components/ui/ReceiptPreviewModal';
 import { BRAND_COLORS } from '@/constants/theme';
-import { usePrinterStore } from '@/store/usePrinterStore';
-import { useShallow } from 'zustand/react/shallow';
 import {
   isOfflineOcrSupported,
   recognizeBillFromImage,
   recognizeBillFromPdf,
 } from '../../../modules/offline-bill-ocr';
 import { parseUtilityBillText } from '@/services/UtilityBillParser';
+import { utilityBillsApi } from '@/api/utilityBills';
+import * as FileSystem from 'expo-file-system/legacy';
 
 /** Cheap keyword classifier for the screen's billType filter/badge — the deterministic
  *  parser itself only needs to name the provider, not bucket it, so this stays local. */
@@ -76,13 +77,6 @@ export default function A4ToReceiptScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const { storeName: defaultStoreName } = useStoreProfile();
-  const {
-    paperWidth,
-  } = usePrinterStore(
-    useShallow((s) => ({
-    paperWidth: s.paperWidth,
-    }))
-  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');
@@ -119,6 +113,8 @@ export default function A4ToReceiptScreen() {
   const [convenienceFee, setConvenienceFee] = useState('20');
   const [customerPhone, setCustomerPhone] = useState('');
   const [generatedBill, setGeneratedBill] = useState<UtilityBill | null>(null);
+  const [previewSaleData, setPreviewSaleData] = useState<PrintSaleData | null>(null);
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
 
   // Slip Preview Modal state for old bills
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
@@ -161,39 +157,100 @@ export default function A4ToReceiptScreen() {
     setConverterModalVisible(true);
   };
 
-  // Extraction is 100% on-device: ML Kit OCR (modules/offline-bill-ocr) plus a deterministic
-  // parser. No cloud round-trip, no API key, no per-scan cost, and nothing that can time out.
-  // The Gemini path that used to back this was removed outright, not just demoted: it chained up
-  // to four model attempts at up to 35s each while this screen only waited 40s in total, so a slow
-  // model made the whole scan fail client-side before the server could even answer.
-  const processImageOrPdf = async (uri: string, mimeType: string) => {
+  // Same path as web: POST /utility-bills/extract (PDF text + Gemini), then on-device OCR fallback.
+  const processImageOrPdf = async (uri: string, mimeType: string, existingBase64?: string) => {
     try {
       setScannerStep('processing');
       const isPdf = mimeType.toLowerCase().includes('pdf');
 
-      if (!isOfflineOcrSupported()) {
+      let consumerNumber = '';
+      let consumerName = '';
+      let provider = '';
+      let dueDate = '';
+      let unitsConsumed = '';
+      let billAmount = '';
+      let nextBillType = 'ELECTRICITY';
+
+      setExtractingMsg('Extracting bill fields…');
+      let base64Data = existingBase64;
+      if (!base64Data) {
+        base64Data = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
+
+      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> =>
+        Promise.race([
+          promise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+        ]);
+
+      const apiPromise = withTimeout(
+        utilityBillsApi
+          .extractBill(base64Data, mimeType || (isPdf ? 'application/pdf' : 'image/jpeg'))
+          .catch((err) => {
+            console.warn('Cloud extract failed', err);
+            return null;
+          }),
+        20000
+      );
+
+      const ocrPromise = isOfflineOcrSupported()
+        ? withTimeout(
+            (isPdf ? recognizeBillFromPdf(uri) : recognizeBillFromImage(uri)).catch((err) => {
+              console.warn('On-device OCR failed', err);
+              return null;
+            }),
+            18000
+          )
+        : Promise.resolve(null);
+
+      const [extracted, ocrResult] = await Promise.all([apiPromise, ocrPromise]);
+
+      if (extracted) {
+        nextBillType = detectUtilityBillType(extracted.provider || '', extracted.rawTextSnippet || '');
+        if (['ELECTRICITY', 'WATER', 'GAS', 'BROADBAND', 'UTILITY'].includes((extracted.billType || '').toUpperCase())) {
+          nextBillType = extracted.billType.toUpperCase();
+        }
+        provider = extracted.provider || '';
+        consumerNumber = extracted.consumerNumber || '';
+        consumerName = extracted.consumerName || '';
+        dueDate = extracted.dueDate || '';
+        unitsConsumed = extracted.unitsConsumed || '';
+        billAmount = extracted.billAmount > 0 ? String(extracted.billAmount) : '';
+      }
+
+      if (ocrResult?.fullText) {
+        setExtractingMsg('Picking out consumer number, amount, and due date…');
+        const parsed = parseUtilityBillText(ocrResult.fullText);
+        if (!provider) {
+          nextBillType = detectUtilityBillType(parsed.providerName, ocrResult.fullText);
+        }
+        provider = provider || parsed.providerName || '';
+        consumerNumber = consumerNumber || parsed.consumerNo || '';
+        consumerName = consumerName || parsed.consumerName || '';
+        dueDate = dueDate || parsed.dueDate || '';
+        unitsConsumed = unitsConsumed || parsed.unitsConsumed || '';
+        billAmount = billAmount || (parsed.billAmount > 0 ? parsed.billAmount.toString() : '');
+      }
+
+      const hasFields = Boolean(consumerNumber || consumerName || (billAmount && Number(billAmount) > 0) || provider);
+      if (!hasFields) {
         Alert.alert(
-          'Scanning Not Available Here',
-          'Automatic bill reading runs on your phone and needs the Android app build. You can still type the bill details in and print the receipt.',
+          'Could not read this bill automatically',
+          'Check the photo is sharp and the whole bill is in frame — or type the details in yourself.',
           [{ text: 'Enter Manually', onPress: () => setScannerStep('edit') }]
         );
         return;
       }
 
-      setExtractingMsg('Reading the bill on your phone…');
-      const ocrResult = isPdf ? await recognizeBillFromPdf(uri) : await recognizeBillFromImage(uri);
-
-      setExtractingMsg('Picking out the bill details…');
-      const parsed = parseUtilityBillText(ocrResult.fullText);
-
-      setBillType(detectUtilityBillType(parsed.providerName, ocrResult.fullText));
-      setProvider(parsed.providerName || '');
-      setConsumerNumber(parsed.consumerNo || '');
-      setConsumerName(parsed.consumerName || '');
-      setDueDate(parsed.dueDate || '');
-      setUnitsConsumed(parsed.unitsConsumed || '');
-      setBillAmount(parsed.billAmount > 0 ? parsed.billAmount.toString() : '');
-
+      setBillType(nextBillType);
+      setProvider(provider);
+      setConsumerNumber(consumerNumber);
+      setConsumerName(consumerName);
+      setDueDate(dueDate);
+      setUnitsConsumed(unitsConsumed);
+      setBillAmount(billAmount);
       setScannerStep('edit');
     } catch (err: any) {
       console.error('Extraction error:', err);
@@ -216,10 +273,11 @@ export default function A4ToReceiptScreen() {
       const result = await ImagePicker.launchCameraAsync({
         quality: 0.85,
         allowsEditing: false,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        await processImageOrPdf(result.assets[0].uri, result.assets[0].mimeType || 'image/jpeg');
+        await processImageOrPdf(result.assets[0].uri, result.assets[0].mimeType || 'image/jpeg', result.assets[0].base64 || undefined);
       }
     } catch (e: any) {
       Alert.alert('Camera Error', e.message);
@@ -232,10 +290,11 @@ export default function A4ToReceiptScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.85,
         allowsEditing: false,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        await processImageOrPdf(result.assets[0].uri, result.assets[0].mimeType || 'image/jpeg');
+        await processImageOrPdf(result.assets[0].uri, result.assets[0].mimeType || 'image/jpeg', result.assets[0].base64 || undefined);
       }
     } catch (e: any) {
       Alert.alert('Gallery Error', e.message);
@@ -258,6 +317,60 @@ export default function A4ToReceiptScreen() {
     }
   };
 
+  const utilityBillToPrintSale = (bill: {
+    kioskName?: string;
+    billType?: string;
+    provider?: string;
+    consumerNumber?: string;
+    consumerName?: string;
+    dueDate?: string | null;
+    unitsConsumed?: string | null;
+    billAmount: number;
+    convenienceFee: number;
+    totalAmount: number;
+    receiptNumber?: string;
+    createdAt?: string;
+    paymentMode?: string;
+  }): PrintSaleData => {
+    const items: PrintSaleData['items'] = [
+      {
+        productName: `${(bill.provider || bill.billType || 'Utility bill').slice(0, 28)}`,
+        quantity: 1,
+        unitPrice: bill.billAmount,
+        total: bill.billAmount,
+      },
+    ];
+    if (bill.convenienceFee > 0) {
+      items.push({
+        productName: 'Convenience / Fee',
+        quantity: 1,
+        unitPrice: bill.convenienceFee,
+        total: bill.convenienceFee,
+      });
+    }
+    return {
+      invoiceNumber: bill.receiptNumber || 'BILL',
+      date: bill.createdAt
+        ? new Date(bill.createdAt).toLocaleDateString('en-GB')
+        : new Date().toLocaleDateString('en-GB'),
+      items,
+      subtotal: bill.billAmount + (bill.convenienceFee || 0),
+      totalDiscount: 0,
+      totalTax: 0,
+      grandTotal: bill.totalAmount,
+      paymentMethod: bill.paymentMode || 'CASH',
+      storeName: bill.kioskName || 'SEZNIK KIOSK',
+      footerMessage: 'Thank you! Keep this slip.',
+      consumerNo: bill.consumerNumber || undefined,
+      customerName: bill.consumerName || undefined,
+      dueDate: bill.dueDate || undefined,
+      providerName: bill.provider || undefined,
+      unitsConsumed: bill.unitsConsumed || undefined,
+      billType: bill.billType || 'ELECTRICITY',
+      convenienceFee: bill.convenienceFee || 0,
+    };
+  };
+
   const handlePrintAndSave = async () => {
     if (parsedBillAmount <= 0) {
       Alert.alert('Missing Bill Amount', 'Please enter a valid bill amount before printing.');
@@ -266,7 +379,6 @@ export default function A4ToReceiptScreen() {
 
     setIsPrinting(true);
     try {
-      // 1. Save to Database
       const saved = await createBill({
         kioskName: kioskTitle || 'SEZNIK KIOSK',
         billType: billType || 'ELECTRICITY',
@@ -283,31 +395,12 @@ export default function A4ToReceiptScreen() {
 
       setGeneratedBill(saved);
 
-      // 2. Print Thermal Slip
-      try {
-        await ThermalPrinterService.printUtilityBillSlip(
-          {
-            kioskName: saved.kioskName,
-            billType: saved.billType,
-            provider: saved.provider,
-            consumerNumber: saved.consumerNumber,
-            consumerName: saved.consumerName,
-            dueDate: saved.dueDate,
-            unitsConsumed: saved.unitsConsumed,
-            billAmount: saved.billAmount,
-            convenienceFee: saved.convenienceFee,
-            totalAmount: saved.totalAmount,
-            status: saved.status,
-            receiptNumber: saved.receiptNumber,
-            createdAt: saved.createdAt,
-          },
-          paperWidth || '58mm',
-          { autoCut: true }
-        );
-      } catch (printErr: any) {
-        console.warn('Printer warning:', printErr);
+      if (!saved?.receiptNumber && !saved?.id) {
+        throw new Error('The bill was not saved. Check your connection and try again.');
       }
 
+      setPreviewSaleData(utilityBillToPrintSale(saved));
+      setShowReceiptPreview(true);
       setScannerStep('success');
     } catch (err: any) {
       Alert.alert('Error Saving Bill', err?.message || 'Failed to save utility bill receipt');
@@ -338,30 +431,8 @@ export default function A4ToReceiptScreen() {
   };
 
   const handleReprintSlip = async (bill: UtilityBill) => {
-    try {
-      await ThermalPrinterService.printUtilityBillSlip(
-        {
-          kioskName: bill.kioskName,
-          billType: bill.billType,
-          provider: bill.provider,
-          consumerNumber: bill.consumerNumber,
-          consumerName: bill.consumerName,
-          dueDate: bill.dueDate,
-          unitsConsumed: bill.unitsConsumed,
-          billAmount: bill.billAmount,
-          convenienceFee: bill.convenienceFee,
-          totalAmount: bill.totalAmount,
-          status: bill.status,
-          receiptNumber: bill.receiptNumber,
-          createdAt: bill.createdAt,
-        },
-        paperWidth || '58mm',
-        { autoCut: true }
-      );
-      Alert.alert('Printed', `Receipt ${bill.receiptNumber} sent to thermal printer.`);
-    } catch (err: any) {
-      Alert.alert('Print Error', err?.message || 'Could not print receipt.');
-    }
+    setPreviewSaleData(utilityBillToPrintSale(bill));
+    setShowReceiptPreview(true);
   };
 
   const handleDeleteBill = (id: string, receiptNo: string) => {
@@ -695,7 +766,7 @@ export default function A4ToReceiptScreen() {
                   Upload A4 PDF Utility Bill
                 </Text>
                 <Text style={[styles.sourceSub, { color: theme.textSecondary }]}>
-                  Upload e-bills (Electricity, Water, Gas, Telecom) to extract CA number, consumer name, units, due date, and amount — 100% offline.
+                  Same extraction as the web kiosk: consumer number, name, units, due date, and amount. You can upload a PDF or photograph the bill.
                 </Text>
               </View>
 
@@ -717,6 +788,42 @@ export default function A4ToReceiptScreen() {
                   </View>
                   <ChevronRight size={20} color={BRAND_COLORS.blue600} />
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.sourceBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                  onPress={handlePickCamera}
+                >
+                  <View style={[styles.sourceBtnIcon, { backgroundColor: BRAND_COLORS.navyInk }]}>
+                    <Camera size={26} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.sourceBtnTextCol}>
+                    <Text style={[styles.sourceBtnTitle, { color: theme.textPrimary, fontWeight: '800' }]}>
+                      Photograph the bill
+                    </Text>
+                    <Text style={[styles.sourceBtnSub, { color: theme.textSecondary }]}>
+                      Capture a sharp photo of the full A4 page
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.sourceBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardBg }]}
+                  onPress={handlePickGallery}
+                >
+                  <View style={[styles.sourceBtnIcon, { backgroundColor: '#334155' }]}>
+                    <ImageIcon size={26} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.sourceBtnTextCol}>
+                    <Text style={[styles.sourceBtnTitle, { color: theme.textPrimary, fontWeight: '800' }]}>
+                      Choose photo from gallery
+                    </Text>
+                    <Text style={[styles.sourceBtnSub, { color: theme.textSecondary }]}>
+                      Use an existing photo of the bill
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -729,7 +836,7 @@ export default function A4ToReceiptScreen() {
                 {extractingMsg}
               </Text>
               <Text style={[styles.processingSub, { color: theme.textSecondary }]}>
-                Running high-precision OCR and schema verification...
+                Pulling consumer number, amount, due date, and provider from the bill…
               </Text>
             </View>
           )}
@@ -1072,6 +1179,16 @@ export default function A4ToReceiptScreen() {
           </View>
         </View>
       </Modal>
+
+      <ReceiptPreviewModal
+        visible={showReceiptPreview}
+        saleData={previewSaleData}
+        onClose={() => {
+          setShowReceiptPreview(false);
+          setPreviewSaleData(null);
+        }}
+        autoCloseAfterPrint={false}
+      />
     </SafeAreaView>
   );
 }

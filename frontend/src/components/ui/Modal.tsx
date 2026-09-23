@@ -47,7 +47,7 @@ export const Modal = ({ isOpen, onClose, title, size = 'md', children, footer }:
         role="dialog"
         aria-modal="true"
         className={clsx(
-          'relative z-10 bg-white dark:bg-dark-card dark:border dark:border-dark-border shadow-xl w-full max-h-[92dvh] sm:max-h-[90vh] flex flex-col min-w-0 pointer-events-auto',
+          'relative z-10 bg-white dark:bg-dark-card dark:border dark:border-dark-border shadow-xl w-full max-h-[min(92dvh,100%)] sm:max-h-[90vh] flex flex-col min-w-0 pointer-events-auto',
           'rounded-t-2xl sm:rounded-xl',
           sizeClasses[size]
         )}

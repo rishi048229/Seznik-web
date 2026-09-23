@@ -27,7 +27,7 @@ export const printJobsApi = {
 
   listPendingForAgent: async (): Promise<PrintJob[]> => {
     const res = await fetchApi<ApiEnvelope<PrintJob[]>>('/print-jobs/agent/pending');
-    return res.data;
+    return res.data || [];
   },
 
   getById: async (id: string): Promise<PrintJob> => {

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Platform
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Send, Inbox, Clock, CheckCircle2, XCircle, AlertTriangle, X, ChevronRight } from 'lucide-react-native';
-import { usePrintJobsAdmin } from '@/hooks/usePrintJobs';
+import { usePrintJobsAdmin, usePendingPrintJobsForAgent } from '@/hooks/usePrintJobs';
 import { PrintJob } from '@/types/printJob';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
@@ -33,13 +33,13 @@ export default function PrintJobsInboxScreen() {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 14);
-  const currentActorId = useAuthStore((s) => s.user?.id);
+  const currentActorId = useAuthStore((s) => s.user?.id || (s.user as any)?.uid);
   const canSend = useAuthStore((s) => s.hasPermission('canSendRemotePrint'));
 
   const [tab, setTab] = useState<'incoming' | 'sent'>('incoming');
   const [reassignTarget, setReassignTarget] = useState<PrintJob | null>(null);
 
-  const incoming = usePrintJobsAdmin({ targetAgentId: currentActorId });
+  const incoming = usePendingPrintJobsForAgent(true, 8000);
   const sent = usePrintJobsAdmin();
 
   const source = tab === 'incoming' ? incoming : sent;

@@ -97,6 +97,23 @@ export const cancelPrintJob = async (id: string): Promise<PrintJob> => {
   return res.data
 }
 
+export const listPendingPrintJobsForAgent = async (): Promise<PrintJob[]> => {
+  const res: ApiEnvelope<PrintJob[]> = await fetchApi('/print-jobs/agent/pending')
+  return res.data || []
+}
+
+export const updatePrintJobStatus = async (
+  id: string,
+  status: PrintJobStatus,
+  failureReason?: string
+): Promise<PrintJob> => {
+  const res: ApiEnvelope<PrintJob> = await fetchApi(`/print-jobs/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, failureReason }),
+  })
+  return res.data
+}
+
 export const reassignPrintJob = async (id: string, targetAgentId: string): Promise<PrintJob> => {
   const res: ApiEnvelope<PrintJob> = await fetchApi(`/print-jobs/${id}/reassign`, {
     method: 'POST',

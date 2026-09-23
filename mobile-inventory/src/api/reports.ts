@@ -134,6 +134,20 @@ export const reportsApi = {
     return fetchApi<DashboardStats>('/reports/dashboard');
   },
 
+  getRestaurantDashboard: async () => {
+    return fetchApi<{
+      runningCount: number;
+      ordersToday: number;
+      revenueToday: number;
+      occupancyPct: number;
+      avgWaitMinutes: number;
+      runningOrders: Array<{ id: string; orderNumber: number; status: string; tableName: string; createdAt: string; itemCount: number }>;
+      topItems: Array<{ name: string; qty: number; amount: number }>;
+      categories: Array<{ name: string; amount: number }>;
+      kitchen: { lowStock: number; outOfStock: number; tracked: number };
+    }>('/reports/restaurant-dashboard');
+  },
+
   getSalesReport: async (start?: string, end?: string): Promise<SalesReportData> => {
     const params = new URLSearchParams();
     if (start) params.append('start', start);

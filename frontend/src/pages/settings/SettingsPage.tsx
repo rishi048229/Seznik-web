@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -11,17 +12,19 @@ import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSe
 import { useLanguage } from '@/contexts/LanguageContext'
 
 import { LANGUAGES } from '@/i18n/translations'
-import { Spinner } from '@/components/ui/Spinner'
 import { SettingsPageSkeleton } from '@/components/ui/PageSkeleton'
 import { PermissionsAndAccounts } from './components/PermissionsAndAccounts'
-import { useAuth } from '@/contexts/AuthContext'
 import { SecurityPasswordSettings } from './components/SecurityPasswordSettings'
 import { KotSettingsFields } from '@/pages/kot/components/KotSettingsFields'
 import { mergeKotConfig } from '@/pages/kot/kotConfig'
 import type { KotConfig } from '@/types/settings.types'
-import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, Sparkles, ChefHat } from 'lucide-react'
+import { Check, Building2, UserRound, FileText, Bell, Users, ShieldCheck, Globe, ChefHat } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
+import { useAuth } from '@/contexts/AuthContext'
+import { isNavFeatureVisible } from '@/utils/businessFeatures'
+import { BUSINESS_TYPE_OPTIONS, type BusinessType } from '@/constants/businessTypes'
+import { BusinessTypeIcon } from '@/components/icons/BusinessTypeIcon'
 
 const DEFAULT_SETTINGS = {
   businessName: '',
@@ -42,16 +45,18 @@ const DEFAULT_SETTINGS = {
     termsLine1: '1. Goods once sold will not be taken back or exchanged',
     termsLine2: '2. All disputes are subject to local jurisdiction only',
     termsLine3: '',
-    showPrintTime: true,
   },
 }
 
 export const SettingsPage = () => {
   const pageTutorial = usePageTutorial('settings')
-  const { userProfile, permissions } = useAuth()
-  const canEditSettings = userProfile?.role === 'admin' || permissions?.canAccessSettings === true
-  const canManageAccounts = userProfile?.role === 'admin' || permissions?.canManageUsers === true
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('business')
+  useEffect(() => {
+    const raw = searchParams.get('tab')
+    if (!raw) return
+    setActiveTab(raw === 'staff' ? 'permissions' : raw)
+  }, [searchParams])
   const { data: settings, isLoading, isError, refetch } = useSettings()
   const [businessLogo, setBusinessLogo] = useState(settings?.businessLogoURL ?? '')
   const [prevLogo, setPrevLogo] = useState(settings?.businessLogoURL ?? '')
@@ -60,6 +65,32 @@ export const SettingsPage = () => {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const { t, language, setLanguage } = useLanguage()
+  const { user, userProfile, updateBusinessType } = useAuth()
+  const [selectedBusinessType, setSelectedBusinessType] = useState<BusinessType | null>(
+    userProfile?.businessType ?? null
+  )
+  const [isSavingBusinessType, setIsSavingBusinessType] = useState(false)
+
+  useEffect(() => {
+    if (userProfile?.businessType) {
+      setSelectedBusinessType(userProfile.businessType)
+    }
+  }, [userProfile?.businessType])
+
+  const handleSaveBusinessType = async (newType: BusinessType) => {
+    if (!newType || newType === userProfile?.businessType) return
+    setIsSavingBusinessType(true)
+    try {
+      await updateBusinessType(newType)
+      setSelectedBusinessType(newType)
+      toast.success(`Workspace switched to ${BUSINESS_TYPE_OPTIONS.find(o => o.id === newType)?.label}`)
+    } catch (err) {
+      toastError(err, 'Failed to update business type')
+    } finally {
+      setIsSavingBusinessType(false)
+    }
+  }
+  const showKotSettings = isNavFeatureVisible(userProfile?.businessType, 'kot')
 
   const current = settings ?? DEFAULT_SETTINGS
 
@@ -72,26 +103,24 @@ export const SettingsPage = () => {
     setKotForm(mergeKotConfig(settings?.kotConfig))
   }, [settings])
 
+  useEffect(() => {
+    if (!showKotSettings && activeTab === 'kot') {
+      setActiveTab('business')
+    }
+  }, [showKotSettings, activeTab])
+
   const settingsTabs = [
     { key: 'business', label: t('settings.businessProfile'), icon: Building2, description: t('settings.descBusiness') },
     { key: 'personal', label: t('settings.personalInfo'), icon: UserRound, description: t('settings.descPersonal') },
     { key: 'invoice', label: t('settings.editInvoice'), icon: FileText, description: t('settings.descInvoice') },
-    { key: 'kot', label: 'Kitchen / KOT', icon: ChefHat, description: 'Cafe, restaurant, charges, and kitchen slips' },
+    ...(showKotSettings
+      ? [{ key: 'kot', label: 'Kitchen / KOT', icon: ChefHat, description: 'Cafe, restaurant, charges, and kitchen slips' }]
+      : []),
     { key: 'notifications', label: t('settings.notifications'), icon: Bell, description: t('settings.descNotifications') },
     { key: 'permissions', label: t('settings.permissions'), icon: Users, description: t('settings.descPermissions') },
     { key: 'security', label: t('settings.security'), icon: ShieldCheck, description: t('settings.descSecurity') },
     { key: 'language', label: t('settings.language'), icon: Globe, description: t('settings.descLanguage') },
-  ].filter(tab => {
-    if (tab.key === 'language' || tab.key === 'security') return true
-    if (tab.key === 'permissions') return canManageAccounts
-    return canEditSettings
-  })
-
-  useEffect(() => {
-    if (!settingsTabs.some(tab => tab.key === activeTab)) {
-      setActiveTab(settingsTabs[0]?.key ?? 'language')
-    }
-  }, [activeTab, canEditSettings, canManageAccounts])
+  ]
 
   const activeTabMeta = settingsTabs.find(tab => tab.key === activeTab) ?? settingsTabs[0]
 
@@ -163,7 +192,10 @@ export const SettingsPage = () => {
           personalInfo:    curPersonal,
           invoiceConfig:   curInvoice,
           notificationConfig: curNotif,
-          receiptConfig:   curReceipt,
+          receiptConfig:   {
+            ...curReceipt,
+            logoURL: businessLogo || curReceipt.logoURL || '',
+          },
         })
         break
       case 'personal':
@@ -186,7 +218,6 @@ export const SettingsPage = () => {
       case 'invoice':
         handleSave(t('settings.invoiceSettingsLabel'), {
           receiptConfig: {
-            ...curReceipt,
             companyName:   val('settings-receipt-company'),
             address:       val('settings-receipt-address'),
             phone:         val('settings-receipt-phone'),
@@ -333,6 +364,7 @@ export const SettingsPage = () => {
                       setIsLogoUploading(false)
                     }}
                     previewSize="lg"
+                    enableBackgroundCleanup={true}
                     accept="image/png,image/jpeg,image/jpg,image/svg+xml"
                   />
                   {isLogoUploading && (
@@ -374,6 +406,58 @@ export const SettingsPage = () => {
                   id="settings-business-gstin"
                   placeholder="e.g. 27AAPFU0939F1ZV"
                 />
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                    Business Type & Workspace Mode
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Switching your business type adapts your navigation, POS screens, and catalog features. Product stock counts are safely preserved across modes.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    {BUSINESS_TYPE_OPTIONS.map((opt) => {
+                      const isSelected = (selectedBusinessType || userProfile?.businessType) === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedBusinessType(opt.id)
+                            handleSaveBusinessType(opt.id)
+                          }}
+                          disabled={isSavingBusinessType}
+                          className={`group relative flex flex-col text-left p-4 rounded-xl border transition-all ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/35 text-blue-950 dark:text-blue-100 ring-2 ring-blue-500/25 shadow-sm'
+                              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-dark-card text-gray-800 dark:text-gray-200 hover:shadow-xs'
+                          } ${isSavingBusinessType ? 'opacity-70 cursor-wait' : 'cursor-pointer'}`}
+                        >
+                          <div className="flex items-start justify-between w-full mb-3">
+                            <BusinessTypeIcon
+                              type={opt.id}
+                              selected={isSelected}
+                              containerSize="sm"
+                              size={20}
+                            />
+                            {isSelected ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white shadow-xs">
+                                <Check size={12} strokeWidth={3} />
+                              </span>
+                            ) : (
+                              <span className="w-5 h-5 rounded-full border border-gray-200 dark:border-gray-700 group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors" />
+                            )}
+                          </div>
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">
+                            {opt.label}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                            {opt.description}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('business')} loading={isPending} className="w-full sm:w-auto">
                     {hasSettings ? t('settings.updateBusinessProfile') : t('settings.saveBusinessProfile')}
@@ -386,20 +470,34 @@ export const SettingsPage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label={t('common.ownerName')}
-                    defaultValue={(current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ?? ''}
+                    defaultValue={
+                      (current as unknown as { personalInfo?: { ownerName?: string } }).personalInfo?.ownerName ||
+                      userProfile?.displayName ||
+                      user?.displayName ||
+                      ''
+                    }
                     id="settings-owner-name"
                     placeholder="e.g. Rajesh Kumar"
                   />
                   <Input
                     label={t('customers.phoneNumber')}
-                    defaultValue={(current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ?? ''}
+                    defaultValue={
+                      (current as unknown as { personalInfo?: { ownerPhone?: string } }).personalInfo?.ownerPhone ||
+                      userProfile?.phone ||
+                      current.businessPhone ||
+                      ''
+                    }
                     id="settings-owner-phone"
                     placeholder="+91 98765 43210"
                   />
                 </div>
                 <Input
                   label={t('common.address')}
-                  defaultValue={(current as unknown as { personalInfo?: { ownerAddress?: string } }).personalInfo?.ownerAddress ?? ''}
+                  defaultValue={
+                    (current as unknown as { personalInfo?: { ownerAddress?: string } }).personalInfo?.ownerAddress ||
+                    current.businessAddress ||
+                    ''
+                  }
                   id="settings-owner-address"
                   placeholder={t('settings.residentialAddressPlaceholder')}
                 />

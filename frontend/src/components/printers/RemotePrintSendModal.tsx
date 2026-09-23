@@ -37,9 +37,6 @@ export const RemotePrintSendModal = ({ isOpen, onClose, sale, onSent }: RemotePr
 
     const load = async () => {
       const uid = user?.uid || (user as UserProfile & { id?: string })?.id || ''
-      // Both sources on purpose: the staff roster is only readable by the business owner, while
-      // registered devices are readable by anyone in the business AND are the only proof that a
-      // person can actually receive a job.
       const [deviceList, staffList] = await Promise.all([
         listBusinessDevices().catch(() => [] as BusinessDeviceEntry[]),
         uid ? getAllUsers(uid).catch(() => [] as UserProfile[]) : Promise.resolve([] as UserProfile[]),
@@ -61,7 +58,7 @@ export const RemotePrintSendModal = ({ isOpen, onClose, sale, onSent }: RemotePr
   const targets = useMemo(() => {
     const byId = new Map<string, { id: string; name: string }>()
     for (const member of staff) {
-      const id = (member as UserProfile & { id?: string }).id
+      const id = (member as UserProfile & { id?: string }).id || member.uid
       if (id) byId.set(id, { id, name: member.displayName || member.email || 'Staff' })
     }
     for (const device of devices) {
@@ -74,7 +71,7 @@ export const RemotePrintSendModal = ({ isOpen, onClose, sale, onSent }: RemotePr
     if (!sale || !selectedAgentId) return
     setIsSending(true)
     try {
-      const job = await createPrintJob({ saleId: sale.id, targetAgentId: selectedAgentId })
+      const job = await createPrintJob({ saleId: sale.id, targetAgentId: selectedAgentId, paperWidth: '80mm' })
       toast.success('Sent — they will get a notification to accept and print it.')
       onSent?.(job.id)
       onClose()
@@ -119,8 +116,8 @@ export const RemotePrintSendModal = ({ isOpen, onClose, sale, onSent }: RemotePr
             <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Loading your team…</p>
           ) : targets.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400 py-4 leading-relaxed">
-              Nobody is available to send to yet. Add a staff account under Settings → Permissions &amp; Accounts, and
-              make sure they have signed in on the Seznik mobile app at least once.
+              Nobody is available to send to yet. Add a staff account under Settings → Permissions &amp; Accounts.
+              Agents signed in on web or the mobile app can accept the request from Requests.
             </p>
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto">
@@ -145,9 +142,9 @@ export const RemotePrintSendModal = ({ isOpen, onClose, sale, onSent }: RemotePr
                     )}
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-800 dark:text-gray-100 truncate">{target.name}</p>
-                      <p className={`text-xs flex items-center gap-1 ${hasDevice ? 'text-emerald-600' : 'text-red-500'}`}>
+                      <p className={`text-xs flex items-center gap-1 ${hasDevice ? 'text-emerald-600' : 'text-sky-600'}`}>
                         <Smartphone size={11} />
-                        {hasDevice ? 'Phone ready to receive' : 'No phone registered — they may not get it'}
+                        {hasDevice ? 'Phone ready to receive' : 'Can accept on web or app'}
                       </p>
                     </div>
                   </button>

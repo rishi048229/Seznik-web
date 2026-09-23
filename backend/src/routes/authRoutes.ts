@@ -20,6 +20,8 @@ import {
   sendForgotPasswordOtp,
   verifyForgotPasswordOtp,
   resetPasswordWithOtp,
+  requestAgentOtp,
+  verifyAgentOtp,
   generateQrLogin,
   getQrLoginStatus,
   consumeQrLogin,
@@ -40,6 +42,8 @@ router.post('/verify-access-code', verifyAccessCode);
 router.post('/forgot-password/send-otp', sendForgotPasswordOtp);
 router.post('/forgot-password/verify-otp', verifyForgotPasswordOtp);
 router.post('/forgot-password/reset-password', resetPasswordWithOtp);
+router.post('/agent/request-otp', requestAgentOtp);
+router.post('/agent/verify-otp', verifyAgentOtp);
 
 router.post('/register', register);
 router.post('/login', login);
@@ -57,7 +61,7 @@ router.patch('/business-type', protect, updateBusinessType);
 
 // Managed users (sub-account configuration). :adminUid in the path is kept for
 // the frontend contract, but the authenticated user is the source of truth.
-router.get('/managed-users/:adminUid', protect, requirePermission('canManageUsers'), getManagedUsers);
+router.get('/managed-users/:adminUid', protect, getManagedUsers);
 router.post('/managed-users/:adminUid', protect, requirePermission('canManageUsers'), createManagedUser);
 router.post('/managed-users/:adminUid/bulk', protect, requirePermission('canManageUsers'), syncManagedUsers);
 router.post('/managed-users/:adminUid/password', protect, requirePermission('canManageUsers'), updateManagedUserPassword);

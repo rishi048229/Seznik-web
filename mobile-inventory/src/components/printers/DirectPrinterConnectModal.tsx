@@ -1046,7 +1046,9 @@ export const DirectPrinterConnectModal: React.FC<DirectPrinterConnectModalProps>
                     const isThisConnecting = connectingId === d.address;
                     const isThisActive = Boolean(
                       td404ConnectedDevice &&
-                      connectedPrinterModel === selectedModel
+                      connectedPrinterModel === selectedModel &&
+                      (td404ConnectedDevice.address === d.address ||
+                        td404ConnectedDevice.name === d.name)
                     );
 
                     return (

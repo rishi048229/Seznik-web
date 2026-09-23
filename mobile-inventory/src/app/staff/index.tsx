@@ -280,6 +280,7 @@ export default function StaffScreen() {
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0, 12);
   const modalTopPad = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0, 12);
   const modalBottomPad = Math.max(insets.bottom, 12);
+  const isAgent = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
   const { staff, isLoading, isRefetching, isError, refetch, createStaff, isCreating, updateStaff, removeStaff, isSyncing } =
     useManagedUsers();
 
@@ -310,6 +311,26 @@ export default function StaffScreen() {
     });
   }, [staff, search]);
 
+  if (isAgent) {
+    return (
+      <ScreenBackground color={theme.bg}>
+        <View style={{ flex: 1, paddingTop: topPadding, paddingHorizontal: 20, justifyContent: 'center' }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 8 }}>
+            Staff management is admin-only
+          </Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
+            Only the store owner can create or edit agent accounts. Switch to Store Admin from the sidebar to manage staff.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ marginTop: 20, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: BRAND_COLORS.blue600, borderRadius: 12, alignSelf: 'flex-start' }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </ScreenBackground>
+    );
+  }
   const applyRoleChange = (next: Role) => {
     setRole(next);
     if (next === 'admin') {
@@ -320,6 +341,11 @@ export default function StaffScreen() {
   };
 
   const handleOpenAdd = () => {
+    const agentCount = staff.filter((member) => (member.role || 'agent') !== 'admin').length;
+    if (agentCount >= 2) {
+      Alert.alert('Agent limit reached', 'Each store can have at most 2 agent accounts.');
+      return;
+    }
     setEditingStaff(null);
     setDisplayName('');
     setEmail('');
@@ -340,7 +366,11 @@ export default function StaffScreen() {
   };
 
   const handleSaveStaff = async () => {
-    if (!email.trim()) {
+    if (!editingStaff && !email.trim()) {
+      Alert.alert('Validation', 'Email is required');
+      return;
+    }
+    if (editingStaff && !email.trim() && editingStaff.email) {
       Alert.alert('Validation', 'Email is required');
       return;
     }
@@ -542,7 +572,14 @@ export default function StaffScreen() {
                         <Text style={[styles.metaText, { color: theme.textSecondary }]} numberOfLines={1}>
                           {item.email}
                         </Text>
-                      ) : null}
+                      ) : (
+                        <Text style={[styles.metaText, { color: theme.textSecondary }]}>OTP agent</Text>
+                      )}
+                      <Text style={[styles.metaText, { color: theme.textSecondary }]} numberOfLines={1}>
+                        {item.lastSeenAt
+                          ? `Last seen ${new Date(item.lastSeenAt).toLocaleString()}`
+                          : 'Not seen yet'}
+                      </Text>
                       {!showColumns ? (
                         <View style={{ marginTop: 8 }}>
                           <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
@@ -654,6 +691,8 @@ export default function StaffScreen() {
                   placeholderTextColor="#94A3B8"
                 />
 
+                {editingStaff && !editingStaff.email ? null : (
+                <>
                 <Text style={[styles.label, { color: theme.textPrimary }]}>
                   {editingStaff
                     ? t('newPasswordOptional', 'New password (leave blank to keep current)')
@@ -670,6 +709,8 @@ export default function StaffScreen() {
                   placeholder={editingStaff ? '••••••••' : t('minChars', 'Min 6 characters')}
                   placeholderTextColor="#94A3B8"
                 />
+                </>
+                )}
 
                 <RolePicker value={role} onChange={applyRoleChange} theme={theme} t={t} />
 

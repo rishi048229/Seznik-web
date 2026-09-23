@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
 import {
   ChefHat,
   Plus,
@@ -51,6 +52,7 @@ export default function KotOrdersScreen() {
   const [selectedType, setSelectedType] = useState<KOTOrderType | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('active');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
 
   const activeStatuses: KOTOrderStatus[] =
     selectedStatus === 'active'
@@ -155,6 +157,12 @@ export default function KotOrdersScreen() {
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setShowPrinterModal(true)}
+                style={[styles.actionTopBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+              >
+                <Printer size={16} color={BRAND_COLORS.blue600} />
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => router.push('/kot/tables' as any)}
                 style={[styles.actionTopBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
@@ -415,6 +423,11 @@ export default function KotOrdersScreen() {
             />
           )}
         </View>
+        <DirectPrinterConnectModal
+          visible={showPrinterModal}
+          onClose={() => setShowPrinterModal(false)}
+          onConnected={() => setShowPrinterModal(false)}
+        />
       </View>
     </ScreenBackground>
   );

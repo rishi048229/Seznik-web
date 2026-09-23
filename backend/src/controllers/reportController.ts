@@ -966,3 +966,97 @@ export const closeDayRegister = async (req: Request, res: Response) => {
     handleApiError(res, error, 'Failed to close day register');
   }
 };
+
+/** One payload for the restaurant dashboard: stats, running KOTs, top sellers, kitchen alerts. */
+export const getRestaurantDashboard = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+    const todayStart = startOfDay(new Date());
+    const runningStatuses = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
+
+    const [running, todayOrders, todaySales, tables, ingredients] = await Promise.all([
+      prisma.kOTOrder.findMany({
+        where: { userId, status: { in: runningStatuses } },
+        include: { table: true, items: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      prisma.kOTOrder.count({ where: { userId, createdAt: { gte: todayStart } } }),
+      prisma.sale.findMany({
+        where: { userId, createdAt: { gte: todayStart }, status: { not: 'cancelled' } },
+        select: { id: true, invoiceNumber: true, grandTotal: true, createdAt: true, items: true },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      prisma.restaurantTable.findMany({ where: { userId, isActive: true }, select: { id: true, isActive: true } }),
+      prisma.kitchenIngredient.findMany({
+        where: { userId },
+        select: { currentStock: true, lowStockThreshold: true },
+      }).catch(() => [] as Array<{ currentStock: number; lowStockThreshold: number }>),
+    ]);
+
+    const occupied = await prisma.kOTOrder.findMany({
+      where: { userId, status: { in: runningStatuses }, tableId: { not: null } },
+      select: { tableId: true },
+      distinct: ['tableId'],
+    });
+    const occupancyPct = tables.length
+      ? Math.round((occupied.length / tables.length) * 100)
+      : 0;
+
+    const waits = running
+      .map((o) => (Date.now() - new Date(o.createdAt).getTime()) / 60000)
+      .filter((n) => Number.isFinite(n));
+    const avgWaitMinutes = waits.length
+      ? Math.round(waits.reduce((a, b) => a + b, 0) / waits.length)
+      : 0;
+
+    const itemTotals = new Map<string, { name: string; qty: number; amount: number; category: string }>();
+    for (const sale of todaySales) {
+      const items = Array.isArray(sale.items) ? (sale.items as any[]) : [];
+      for (const it of items) {
+        const name = String(it.productName || it.name || 'Item');
+        const prev = itemTotals.get(name) || { name, qty: 0, amount: 0, category: String(it.category || 'Menu') };
+        prev.qty += Number(it.quantity) || 0;
+        prev.amount += Number(it.total) || (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0);
+        itemTotals.set(name, prev);
+      }
+    }
+    const topItems = Array.from(itemTotals.values()).sort((a, b) => b.qty - a.qty).slice(0, 5);
+    const categories = new Map<string, number>();
+    for (const row of itemTotals.values()) {
+      categories.set(row.category, (categories.get(row.category) || 0) + row.amount);
+    }
+
+    const revenueToday = todaySales.reduce((s, sale) => s + (sale.grandTotal || 0), 0);
+    const lowStock = ingredients.filter((i) => i.currentStock <= i.lowStockThreshold && i.currentStock > 0).length;
+    const outOfStock = ingredients.filter((i) => i.currentStock <= 0).length;
+
+    res.json({
+      runningCount: running.length,
+      ordersToday: todayOrders,
+      revenueToday,
+      occupancyPct,
+      avgWaitMinutes,
+      runningOrders: running.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        tableName: o.table?.name || o.partyLabel || 'Walk-in',
+        createdAt: o.createdAt,
+        itemCount: o.items.length,
+      })),
+      topItems,
+      categories: Array.from(categories.entries()).map(([name, amount]) => ({ name, amount })),
+      kitchen: { lowStock, outOfStock, tracked: ingredients.length },
+      recentSales: todaySales.slice(0, 5).map((s) => ({
+        id: s.id,
+        invoiceNumber: s.invoiceNumber,
+        grandTotal: s.grandTotal,
+        createdAt: s.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    handleApiError(res, error, 'Failed to load restaurant dashboard');
+  }
+};

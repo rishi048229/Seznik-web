@@ -157,6 +157,16 @@ export async function initializeNotificationChannel(): Promise<void> {
       enableVibrate: true,
       showBadge: true,
     });
+    await Notifications.setNotificationChannelAsync('daybook-alerts', {
+      name: 'Daybook & Sales Summary',
+      description: 'End-of-day sales and cashflow reminders.',
+      importance: Notifications.AndroidImportance?.HIGH ?? 4,
+      vibrationPattern: [0, 200, 100, 200],
+      lightColor: '#10B981',
+      enableLights: true,
+      enableVibrate: true,
+      showBadge: true,
+    });
     isChannelInitialized = true;
   } catch (err) {
     console.warn('[NotificationService] Failed to set Android notification channel:', err);
@@ -441,5 +451,50 @@ export function subscribeToNotificationResponses(onResponse: (data: any) => void
     };
   } catch {
     return () => {};
+  }
+}
+
+/**
+ * Schedules a repeating local reminder so daybook closing still surfaces when the app is closed
+ * (remote Expo push alone can miss Android Doze / missing FCM config).
+ */
+export async function scheduleDailyDaybookReminder(hour = 21, minute = 0): Promise<void> {
+  if (Platform.OS === 'web') return;
+
+  const Notifications = getSafeNotificationsModule();
+  if (
+    !Notifications ||
+    typeof Notifications.scheduleNotificationAsync !== 'function' ||
+    typeof Notifications.getAllScheduledNotificationsAsync !== 'function'
+  ) {
+    return;
+  }
+
+  try {
+    await initializeNotificationChannel();
+    const existing = await Notifications.getAllScheduledNotificationsAsync();
+    const already = (existing || []).some(
+      (n: any) => n?.content?.data?.type === 'daybook' && n?.identifier === 'seznik-daybook-daily'
+    );
+    if (already) return;
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'seznik-daybook-daily',
+      content: {
+        title: 'Daybook closing reminder',
+        body: 'Review today’s cashflow and settle the daybook before you leave.',
+        data: { type: 'daybook', screen: '/credits' },
+        sound: true,
+        ...(Platform.OS === 'android' ? { channelId: 'daybook-alerts' } : {}),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes?.DAILY || 'daily',
+        hour,
+        minute,
+        ...(Platform.OS === 'android' ? { channelId: 'daybook-alerts' } : {}),
+      },
+    });
+  } catch (err) {
+    console.warn('[NotificationService] Failed to schedule daybook reminder:', err);
   }
 }

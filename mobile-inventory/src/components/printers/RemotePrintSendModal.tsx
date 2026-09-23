@@ -23,7 +23,7 @@ export const RemotePrintSendModal: React.FC<RemotePrintSendModalProps> = ({ visi
   const handleSubmit = async (agentId: string) => {
     if (!sale) return;
     try {
-      const job = await sendJob({ saleId: sale.id, targetAgentId: agentId });
+      const job = await sendJob({ saleId: sale.id, targetAgentId: agentId, paperWidth: '80mm' });
       onClose();
       onSent?.(job);
     } catch (err: any) {

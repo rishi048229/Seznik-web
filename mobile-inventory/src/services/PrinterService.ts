@@ -142,6 +142,9 @@ export interface PrintSaleData {
   billingPeriod?: string;
   providerName?: string;
   unitsConsumed?: string;
+  /** Utility-bill slip fields — when set, print uses UtilityReceiptSlip layout. */
+  billType?: string;
+  convenienceFee?: number;
   amountAfterDueDate?: number;
   orderType?: 'walk_in' | 'delivery';
   deliveryAddress?: string;
@@ -3471,7 +3474,7 @@ class ThermalPrinterServiceManager {
       const { usePrinterStore } = require('../store/usePrinterStore');
       const model = usePrinterStore.getState().connectedPrinterModel;
       if (model === 'rudra' || model === 'tejas') {
-        if (this.isTd404Supported() && (await this.td404IsConnected())) return 'td404';
+        return 'td404';
       }
       if (model === 'tej') {
         if (this.isYxLabelPrinterAvailable() && (await YxLabelPrinter?.isConnected())) return 'yx';
@@ -3527,7 +3530,13 @@ class ThermalPrinterServiceManager {
    */
   private async printSpecOnLabelPrinter(spec: JoshLabelSpec): Promise<boolean> {
     const kind = await this.getConnectedLabelPrinterKind();
-    if (kind === 'td404' && Td404LabelPrinter) {
+    if (kind === 'td404') {
+      if (!Td404LabelPrinter) {
+        throw new Error('Rudra/Tejas printer module is not available on this device');
+      }
+      if (!(await this.td404IsConnected())) {
+        throw new Error('Connect the Rudra or Tejas printer first');
+      }
       return await Td404LabelPrinter.printLabel(spec);
     }
     if (kind === 'yx' && YxLabelPrinter) {
@@ -4112,54 +4121,32 @@ class ThermalPrinterServiceManager {
   }
 
   /**
-   * Prints a formatted thermal sale receipt on a connected TD-404 printer (SEZNIK RUDRA / TEJAS)
-   * in continuous roll mode (gapType: 0), supporting 80mm (48-col / 576 dots) & 58mm (32-col / 384 dots) widths.
+   * Prints already-formatted receipt text on Rudra/Tejas using TSPL continuous mode.
+   * ESC/POS text on these printers often prints nothing and then drops Bluetooth.
    */
-  public async printReceiptViaTd404(
-    data: PrintSaleData,
-    paperWidth: '58mm' | '80mm' = '80mm',
-    options: ReceiptPrintOptions = {}
+  public async printFormattedTextViaTd404(
+    text: string,
+    paperWidth: '58mm' | '80mm' = '80mm'
   ): Promise<boolean> {
     if (!Td404LabelPrinter) return false;
-
-    const is80 = paperWidth === '80mm';
-    const printableWidth = is80 ? 72 : 48; // 72mm active head (576 dots) for 80mm, 48mm active head (384 dots) for 58mm
-    const elements: JoshLabelElement[] = [];
-    let y = is80 ? 4 : 3;
-
-    // 1. Store Logo
-    const logoUrl = data.storeLogoUrl || options.storeLogoUrl;
-    if (logoUrl) {
-      const logoW = Math.min(printableWidth * 0.65, is80 ? 48 : 32);
-      const logoH = logoW * 0.6;
-      elements.push({
-        type: 'image',
-        uri: logoUrl,
-        x: (printableWidth - logoW) / 2,
-        y,
-        width: logoW,
-        height: logoH,
-      });
-      y += logoH + (is80 ? 2.5 : 2.0);
+    if (!(await this.td404IsConnected())) {
+      throw new Error('Rudra/Tejas printer is not connected. Open printer connect and link it again.');
     }
 
-    // 2. Generate formatted receipt text
-    const receiptText = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
-    const lines = receiptText.split(/\r?\n/);
-    // Must match the width formatReceiptText actually padded to, which depends on the chosen
-    // receipt font (Font B is 64 cols at 80mm, not 48). Hardcoding 48 here made every line of a
-    // compact-font receipt render against the wrong grid.
-    const colsTarget = receiptFontCols(paperWidth, options?.receiptFont);
+    const is80 = paperWidth === '80mm';
+    const printableWidth = is80 ? 72 : 48;
+    const colsTarget = is80 ? 48 : 32;
+    const baseFontH = is80 ? 2.1 : 2.5;
+    const elements: JoshLabelElement[] = [];
+    let y = is80 ? 2 : 3;
+    const sanitized = this.sanitizeForThermalPrint(text);
     const dividerDouble = '='.repeat(colsTarget);
     const dividerSingle = '-'.repeat(colsTarget);
-    // Height is a hint only — `monospaceCols` below is what actually pins the grid to the full
-    // print-head width (see drawElementOnCanvas in the native module).
-    const baseFontH = 2.5;
 
-    for (const rawLine of lines) {
+    for (const rawLine of sanitized.split(/\r?\n/)) {
       const trimmed = rawLine.trim();
       if (!trimmed) {
-        y += is80 ? 2.0 : 1.8;
+        y += is80 ? 1.0 : 1.4;
         continue;
       }
       if (/^[=-]{8,}$/.test(trimmed)) {
@@ -4177,7 +4164,145 @@ class ThermalPrinterServiceManager {
           monospace: true,
           monospaceCols: colsTarget,
         });
-        y += is80 ? 3.0 : 2.8;
+        y += is80 ? 2.1 : 2.6;
+        continue;
+      }
+
+      const colMatch = rawLine.match(/^(\s*\S(?:.*?\S)?)\s{2,}(\S.*)$/);
+      if (colMatch) {
+        const leftPart = colMatch[1].trim();
+        const rightPart = colMatch[2].trim();
+        const isTotalLine = /^(total|grand\s*total|net\s*payable|amount\s*paid|balance|total received)/i.test(leftPart);
+        const fontH = isTotalLine ? (is80 ? 3.2 : 3.0) : baseFontH;
+        elements.push({
+          type: 'text',
+          value: leftPart,
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: fontH,
+          bold: isTotalLine,
+          align: 0,
+          fontFamily: 'monospace',
+          monospace: true,
+          ...(isTotalLine ? {} : { monospaceCols: colsTarget }),
+        });
+        elements.push({
+          type: 'text',
+          value: rightPart,
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: fontH,
+          bold: isTotalLine,
+          align: 2,
+          fontFamily: 'monospace',
+          monospace: true,
+          ...(isTotalLine ? {} : { monospaceCols: colsTarget }),
+        });
+        y += fontH + (is80 ? 0.5 : 0.8);
+        continue;
+      }
+
+      const isHeader = /^[A-Z0-9\s.,&/-]{4,}$/.test(trimmed);
+      const fontH = isHeader ? (is80 ? 2.6 : 3.0) : baseFontH;
+      elements.push({
+        type: 'text',
+        value: trimmed,
+        x: 0,
+        y,
+        width: printableWidth,
+        fontHeight: fontH,
+        bold: isHeader,
+        align: isHeader ? 1 : 0,
+        fontFamily: 'monospace',
+        monospace: true,
+        ...(isHeader ? {} : { monospaceCols: colsTarget }),
+      });
+      y += fontH + (is80 ? 0.45 : 0.8);
+    }
+
+    const totalHeightMm = Math.max(30, Math.ceil(y + 8));
+    return await Td404LabelPrinter.printLabel({
+      widthMm: is80 ? 80 : 58,
+      heightMm: totalHeightMm,
+      rotation: 0,
+      copies: 1,
+      gapMm: 0,
+      gapType: 0,
+      speed: 4,
+      darkness: 12,
+      elements,
+    });
+  }
+
+  /**
+   * Prints a formatted thermal sale receipt on a connected TD-404 printer (SEZNIK RUDRA / TEJAS)
+   * in continuous roll mode (gapType: 0), supporting 80mm (48-col / 576 dots) & 58mm (32-col / 384 dots) widths.
+   */
+  public async printReceiptViaTd404(
+    data: PrintSaleData,
+    paperWidth: '58mm' | '80mm' = '80mm',
+    options: ReceiptPrintOptions = {}
+  ): Promise<boolean> {
+    if (!Td404LabelPrinter) return false;
+
+    const is80 = paperWidth === '80mm';
+    const printableWidth = is80 ? 72 : 48; // 72mm active head (576 dots) for 80mm, 48mm active head (384 dots) for 58mm
+    const elements: JoshLabelElement[] = [];
+    let y = is80 ? 2 : 3;
+
+    // 1. Store Logo
+    const logoUrl = data.storeLogoUrl || options.storeLogoUrl;
+    if (logoUrl) {
+      const logoW = Math.min(printableWidth * 0.65, is80 ? 48 : 32);
+      const logoH = logoW * 0.6;
+      elements.push({
+        type: 'image',
+        uri: logoUrl,
+        x: (printableWidth - logoW) / 2,
+        y,
+        width: logoW,
+        height: logoH,
+      });
+      y += logoH + (is80 ? 1.4 : 2.0);
+    }
+
+    // 2. Generate formatted receipt text
+    const receiptText = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
+    const lines = receiptText.split(/\r?\n/);
+    // Must match the width formatReceiptText actually padded to, which depends on the chosen
+    // receipt font (Font B is 64 cols at 80mm, not 48). Hardcoding 48 here made every line of a
+    // compact-font receipt render against the wrong grid.
+    const colsTarget = receiptFontCols(paperWidth, options?.receiptFont);
+    const dividerDouble = '='.repeat(colsTarget);
+    const dividerSingle = '-'.repeat(colsTarget);
+    // Height is a hint only — `monospaceCols` below is what actually pins the grid to the full
+    // print-head width (see drawElementOnCanvas in the native module).
+    const baseFontH = is80 ? 2.1 : 2.5;
+
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) {
+        y += is80 ? 1.0 : 1.8;
+        continue;
+      }
+      if (/^[=-]{8,}$/.test(trimmed)) {
+        const isDouble = trimmed.startsWith('=');
+        elements.push({
+          type: 'text',
+          value: isDouble ? dividerDouble : dividerSingle,
+          x: 0,
+          y,
+          width: printableWidth,
+          fontHeight: baseFontH,
+          bold: false,
+          align: 0,
+          fontFamily: 'monospace',
+          monospace: true,
+          monospaceCols: colsTarget,
+        });
+        y += is80 ? 2.1 : 2.8;
         continue;
       }
 
@@ -4218,13 +4343,13 @@ class ThermalPrinterServiceManager {
           monospace: true,
           ...(gridCols ? { monospaceCols: gridCols } : {}),
         });
-        y += fontH + (is80 ? 1.2 : 1.0);
+        y += fontH + (is80 ? 0.5 : 1.0);
         continue;
       }
 
       const isCentered = rawLine.startsWith('    ') || rawLine.startsWith('\t');
       const isHeader = y < 35 && /^[A-Z0-9\s.,&-]{4,}$/.test(trimmed);
-      const fontH = isHeader ? (is80 ? 3.8 : 3.4) : (options.fontSize === 'large' ? 3.2 : baseFontH);
+      const fontH = isHeader ? (is80 ? 2.8 : 3.4) : (options.fontSize === 'large' ? 3.2 : baseFontH);
 
       elements.push({
         type: 'text',
@@ -4240,13 +4365,13 @@ class ThermalPrinterServiceManager {
         // Headers are intentionally larger than the grid, so only body lines get pinned to it.
         ...(isHeader ? {} : { monospaceCols: colsTarget }),
       });
-      y += fontH + (is80 ? 1.1 : 0.9);
+      y += fontH + (is80 ? 0.45 : 0.9);
     }
 
     // 3. Payment QR Code (UPI)
     const upiPayload = this.upiPayPayload(data);
     if (upiPayload && (options as any).enableBillQrCode !== false) {
-      const qrSide = Math.min(is80 ? 32 : 24, printableWidth * 0.52);
+      const qrSide = Math.min(is80 ? 24 : 24, printableWidth * 0.42);
       y += 2;
       elements.push({
         type: 'qrcode',
@@ -4369,7 +4494,7 @@ class ThermalPrinterServiceManager {
     const receiptText = this.sanitizeForThermalPrint(this.formatReceiptText(data, paperWidth, options));
     const lines = receiptText.split(/\r?\n/);
 
-    const colsTarget = paperWidth === '80mm' ? 48 : 32;
+    const colsTarget = receiptFontCols(paperWidth, options?.receiptFont);
     const dividerDouble = '='.repeat(colsTarget);
     const dividerSingle = '-'.repeat(colsTarget);
 
@@ -4395,6 +4520,7 @@ class ThermalPrinterServiceManager {
           align: 1, // Center
           fontFamily: 'monospace',
           monospace: true,
+          monospaceCols: colsTarget,
         });
         y += 2.8;
         continue;
@@ -4951,15 +5077,9 @@ class ThermalPrinterServiceManager {
     }
 
     const headMm = await this.getJoshHeadWidthMm();
-    const fit = headMm > 0 && rawWidthMm > headMm ? headMm / rawWidthMm : 1;
-    const widthMm = rawWidthMm * fit;
-    const heightMm = rawHeightMm * fit;
-    console.log(
-      `[PrinterService] printLabelViaJosh: kind=${await this.getConnectedLabelPrinterKind()} ` +
-      `rawW=${rawWidthMm} rawH=${rawHeightMm} headMm=${headMm} fit=${fit} -> sentW=${widthMm} sentH=${heightMm}`
-    );
-
-    const elements = await this.buildJoshElementsForTemplate(product, template, fit);
+    // Do NOT pre-scale here — Josh native buildLabelBitmap already fits to head width.
+    // Scaling in both places caused slight left/small misalignment on die-cut labels.
+    const elements = await this.buildJoshElementsForTemplate(product, template, 1);
 
     if (elements.length === 0) {
       console.warn(
@@ -4979,9 +5099,13 @@ class ThermalPrinterServiceManager {
     }
 
     const gapType = this.getLabelPaperMode() === 'continuous' ? 0 : 2;
+    console.log(
+      `[PrinterService] printLabelViaJosh: kind=${await this.getConnectedLabelPrinterKind()} ` +
+      `w=${rawWidthMm} h=${rawHeightMm} headMm=${headMm} elements=${elements.length}`
+    );
     return await this.printSpecOnLabelPrinter({
-      widthMm,
-      heightMm,
+      widthMm: rawWidthMm,
+      heightMm: rawHeightMm,
       rotation: 0,
       copies: Math.max(1, copies),
       gapMm: this.safeMm(labelGapMm, 3),
@@ -6201,10 +6325,14 @@ class ThermalPrinterServiceManager {
     savedWidth: '58mm' | '80mm',
     savedWidthSource: 'default' | 'user'
   ): '58mm' | '80mm' {
+    // Explicit caller/store choice always wins — including 80mm on Rudra/Tejas and 58mm when
+    // the merchant deliberately selected it. Hardware defaults only apply when nobody chose.
     if (requested === '58mm' || requested === '80mm') return requested;
-    if (savedWidthSource === 'user') return savedWidth;
+    if (savedWidthSource === 'user' && (savedWidth === '58mm' || savedWidth === '80mm')) {
+      return savedWidth;
+    }
     if (model === 'rudra' || model === 'tejas') return '80mm';
-    return savedWidth;
+    return savedWidth === '80mm' ? '80mm' : '58mm';
   }
 
   /**
@@ -6243,15 +6371,14 @@ class ThermalPrinterServiceManager {
       options.autoCut !== undefined ? options.autoCut : printerState.autoCut;
     const effectiveCopies = Math.max(1, options.copies || printerState.printCopies || 1);
     const currentModel = printerState.connectedPrinterModel;
-    const effectivePaperWidth = this.resolvePaperWidth(
-      paperWidth,
-      currentModel,
-      printerState.paperWidth,
-      printerState.paperWidthSource
-    );
 
     const effectiveOptions: ReceiptPrintOptions = {
       ...options,
+      template: options.template || this.resolveActiveTemplate(options),
+      customTemplate:
+        options.customTemplate !== undefined
+          ? options.customTemplate
+          : this.resolveActiveCustomTemplate(options),
       receiptLogoSize: effectiveLogoSize,
       receiptQrSize: effectiveQrSize,
       fontSize: effectiveFontSize,
@@ -6261,6 +6388,19 @@ class ThermalPrinterServiceManager {
       autoCut: effectiveAutoCut,
       copies: effectiveCopies,
     };
+
+    // Custom receipt templates can declare their own paper width — honour it when the
+    // caller did not already force a width (so Printers > Templates selections stick).
+    const customPaper = (effectiveOptions.customTemplate as any)?.paperWidth as '58mm' | '80mm' | undefined;
+    const widthForResolve =
+      paperWidth ||
+      (customPaper === '58mm' || customPaper === '80mm' ? customPaper : undefined);
+    const effectivePaperWidth = this.resolvePaperWidth(
+      widthForResolve,
+      currentModel,
+      printerState.paperWidth,
+      printerState.paperWidthSource
+    );
 
     const fallbackProfile = resolveStoreProfile(getCachedSettings(), useAuthStore.getState().user);
     const copies = effectiveCopies;
@@ -6278,12 +6418,16 @@ class ThermalPrinterServiceManager {
 
     try {
       // 1. Direct TD-404 (SEZNIK RUDRA / TEJAS) continuous roll printing
-      const isTd404Active = currentModel === 'rudra' || currentModel === 'tejas' || (await this.td404IsConnected());
-      if (isTd404Active) {
+      const isTd404Active = currentModel === 'rudra' || currentModel === 'tejas';
+      if (isTd404Active || (currentModel !== 'josh' && currentModel !== 'dev' && currentModel !== 'veer' && currentModel !== 'tej' && (await this.td404IsConnected()))) {
+        if (!(await this.td404IsConnected())) {
+          throw new Error('Rudra/Tejas printer disconnected. Connect it again, then print.');
+        }
         try {
           const ok = await this.printReceiptViaTd404(saleData, effectivePaperWidth, {
             ...effectiveOptions,
             copies,
+            compactMode: effectivePaperWidth === '80mm' ? true : effectiveOptions.compactMode,
           });
           if (ok) return true;
         } catch (td404Err: any) {
@@ -6781,10 +6925,30 @@ class ThermalPrinterServiceManager {
    */
   public async printKotTicket(data: PrintKotData, paperWidth: '58mm' | '80mm' = '58mm', options: { autoCut?: boolean } = {}): Promise<boolean> {
     try {
-      // 1. Direct Josh Printer support for KOT
+      const printerState = require('../store/usePrinterStore').usePrinterStore.getState();
+      const currentModel = printerState.connectedPrinterModel;
+      const effectiveWidth = this.resolvePaperWidth(
+        paperWidth,
+        currentModel,
+        printerState.paperWidth,
+        printerState.paperWidthSource
+      );
+      const kotText = this.sanitizeForThermalPrint(this.formatKotText(data, effectiveWidth));
+
+      // 1. Rudra / Tejas (TD-404) continuous roll — same path as utility slips
+      const td404Active =
+        currentModel === 'rudra' || currentModel === 'tejas' || (await this.td404IsConnected());
+      if (td404Active) {
+        if (!(await this.td404IsConnected())) {
+          throw new Error('Rudra/Tejas printer disconnected. Connect it again, then print the KOT.');
+        }
+        return await this.printFormattedTextViaTd404(kotText, effectiveWidth);
+      }
+
+      // 2. Direct Josh Printer support for KOT
       if (await this.joshEnsureConnected()) {
         try {
-          const ok = await this.printKotViaJosh(data, paperWidth);
+          const ok = await this.printKotViaJosh(data, effectiveWidth);
           if (ok) return true;
         } catch (joshErr: any) {
           console.warn('Josh KOT print failed, falling back:', joshErr);
@@ -6794,12 +6958,11 @@ class ThermalPrinterServiceManager {
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
           // Reset printer state before KOT print
-          await this.initPrinter(paperWidth);
+          await this.initPrinter(effectiveWidth);
 
-          const textContent = this.sanitizeForThermalPrint(this.formatKotText(data, paperWidth));
           const printOptions = { widthtimes: 0, heigthtimes: 0, cut: false };
 
-          await NativeEscposPrinter.printText(textContent, printOptions);
+          await NativeEscposPrinter.printText(kotText, printOptions);
 
           if (typeof NativeEscposPrinter.printAndFeed === 'function') {
             try {
@@ -6817,7 +6980,7 @@ class ThermalPrinterServiceManager {
         }
       }
 
-      const html = this.generateKotHtml(data, paperWidth);
+      const html = this.generateKotHtml(data, effectiveWidth);
       await Print.printAsync({ html });
       return true;
     } catch (error) {
@@ -6836,10 +6999,29 @@ class ThermalPrinterServiceManager {
     options: { autoCut?: boolean } = {}
   ): Promise<boolean> {
     try {
+      const printerState = require('../store/usePrinterStore').usePrinterStore.getState();
+      const currentModel = printerState.connectedPrinterModel;
+      const effectiveWidth = this.resolvePaperWidth(
+        paperWidth,
+        currentModel,
+        printerState.paperWidth,
+        printerState.paperWidthSource
+      );
+
+      const td404Active =
+        currentModel === 'rudra' || currentModel === 'tejas' || (await this.td404IsConnected());
+      if (td404Active) {
+        if (!(await this.td404IsConnected())) {
+          throw new Error('Rudra/Tejas printer disconnected. Connect it again, then print the KOT.');
+        }
+        const text = this.sanitizeForThermalPrint(this.formatKotDeltaText(data, effectiveWidth));
+        return await this.printFormattedTextViaTd404(text, effectiveWidth);
+      }
+
       // 1. Direct Josh Printer support for KOT Delta
       if (await this.joshEnsureConnected()) {
         try {
-          const ok = await this.printKotDeltaViaJosh(data, paperWidth);
+          const ok = await this.printKotDeltaViaJosh(data, effectiveWidth);
           if (ok) return true;
         } catch (joshErr: any) {
           console.warn('Josh KOT delta print failed, falling back:', joshErr);
@@ -6848,9 +7030,9 @@ class ThermalPrinterServiceManager {
 
       if (NativeEscposPrinter && typeof NativeEscposPrinter.printText === 'function') {
         try {
-          await this.initPrinter(paperWidth);
+          await this.initPrinter(effectiveWidth);
 
-          const textContent = this.sanitizeForThermalPrint(this.formatKotDeltaText(data, paperWidth));
+          const textContent = this.sanitizeForThermalPrint(this.formatKotDeltaText(data, effectiveWidth));
           const printOptions = { widthtimes: 0, heigthtimes: 0, cut: false };
 
           await NativeEscposPrinter.printText(textContent, printOptions);
@@ -6871,7 +7053,7 @@ class ThermalPrinterServiceManager {
         }
       }
 
-      const html = this.generateKotDeltaHtml(data, paperWidth);
+      const html = this.generateKotDeltaHtml(data, effectiveWidth);
       await Print.printAsync({ html });
       return true;
     } catch (error) {
@@ -7533,7 +7715,14 @@ class ThermalPrinterServiceManager {
     paperWidth: '58mm' | '80mm' = '58mm',
     options: { copies?: number; autoCut?: boolean } = {}
   ): Promise<boolean> {
-    const effectiveWidth = paperWidth || '58mm';
+    const printerState = require('../store/usePrinterStore').usePrinterStore.getState();
+    const currentModel = printerState.connectedPrinterModel;
+    const effectiveWidth = this.resolvePaperWidth(
+      paperWidth,
+      currentModel,
+      printerState.paperWidth,
+      printerState.paperWidthSource
+    );
     const copies = Math.max(1, options.copies || 1);
     const {
       formatUtilityReceiptText,
@@ -7541,42 +7730,56 @@ class ThermalPrinterServiceManager {
     } = require('../components/bill-converter/UtilityReceiptSlip');
     const textContent = formatUtilityReceiptText(billData, effectiveWidth);
 
+    const fakeSaleData: PrintSaleData = {
+      invoiceNumber: billData.receiptNumber || 'BILL',
+      date: billData.billDate || new Date().toLocaleDateString('en-GB'),
+      items: [
+        {
+          productName: `${(billData.provider || billData.billType || 'Bill').slice(0, 24)}`,
+          quantity: 1,
+          unitPrice: billData.billAmount,
+          total: billData.billAmount,
+        },
+      ],
+      subtotal: billData.billAmount,
+      totalDiscount: 0,
+      totalTax: 0,
+      grandTotal: billData.totalAmount,
+      paymentMethod: 'CASH',
+      storeName: billData.kioskName || 'SEZNIK KIOSK',
+      footerMessage: 'Thank you! Keep this slip.',
+      consumerNo: billData.consumerNumber || undefined,
+      customerName: billData.consumerName || undefined,
+      dueDate: billData.dueDate || undefined,
+      providerName: billData.provider || undefined,
+      unitsConsumed: billData.unitsConsumed || undefined,
+    };
+    if (billData.convenienceFee > 0) {
+      fakeSaleData.items.push({
+        productName: 'Convenience / Fee',
+        quantity: 1,
+        unitPrice: billData.convenienceFee,
+        total: billData.convenienceFee,
+      });
+    }
+
     try {
-      // 1. Direct Josh Printer support if connected
-      if (await this.joshEnsureConnected()) {
+      const td404Connected = currentModel === 'rudra' || currentModel === 'tejas' || (await this.td404IsConnected());
+      if (td404Connected) {
+        if (!(await this.td404IsConnected())) {
+          throw new Error('Rudra/Tejas printer disconnected. Connect it again, then print.');
+        }
+        const sanitized = this.sanitizeForThermalPrint(textContent);
+        for (let i = 0; i < copies; i++) {
+          const ok = await this.printFormattedTextViaTd404(sanitized, effectiveWidth);
+          if (!ok) return false;
+        }
+        return true;
+      }
+
+      // Direct Josh Printer support if connected
+      if (currentModel === 'josh' && (await this.joshEnsureConnected())) {
         try {
-          const fakeSaleData: PrintSaleData = {
-            invoiceNumber: billData.receiptNumber || 'BILL',
-            date: billData.billDate || new Date().toLocaleDateString('en-GB'),
-            items: [
-              {
-                productName: `${(billData.provider || billData.billType || 'Bill').slice(0, 24)}`,
-                quantity: 1,
-                unitPrice: billData.billAmount,
-                total: billData.billAmount,
-              },
-            ],
-            subtotal: billData.billAmount,
-            totalDiscount: 0,
-            totalTax: 0,
-            grandTotal: billData.totalAmount,
-            paymentMethod: 'CASH',
-            storeName: billData.kioskName || 'SEZNIK KIOSK',
-            footerMessage: 'Thank you! Keep this slip.',
-            consumerNo: billData.consumerNumber || undefined,
-            customerName: billData.consumerName || undefined,
-            dueDate: billData.dueDate || undefined,
-            providerName: billData.provider || undefined,
-            unitsConsumed: billData.unitsConsumed || undefined,
-          };
-          if (billData.convenienceFee > 0) {
-            fakeSaleData.items.push({
-              productName: 'Convenience / Fee',
-              quantity: 1,
-              unitPrice: billData.convenienceFee,
-              total: billData.convenienceFee,
-            });
-          }
           const ok = await this.printReceiptViaJosh(fakeSaleData, effectiveWidth, { copies });
           if (ok) return true;
         } catch (joshErr) {

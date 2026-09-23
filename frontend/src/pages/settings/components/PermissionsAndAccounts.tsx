@@ -21,6 +21,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 
 interface ManagedUser extends UserProfile {
   password?: string
+  lastSeenAt?: string | null
 }
 
 const PERMISSION_LABELS: { key: keyof UserPermissions; labelKey: TranslationKey }[] = [
@@ -34,6 +35,8 @@ const PERMISSION_LABELS: { key: keyof UserPermissions; labelKey: TranslationKey 
   { key: 'canAccessReports', labelKey: 'permissions.canAccessReports' },
   { key: 'canAccessSettings', labelKey: 'permissions.canAccessSettings' },
   { key: 'canManageUsers', labelKey: 'permissions.canManageUsers' },
+  { key: 'canAccessKOT', labelKey: 'permissions.canAccessKOT' },
+  { key: 'canSendRemotePrint', labelKey: 'permissions.canSendRemotePrint' },
 ]
 
 export const PermissionsAndAccounts = () => {
@@ -70,7 +73,7 @@ export const PermissionsAndAccounts = () => {
       }
 
       try {
-        const managedUsers = await getAllUsers(user.uid)
+        const managedUsers = await getAllUsers(user.uid || user.id || '')
         setUsers(managedUsers as ManagedUser[])
       } catch (error) {
         console.error('Error loading managed users:', error)
@@ -123,7 +126,7 @@ export const PermissionsAndAccounts = () => {
 
     const updatedUsers = [...users, newUser]
     setUsers(updatedUsers)
-    await saveManagedUsers(user.uid, updatedUsers)
+    await saveManagedUsers(user.uid || user.id || '', updatedUsers)
 
     toast.success(t('permissions.userAddedSuccess'))
     setIsAddUserOpen(false)
@@ -142,7 +145,7 @@ export const PermissionsAndAccounts = () => {
     }
     const updatedUsers = users.map(u => u.uid === selectedUser.uid ? updatedUser : u)
     setUsers(updatedUsers)
-    await saveManagedUsers(user.uid, updatedUsers)
+    await saveManagedUsers(user.uid || user.id || '', updatedUsers)
 
     toast.success(t('permissions.permissionsUpdated'))
     setIsEditUserOpen(false)
@@ -203,7 +206,7 @@ export const PermissionsAndAccounts = () => {
     const updatedUsers = users.filter(u => u.uid !== uid)
     setUsers(updatedUsers)
     if (user) {
-      await saveManagedUsers(user.uid, updatedUsers)
+      await saveManagedUsers(user.uid || user.id || '', updatedUsers)
     }
     toast.success(t('permissions.userDeleted'))
   }
@@ -226,7 +229,10 @@ export const PermissionsAndAccounts = () => {
       render: (row) => (
         <div>
           <p className="font-medium text-sm">{row.displayName}</p>
-          <p className="text-xs text-gray-500">{row.email}</p>
+          <p className="text-xs text-gray-500">{row.email || 'OTP agent'}</p>
+          <p className="text-xs text-gray-400">
+            {row.lastSeenAt ? `Last seen ${new Date(row.lastSeenAt).toLocaleString()}` : 'Not seen yet'}
+          </p>
         </div>
       ),
     },
@@ -260,12 +266,16 @@ export const PermissionsAndAccounts = () => {
           <Button variant="ghost" size="sm" onClick={() => openEditUser(row)}>
             <Pencil size={16} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => openPasswordChange(row)}>
-            <KeyRound size={16} />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => handleResetPasswordUser(row)}>
-            <ShieldOff size={16} />
-          </Button>
+          {row.email ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => openPasswordChange(row)}>
+                <KeyRound size={16} />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => handleResetPasswordUser(row)}>
+                <ShieldOff size={16} />
+              </Button>
+            </>
+          ) : null}
           <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(row.uid)}>
             <Trash2 size={16} className="text-red-500" />
           </Button>

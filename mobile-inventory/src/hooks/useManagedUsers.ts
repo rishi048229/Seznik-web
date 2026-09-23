@@ -10,7 +10,7 @@ import { CreateManagedUserPayload, ManagedUser } from '@/types/auth';
  */
 export function useManagedUsers() {
   const { user } = useAuth();
-  const adminUid = user?.id || '';
+  const adminUid = user?.id || (user as any)?.uid || '';
   const queryClient = useQueryClient();
   const queryKey = ['managed-users', adminUid];
 

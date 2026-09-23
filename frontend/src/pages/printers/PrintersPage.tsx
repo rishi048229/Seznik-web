@@ -41,6 +41,8 @@ import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { ReceiptLivePreview } from './components/ReceiptLivePreview'
 import { A4InvoiceTab } from './components/A4InvoiceTab'
+import { ReceiptBuilderTab, type ReceiptBuilderTabHandle } from './receipt-builder/ReceiptBuilderTab'
+import { useGstBillingSettings } from '@/hooks/useGstBillingSettings'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Section, StatusDot, chipClass, fieldClass } from './components/PrintersUi'
 import {
@@ -65,6 +67,7 @@ import {
   Bluetooth,
   Monitor,
   Layers,
+  Sparkles,
   Unplug,
   ArrowUp,
   ArrowDown,
@@ -175,7 +178,16 @@ export const PrintersPage = () => {
 
   const [config, setConfig] = useState<PrinterConfig>(defaultPrinterConfig)
   const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig>(defaultReceiptConfig)
-  const [activeTab, setActiveTab] = useState<'receipt' | 'label' | 'invoice'>('receipt')
+  const [activeTab, setActiveTab] = useState<'receipt' | 'receiptBuilder' | 'label' | 'invoice'>('receipt')
+  const receiptBuilderRef = useRef<ReceiptBuilderTabHandle>(null)
+  const {
+    form: gstForm,
+    setStyle: setGstStyle,
+    setPrintOnReceipt: setGstPrintOnReceipt,
+    setItemWiseGst: setGstItemWiseGst,
+    saveGstBilling,
+    isSaving: isSavingGst,
+  } = useGstBillingSettings()
 
   // Which real product's data is used to preview/print the label
   const [previewProductId, setPreviewProductId] = useState<string>('')
@@ -467,6 +479,11 @@ export const PrintersPage = () => {
   // specifically for that output, so cross-firing them would print garbage.
   const handleTestPrint = async () => {
     trackUserAction('feature_test_print', { tab: activeTab, mode: config.labelPrinterMode })
+
+    if (activeTab === 'receiptBuilder') {
+      await receiptBuilderRef.current?.runTestPrint()
+      return
+    }
 
     const effectiveReceiptConfig = {
       ...receiptConfig,
@@ -781,6 +798,7 @@ export const PrintersPage = () => {
       <div className="flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 overflow-x-auto">
         {([
           { key: 'receipt', label: 'Receipts', hint: 'Thermal bills', icon: FileText },
+          { key: 'receiptBuilder', label: 'Receipt Builder', hint: 'Custom layout', icon: Sparkles },
           { key: 'label', label: 'Labels', hint: 'Barcode stickers', icon: Tag },
           { key: 'invoice', label: 'A4 invoice', hint: 'Full-page bill', icon: Layers },
         ] as const).map(t => (
@@ -802,6 +820,22 @@ export const PrintersPage = () => {
           </button>
         ))}
       </div>
+
+      {activeTab === 'receiptBuilder' && (
+        <ReceiptBuilderTab
+          ref={receiptBuilderRef}
+          connectionType={config.connectionType}
+          bleConnected={bleState.status === 'connected'}
+          receiptConfigOverride={receiptConfig}
+          receiptFont={config.receiptFont}
+          gstForm={gstForm}
+          onGstStyleChange={setGstStyle}
+          onGstPrintOnReceiptChange={setGstPrintOnReceipt}
+          onGstItemWiseGstChange={setGstItemWiseGst}
+          onSaveGst={() => saveGstBilling()}
+          isSavingGst={isSavingGst}
+        />
+      )}
 
       {/* Tab 1: Thermal Receipt Settings & Live Preview */}
       {activeTab === 'receipt' && (

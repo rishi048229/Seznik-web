@@ -128,10 +128,16 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   }, [visible, activeLabelTemplate]);
 
   React.useEffect(() => {
-    if (visible && labelPrinter.isConnected && labelPrinter.kind === 'label' && shouldShowTip) {
+    if (
+      visible &&
+      labelPrinter.isConnected &&
+      labelPrinter.kind === 'label' &&
+      connectedPrinterModel === 'josh' &&
+      shouldShowTip
+    ) {
       setShowTipModal(true);
     }
-  }, [visible, labelPrinter.isConnected, labelPrinter.kind, shouldShowTip]);
+  }, [visible, labelPrinter.isConnected, labelPrinter.kind, connectedPrinterModel, shouldShowTip]);
 
   const usableTemplate =
     templateHasPrintableContent(activeLabelTemplate) &&
@@ -179,12 +185,23 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       const hasLabelPrinter = labelKind !== null;
       const isJosh = labelKind === 'josh';
       const isYx = labelKind === 'yx';
+      const isTd404 = labelKind === 'td404';
+      const connectedModel = usePrinterStore.getState().connectedPrinterModel;
+      const brandLabel = isTd404
+        ? connectedModel === 'tejas'
+          ? 'SEZNIK TEJAS'
+          : 'SEZNIK RUDRA'
+        : isYx
+          ? 'YX'
+          : isJosh
+            ? 'SEZNIK JOSH'
+            : 'Label';
 
       if (presetId) {
         const preset = buildLabelPreset(presetId, sizeW, sizeH, storeName);
         ok = await ThermalPrinterService.printLabelFromTemplate(product, preset, copies, labelGapMm);
         modeLabel = hasLabelPrinter
-          ? `${preset.name} (${isYx ? 'YX' : 'Josh'} — ${sizeW}x${sizeH}mm)`
+          ? `${preset.name} (${brandLabel} — ${sizeW}x${sizeH}mm)`
           : `${preset.name} — ${sizeW}x${sizeH}mm`;
       } else if (printMode === 'template' && usableTemplate) {
         if (labelPaperMode === 'continuous' && !hasLabelPrinter) {
@@ -193,7 +210,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         } else {
           ok = await ThermalPrinterService.printLabelFromTemplate(product, usableTemplate, copies, labelGapMm);
           modeLabel = hasLabelPrinter
-            ? `"${usableTemplate.name}" template (${isYx ? 'YX' : 'Josh'} Label)`
+            ? `"${usableTemplate.name}" template (${brandLabel})`
             : `"${usableTemplate.name}" template (Label)`;
         }
       } else {
@@ -212,7 +229,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             copies
           );
           modeLabel = hasLabelPrinter
-            ? `${isYx ? 'YX' : 'Josh'} Label Printer (${selectedFormat.toUpperCase()})`
+            ? `${brandLabel} (${selectedFormat.toUpperCase()})`
             : `Label Printer (${selectedFormat.toUpperCase()})`;
         }
       }

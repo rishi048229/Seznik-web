@@ -41,7 +41,7 @@ class Td404LabelPrinterModule : Module() {
 
   companion object {
     private const val TAG = "Td404Printer"
-    private const val DOTS_PER_MM = 8.0 // Standard 203 DPI thermal print-head resolution
+    private const val DOTS_PER_MM = 12.0 // Rudra/Tejas TD-404 print head is 300 DPI (12 dots/mm)
   }
 
   private var portManager: PortManager? = null
@@ -286,8 +286,9 @@ class Td404LabelPrinterModule : Module() {
         tsc.addUserCommand("\r\n")
         tsc.addSize(tscWidthMm, tscHeightMm)
         tsc.addGap(tscGapMm)
-        // Default FORWARD orientation prints upright feed without 180-degree flipping
-        val dir = if (finiteInt(spec["direction"], 0) == 1) LabelCommand.DIRECTION.BACKWARD else LabelCommand.DIRECTION.FORWARD
+        // Gap labels on Rudra/Tejas print 180° under FORWARD. Continuous receipts stay FORWARD.
+        val defaultDir = if (isContinuous) 0 else 1
+        val dir = if (finiteInt(spec["direction"], defaultDir) == 1) LabelCommand.DIRECTION.BACKWARD else LabelCommand.DIRECTION.FORWARD
         tsc.addDirection(dir, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
@@ -313,8 +314,7 @@ class Td404LabelPrinterModule : Module() {
     }
 
     /**
-     * Print TSPL Bitmap Label (Supports 50x30, 50x25, 40x30, 38x28, 30x20, 80mm labels)
-     * Rescales and aligns input bitmap to exact dot dimensions (203 DPI = 8 dots/mm).
+     * Print TSPL Bitmap Label. Rudra/Tejas TD-404 heads are 300 DPI (12 dots/mm).
      */
     AsyncFunction("printLabelBitmap") { base64Png: String, widthMm: Double, heightMm: Double, gapMm: Double, copies: Int, promise: Promise ->
       try {
@@ -329,7 +329,7 @@ class Td404LabelPrinterModule : Module() {
         val rawBitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
           ?: throw IllegalArgumentException("Could not decode label bitmap from base64")
 
-        // Exact target dot dimensions at 203 DPI (8 dots per mm)
+        // Exact target dot dimensions at 300 DPI (12 dots per mm)
         val targetWidthDots = (widthMm * DOTS_PER_MM).roundToInt().coerceAtLeast(64)
         val targetHeightDots = (heightMm * DOTS_PER_MM).roundToInt().coerceAtLeast(64)
         val alignedWidthDots = (targetWidthDots + 7) / 8 * 8
@@ -346,7 +346,7 @@ class Td404LabelPrinterModule : Module() {
         tsc.addUserCommand("\r\n")
         tsc.addSize(widthMm.toInt(), heightMm.toInt())
         tsc.addGap(if (gapMm > 0) gapMm.toInt() else 2)
-        tsc.addDirection(LabelCommand.DIRECTION.FORWARD, LabelCommand.MIRROR.NORMAL)
+        tsc.addDirection(LabelCommand.DIRECTION.BACKWARD, LabelCommand.MIRROR.NORMAL)
         tsc.addReference(0, 0)
         tsc.addDensity(LabelCommand.DENSITY.DNESITY15)
         tsc.addQueryPrinterStatus(LabelCommand.RESPONSE_MODE.ON)
@@ -387,16 +387,15 @@ class Td404LabelPrinterModule : Module() {
         val rawBitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
           ?: throw IllegalArgumentException("Could not decode receipt bitmap")
 
-        // 80mm = 576 dots printable (72mm); 58mm = 384 dots printable (48mm)
-        val targetWidthDots = if (paperWidthMm >= 75) 576 else 384
+        // 80mm = 72mm printable at 300 DPI; 58mm = 48mm printable
         val printWidthMm = if (paperWidthMm >= 75) 72 else 48
+        val targetWidthDots = (printWidthMm * DOTS_PER_MM).roundToInt().coerceAtLeast(64)
         val scale = targetWidthDots.toFloat() / rawBitmap.width.toFloat()
         val scaledHeightDots = (rawBitmap.height * scale).toInt().coerceAtLeast(64)
         val bitmap = Bitmap.createScaledBitmap(rawBitmap, targetWidthDots, scaledHeightDots, true)
         if (bitmap != rawBitmap) rawBitmap.recycle()
 
-        // Calculate height in mm (dots / 8) + margin
-        val calculatedHeightMm = ((scaledHeightDots + 7) / 8 + 6).coerceAtLeast(30)
+        val calculatedHeightMm = ((scaledHeightDots / DOTS_PER_MM) + 6).toInt().coerceAtLeast(30)
 
         // 1. TSPL Continuous Mode (GAP 0,0 - Single-pass continuous receipt roll)
         val tsc = LabelCommand()
@@ -519,7 +518,7 @@ class Td404LabelPrinterModule : Module() {
   }
 
   // ---------------------------------------------------------------------------------------
-  // Label Spec Canvas Rasterizer (Pixel-Perfect Alignment at 203 DPI)
+  // Label Spec Canvas Rasterizer (Pixel-Perfect Alignment at 300 DPI)
   // ---------------------------------------------------------------------------------------
   /**
    * @param canvasIsResolved true when the caller already resolved `widthMm` to the exact printable

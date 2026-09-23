@@ -466,35 +466,57 @@ class JoshLabelPrinterModule : Module() {
         instance.setPrintPageGapType(gapType)
         instance.setPrintPageGapLength(gapMm)
 
-        // Build composite label bitmap once
+        // Build composite label bitmap once — sized to the printable head width
         val labelBitmap = buildLabelBitmap(spec, widthMm, heightMm, headMm, deviceDotsPerMm())
 
         val pending = PendingPrint()
         pendingPrint = pending
 
-        if (copies > 1) {
-          jobParam.putInt(IDzPrinter.PrintParamName.PRINT_COPIES, copies)
+        // Match the batch path: open an explicit page job so LPAPI uses the same
+        // print-area geometry as the bitmap (printBitmap alone used the last page
+        // size, which caused slight left/vertical drift on successive labels).
+        var jobStarted = instance.startJob(printWmm, printHmm, 0)
+        if (!jobStarted) {
+          runCatching { instance.abortJob() }
+          jobStarted = instance.startJob(printWmm, printHmm, 0)
         }
-        val committed = instance.printBitmap(labelBitmap, jobParam)
-
-        if (!committed) {
+        if (!jobStarted) {
           pendingPrint = null
           labelBitmap.recycle()
-          throw CodedException("ERR_JOSH_COMMIT", "Printer rejected the label data. Check connection and paper roll.", null)
+          throw CodedException("ERR_JOSH_START", "Failed to start label print job.", null)
         }
 
-        val reported = pending.latch.await(30, TimeUnit.SECONDS)
-        pendingPrint = null
-        labelBitmap.recycle()
+        try {
+          instance.drawBitmap(labelBitmap, 0.0, 0.0, printWmm, printHmm)
+          if (copies > 1) {
+            jobParam.putInt(IDzPrinter.PrintParamName.PRINT_COPIES, copies)
+          }
+          val committed = instance.commitJobWithParam(jobParam)
+          if (!committed) {
+            pendingPrint = null
+            runCatching { instance.abortJob() }
+            labelBitmap.recycle()
+            throw CodedException("ERR_JOSH_COMMIT", "Printer rejected the label data. Check connection and paper roll.", null)
+          }
 
-        if (!reported) {
-          throw CodedException("ERR_JOSH_TIMEOUT", "The printer did not confirm the print. Check the printer and paper roll.", null)
-        }
-        if (!pending.success) {
-          throw CodedException("ERR_JOSH_PRINT_FAILED", pending.failReason ?: "The printer reported a print failure.", null)
-        }
+          val reported = pending.latch.await(30, TimeUnit.SECONDS)
+          pendingPrint = null
+          labelBitmap.recycle()
 
-        promise.resolve(true)
+          if (!reported) {
+            throw CodedException("ERR_JOSH_TIMEOUT", "The printer did not confirm the print. Check the printer and paper roll.", null)
+          }
+          if (!pending.success) {
+            throw CodedException("ERR_JOSH_PRINT_FAILED", pending.failReason ?: "The printer reported a print failure.", null)
+          }
+
+          promise.resolve(true)
+        } catch (inner: Throwable) {
+          pendingPrint = null
+          runCatching { instance.abortJob() }
+          if (!labelBitmap.isRecycled) labelBitmap.recycle()
+          throw inner
+        }
       } catch (e: CodedException) {
         pendingPrint = null
         promise.reject(e)

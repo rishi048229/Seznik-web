@@ -33,6 +33,7 @@ import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling
 import { computeGstBillSummary, gstLinesFromSaleItems } from '@/utils/gst';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { useAuthStore } from '@/store/useAuthStore';
+import { debugFa19Log } from '@/utils/debugFa19Log';
 
 const TERMINAL_STATUSES: PrintJobStatus[] = ['completed', 'rejected', 'expired', 'cancelled'];
 
@@ -101,7 +102,9 @@ export default function PrintJobActionScreen() {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 14);
-  const currentActorId = useAuthStore((s) => s.user?.id);
+  const currentUser = useAuthStore((s) => s.user);
+  const currentActorId = currentUser?.id;
+  const currentActorUid = (currentUser as any)?.uid || currentUser?.id;
 
   const { job, isLoading, isError, refetch, updateStatus, isUpdating, cancelJob, isCancelling, reassignJob, isReassigning } =
     usePrintJob(id);
@@ -116,6 +119,7 @@ export default function PrintJobActionScreen() {
   // Guards against firing a second auto-print if the status poll and the onConnected callback
   // both resolve around the same moment.
   const printInFlightRef = useRef(false);
+  const autoResumeKeyRef = useRef<string | null>(null);
 
   const isAwaitingResponse = job?.status === 'delivered';
 
@@ -197,10 +201,50 @@ export default function PrintJobActionScreen() {
     }
   }, [job, storeProfile, updateStatus]);
 
+  const printerIsReady = useCallback(async () => {
+    const model = usePrinterStore.getState().connectedPrinterModel;
+    if (model === 'rudra' || model === 'tejas') {
+      return ThermalPrinterService.td404IsConnected();
+    }
+    if (await ThermalPrinterService.td404IsConnected()) return true;
+    if (await ThermalPrinterService.joshEnsureConnected()) return true;
+    return connectionState === 'connected';
+  }, [connectionState]);
+
+  const handlePrintNow = async () => {
+    const ready = await printerIsReady();
+    if (!ready) {
+      await updateStatus({ status: 'printer_connect_pending' }).catch(() => {});
+      setPrinterModalVisible(true);
+      return;
+    }
+    await runPrint();
+  };
+
   const handleAccept = async () => {
     setLocalError(null);
     try {
       await updateStatus({ status: 'accepted' });
+      const ready = await printerIsReady();
+      // #region agent log
+      debugFa19Log({
+        hypothesisId: 'C',
+        location: 'print-jobs/[id].tsx:handleAccept',
+        message: 'Print job accepted on detail screen',
+        data: {
+          jobId: job?.id,
+          printerReady: ready,
+          connectionState,
+          connectedModel: usePrinterStore.getState().connectedPrinterModel,
+        },
+      });
+      // #endregion
+      if (ready) {
+        await runPrint();
+      } else {
+        await updateStatus({ status: 'printer_connect_pending' }).catch(() => {});
+        setPrinterModalVisible(true);
+      }
     } catch (err: any) {
       setLocalError(sanitizeErrorMessage(err, 'Could not accept this request.'));
     }
@@ -213,15 +257,6 @@ export default function PrintJobActionScreen() {
     } catch (err: any) {
       setLocalError(sanitizeErrorMessage(err, 'Could not decline this request.'));
     }
-  };
-
-  const handlePrintNow = async () => {
-    if (connectionState !== 'connected') {
-      await updateStatus({ status: 'printer_connect_pending' }).catch(() => {});
-      setPrinterModalVisible(true);
-      return;
-    }
-    await runPrint();
   };
 
   const handlePrinterConnected = useCallback(() => {
@@ -260,15 +295,51 @@ export default function PrintJobActionScreen() {
     }
   };
 
-  // If this job was left in "connect your printer" state from a previous visit and the printer
-  // is already connected by the time this screen reopens, resume automatically instead of making
-  // the agent tap Print Now again.
+  // After accept (banner or detail screen), resume printing automatically when the printer is
+  // ready — VEER/MPT-II often reports ready via native SDK while connectionState lags.
   useEffect(() => {
-    if (job?.status === 'printer_connect_pending' && connectionState === 'connected' && !isPrinting) {
-      const timer = setTimeout(() => runPrint(), 0);
-      return () => clearTimeout(timer);
-    }
-  }, [job?.status, connectionState]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!job || isPrinting || printInFlightRef.current) return;
+
+    const isTargetJob =
+      job.targetAgentId === currentActorId ||
+      job.targetAgentId === currentActorUid ||
+      job.acceptedByAgentId === currentActorId ||
+      job.acceptedByAgentId === currentActorUid ||
+      (!!job.targetLocationId && !job.acceptedByAgentId);
+
+    if (!isTargetJob) return;
+    if (!['accepted', 'printer_connect_pending', 'failed'].includes(job.status)) return;
+
+    const resumeKey = `${job.id}:${job.status}`;
+    if (autoResumeKeyRef.current === resumeKey) return;
+    autoResumeKeyRef.current = resumeKey;
+
+    void (async () => {
+      const ready = await printerIsReady();
+      // #region agent log
+      debugFa19Log({
+        hypothesisId: 'C',
+        runId: 'post-fix',
+        location: 'print-jobs/[id].tsx:autoResume',
+        message: 'Auto-resume print evaluation',
+        data: {
+          jobId: job.id,
+          status: job.status,
+          printerReady: ready,
+          connectionState,
+        },
+      });
+      // #endregion
+      if (ready) {
+        await runPrint();
+        return;
+      }
+      if (job.status === 'accepted' || job.status === 'failed') {
+        await updateStatus({ status: 'printer_connect_pending' }).catch(() => {});
+        setPrinterModalVisible(true);
+      }
+    })();
+  }, [job?.id, job?.status, currentActorId, currentActorUid, connectionState, isPrinting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
     return <ScreenLoadingState message="Loading print request…" fullScreen />;
@@ -277,10 +348,13 @@ export default function PrintJobActionScreen() {
     return <ScreenErrorState message="Couldn't load this print request" onRetry={refetch} fullScreen />;
   }
 
-  const isSender = job.requestedById === currentActorId;
+  const isSender =
+    job.requestedById === currentActorId || job.requestedById === currentActorUid;
   const isTarget =
     job.targetAgentId === currentActorId ||
+    job.targetAgentId === currentActorUid ||
     job.acceptedByAgentId === currentActorId ||
+    job.acceptedByAgentId === currentActorUid ||
     (!!job.targetLocationId && !job.acceptedByAgentId);
   const statusCopy = statusCopyFor(job, isSender && !isTarget);
 

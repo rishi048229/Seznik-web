@@ -32,6 +32,8 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { authApi } from '@/api/auth';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
@@ -52,6 +54,7 @@ export default function LoginScreen() {
   const theme = useAppTheme();
   const { t, currentLanguage, setLanguage } = useTranslation();
   const { login, isLoggingIn, loginWithQr, isLoggingInWithQr } = useAuth();
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const [showPassword, setShowPassword] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -77,6 +80,14 @@ export default function LoginScreen() {
     },
   });
 
+  const [showAgentLogin, setShowAgentLogin] = useState(false);
+  const [agentEmail, setAgentEmail] = useState('');
+  const [agentOtp, setAgentOtp] = useState('');
+  const [agentName, setAgentName] = useState('');
+  const [agentSent, setAgentSent] = useState(false);
+  const [agentNames, setAgentNames] = useState<string[]>([]);
+  const [agentBusy, setAgentBusy] = useState(false);
+
   const onSubmit = async (data: LoginFormValues) => {
     setApiError(null);
     try {
@@ -84,6 +95,34 @@ export default function LoginScreen() {
     } catch (err: any) {
       const msg = err?.message || 'Login failed. Please check your credentials.';
       setApiError(msg);
+    }
+  };
+
+  const sendAgentCode = async () => {
+    setAgentBusy(true);
+    setApiError(null);
+    try {
+      const res = await authApi.requestAgentOtp(agentEmail.trim());
+      setAgentNames(res.existingAgents || []);
+      setAgentSent(true);
+    } catch (err: any) {
+      setApiError(err?.message || 'Could not send the code');
+    } finally {
+      setAgentBusy(false);
+    }
+  };
+
+  const verifyAgent = async () => {
+    setAgentBusy(true);
+    setApiError(null);
+    try {
+      const data = await authApi.verifyAgentOtp(agentEmail.trim(), agentOtp.trim(), agentName.trim());
+      await setAuth(data.token, data.user);
+      router.replace('/(tabs)' as any);
+    } catch (err: any) {
+      setApiError(err?.message || 'Could not sign in');
+    } finally {
+      setAgentBusy(false);
     }
   };
 
@@ -283,7 +322,9 @@ export default function LoginScreen() {
                 ) : null}
               </View>
 
-              {/* Submit Button */}
+              <TouchableOpacity onPress={() => setShowAgentLogin(true)} style={{ marginTop: 14, alignItems: 'center' }}>
+                <Text style={{ color: BRAND_COLORS.blue600, fontWeight: '700' }}>Agent login</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSubmit(onSubmit)}
                 disabled={isLoggingIn}
@@ -429,6 +470,64 @@ export default function LoginScreen() {
                   );
                 })}
               </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={showAgentLogin} transparent animationType="slide" onRequestClose={() => setShowAgentLogin(false)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+            <View style={{ backgroundColor: theme.cardBg, padding: 20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, marginBottom: 8 }}>Agent login</Text>
+              <Text style={{ color: theme.textSecondary, marginBottom: 12 }}>
+                Store email, then the code we send there, then your name. Two agents per store.
+              </Text>
+              <TextInput
+                value={agentEmail}
+                onChangeText={setAgentEmail}
+                placeholder="Store email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholderTextColor="#94A3B8"
+                style={[styles.input, { color: theme.textPrimary, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 12, marginBottom: 8 }]}
+              />
+              {agentSent ? (
+                <>
+                  <TextInput
+                    value={agentOtp}
+                    onChangeText={setAgentOtp}
+                    placeholder="6-digit code"
+                    keyboardType="number-pad"
+                    placeholderTextColor="#94A3B8"
+                    style={[styles.input, { color: theme.textPrimary, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 12, marginBottom: 8 }]}
+                  />
+                  {agentNames.length > 0 ? (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                      {agentNames.map((name) => (
+                        <TouchableOpacity key={name} onPress={() => setAgentName(name)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: theme.bg }}>
+                          <Text style={{ color: theme.textPrimary, fontWeight: '700' }}>{name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
+                  <TextInput
+                    value={agentName}
+                    onChangeText={setAgentName}
+                    placeholder="Agent name"
+                    placeholderTextColor="#94A3B8"
+                    style={[styles.input, { color: theme.textPrimary, borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 12, marginBottom: 8 }]}
+                  />
+                  <TouchableOpacity onPress={verifyAgent} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }]}>
+                    <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Signing in…' : 'Enter store'}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity onPress={sendAgentCode} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk }]}>
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Sending…' : 'Send code'}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setShowAgentLogin(false)} style={{ marginTop: 12, alignItems: 'center' }}>
+                <Text style={{ color: theme.textSecondary }}>Close</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>

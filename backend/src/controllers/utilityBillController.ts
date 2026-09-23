@@ -574,6 +574,44 @@ export const createUtilityBill = async (req: Request, res: Response) => {
       },
     });
 
+    try {
+      const items: any[] = [
+        {
+          productName: String(provider || billType || 'Utility bill').trim().slice(0, 80) || 'Utility bill',
+          quantity: 1,
+          unitPrice: parsedBillAmount,
+          total: parsedBillAmount,
+        },
+      ];
+      if (parsedFee > 0) {
+        items.push({
+          productName: 'Convenience fee',
+          quantity: 1,
+          unitPrice: parsedFee,
+          total: parsedFee,
+        });
+      }
+      const platform = (req.headers['x-client-platform'] as string) || 'mobile';
+      await prisma.sale.create({
+        data: {
+          invoiceNumber: receiptNumber,
+          items: items as any,
+          subtotal: totalAmount,
+          totalDiscount: 0,
+          totalTax: 0,
+          grandTotal: totalAmount,
+          paymentMethod: String(paymentMode || 'CASH'),
+          amountPaid: totalAmount,
+          changeReturned: 0,
+          isQuickBill: true,
+          platform,
+          userId,
+        },
+      });
+    } catch (saleErr) {
+      console.warn('[createUtilityBill] Sale record skipped:', saleErr);
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Utility bill receipt saved successfully',

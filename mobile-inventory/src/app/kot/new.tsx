@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useDeferredValue, memo } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, memo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   X,
   ChevronLeft,
@@ -38,6 +38,9 @@ import {
 import { useProducts } from '@/hooks/useProducts';
 import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { useKotOrders } from '@/hooks/useKotOrders';
+import { kotOrdersApi } from '@/api/kotOrders';
+import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import type { KOTOrder } from '@/types/kot';
 import { useCategories } from '@/hooks/useCategories';
 import { KOTOrderType, KOTPriority } from '@/types/kot';
 import { Product } from '@/types/product';
@@ -53,6 +56,7 @@ import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling
 import type { Sale } from '@/types/sale';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
+import { debugFa19Log } from '@/utils/debugFa19Log';
 
 interface SelectedItemLine {
   productId?: string;
@@ -173,7 +177,7 @@ const MenuFoodCard = memo(function MenuFoodCard({
                 { color: unavailable ? '#10B981' : '#EF4444' },
               ]}
             >
-              {unavailable ? 'Mark available' : 'Not available'}
+              {unavailable ? 'Not available' : 'Available'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -191,7 +195,9 @@ export default function NewKotOrderScreen() {
   const { products, updateProduct } = useProducts({ includeLowStock: false });
   const { categories } = useCategories();
   const { tables } = useRestaurantTables();
-  const { createOrder, isCreating } = useKotOrders(undefined, { enabled: false });
+  const { createOrder, generateBill, isCreating } = useKotOrders(undefined, { enabled: false });
+  const [openTickets, setOpenTickets] = useState<KOTOrder[]>([]);
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
   const {
     connectionState,
     paperWidth,
@@ -224,8 +230,18 @@ export default function NewKotOrderScreen() {
   const [activeTab, setActiveTab] = useState<'menu' | 'ticket'>('menu');
 
   // Order Details
-  const [orderType, setOrderType] = useState<KOTOrderType>('takeaway');
-  const [selectedTableId, setSelectedTableId] = useState<string>('');
+  const params = useLocalSearchParams<{ tableId?: string; orderType?: string }>();
+  const [orderType, setOrderType] = useState<KOTOrderType>(
+    params.orderType === 'dine_in' || params.tableId ? 'dine_in' : 'takeaway'
+  );
+  const [selectedTableId, setSelectedTableId] = useState<string>(params.tableId || '');
+
+  useEffect(() => {
+    kotOrdersApi
+      .getOrders({ status: 'open,sent_to_kitchen,preparing,ready,served' })
+      .then((rows) => setOpenTickets(rows.slice(0, 8)))
+      .catch(() => {});
+  }, []);
   const [partyLabel, setPartyLabel] = useState('1 no');
   const [waiterName, setWaiterName] = useState('');
   const [guestCount, setGuestCount] = useState('1');
@@ -391,7 +407,7 @@ export default function NewKotOrderScreen() {
           .filter(Boolean)
           .join(' • ') || undefined,
         priority,
-        status: 'sent_to_kitchen',
+        status: 'open',
         items: selectedItems.map((it) => ({
           productId: it.productId,
           productName: it.productName,
@@ -401,6 +417,8 @@ export default function NewKotOrderScreen() {
           notes: it.notes,
         })),
       });
+
+      await kotOrdersApi.sendToKitchen(created.id);
 
       // Fire KOT Print via Thermal Printer (lazy-load heavy printer module)
       try {
@@ -442,6 +460,17 @@ export default function NewKotOrderScreen() {
         },
       ]);
     } catch (err: any) {
+      // #region agent log
+      debugFa19Log({
+        hypothesisId: 'B',
+        location: 'kot/new.tsx:handlePrintTicket',
+        message: 'KOT create failed on client',
+        data: {
+          status: err?.status,
+          apiMessage: err?.message || String(err),
+        },
+      });
+      // #endregion
       Alert.alert('Order Error', sanitizeErrorMessage(err, 'Failed to create KOT order. Please try again.'));
     }
   };
@@ -469,7 +498,7 @@ export default function NewKotOrderScreen() {
           .filter(Boolean)
           .join(' • ') || undefined,
         priority,
-        status: 'billed',
+        status: 'open',
         items: selectedItems.map((it) => ({
           productId: it.productId,
           productName: it.productName,
@@ -479,6 +508,16 @@ export default function NewKotOrderScreen() {
           notes: it.notes,
         })),
       });
+
+      const billed = await generateBill({
+        id: created.id,
+        payload: {
+          paymentMethod,
+          discount: discountVal,
+          amountPaid: grandTotal,
+        },
+      });
+      const sale = billed?.sale;
 
       // Auto print customer receipt if connected (lazy-load receipt/print modules)
       if (connectionState === 'connected') {
@@ -491,8 +530,8 @@ export default function NewKotOrderScreen() {
           const customTemplate = customTemplates?.find((t) => t.id === activeCustomTemplateId) || null;
           const gstBilling = parseGstBilling(storeProfile.settings?.invoiceConfig);
           const provisionalSale: Sale = {
-            id: created.id,
-            invoiceNumber: `INV-${created.orderNumber}`,
+            id: sale?.id || created.id,
+            invoiceNumber: sale?.invoiceNumber || `INV-${created.orderNumber}`,
             createdAt: new Date().toISOString(),
             customerName: effectivePartyLabel,
             items: selectedItems.map((it) => ({
@@ -579,12 +618,34 @@ export default function NewKotOrderScreen() {
           </View>
 
           <TouchableOpacity
+            onPress={() => setShowPrinterModal(true)}
+            style={[styles.topCloseBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginRight: 8 }]}
+          >
+            <Printer size={16} color={connectionState === 'connected' ? '#10B981' : theme.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => router.back()}
             style={[styles.topCloseBtn, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
           >
             <X size={18} color={theme.textPrimary} />
           </TouchableOpacity>
         </View>
+
+        {openTickets.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginBottom: 6 }}>
+            {openTickets.map((ticket) => (
+              <TouchableOpacity
+                key={ticket.id}
+                onPress={() => router.push(`/kot/${ticket.id}` as any)}
+                style={{ marginRight: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.borderColor }}
+              >
+                <Text style={{ color: theme.textPrimary, fontSize: 12, fontWeight: '700' }}>
+                  #{ticket.orderNumber} {ticket.table?.name || ticket.partyLabel || ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : null}
 
         {/* 2. Dual Tabs: Menu vs Ticket (N) */}
         <View style={[styles.tabsHeader, { borderBottomColor: theme.borderColor }]}>
@@ -1107,6 +1168,11 @@ export default function NewKotOrderScreen() {
             </View>
           </View>
         </Modal>
+        <DirectPrinterConnectModal
+          visible={showPrinterModal}
+          onClose={() => setShowPrinterModal(false)}
+          onConnected={() => setShowPrinterModal(false)}
+        />
       </View>
     </ScreenBackground>
   );

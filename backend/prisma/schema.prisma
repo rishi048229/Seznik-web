@@ -628,6 +628,53 @@ model KOTOrderItem {
   @@index([orderId])
 }
 
+/// Restaurant kitchen stock. Separate from Product inventory used by retail.
+model KitchenIngredient {
+  id                String   @id @default(uuid())
+  userId            String
+  name              String
+  unit              String   @default("g")
+  currentStock      Float    @default(0)
+  lowStockThreshold Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model RecipeLine {
+  id           String @id @default(uuid())
+  userId       String
+  productId    String
+  ingredientId String
+  quantity     Float
+
+  @@index([userId, productId])
+  @@index([ingredientId])
+}
+
+model WastageLog {
+  id           String   @id @default(uuid())
+  userId       String
+  ingredientId String
+  quantity     Float
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model KitchenPurchase {
+  id           String   @id @default(uuid())
+  userId       String
+  ingredientId String
+  quantity     Float
+  supplierName String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
 /// Admin-generated unique alphanumeric access codes (7 chars) for distribution / redemption.
 model AccessCode {
   id             String    @id @default(uuid())

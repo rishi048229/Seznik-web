@@ -251,10 +251,15 @@ export default function LabelStudioScreen() {
   const [showTipModal, setShowTipModal] = useState(false);
 
   React.useEffect(() => {
-    if (labelPrinter.isConnected && labelPrinter.kind === 'label' && shouldShowTip) {
+    if (
+      labelPrinter.isConnected &&
+      labelPrinter.kind === 'label' &&
+      connectedPrinterModel === 'josh' &&
+      shouldShowTip
+    ) {
       setShowTipModal(true);
     }
-  }, [labelPrinter.isConnected, labelPrinter.kind, shouldShowTip]);
+  }, [labelPrinter.isConnected, labelPrinter.kind, connectedPrinterModel, shouldShowTip]);
 
   const [zoomScale, setZoomScale] = useState(1.0);
   const [isInteractingWithElement, setIsInteractingWithElement] = useState(false);

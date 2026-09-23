@@ -75,29 +75,36 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
     return isNavFeatureVisible(businessType, feature);
   };
 
-  const corePosItems = kotFirst
+  const corePosItems = (kotFirst
     ? [
-        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
-        { id: 'sales', label: t('sales', 'Sales'), icon: TrendingUp, route: '/(tabs)/invoices' },
-        { id: 'pos', label: t('pos', 'Counter POS'), icon: ShoppingBag, route: '/(tabs)/pos' },
+        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)', perm: null as null | 'canAccessSales' | 'canSendRemotePrint' | 'canAccessProducts' | 'canAccessCustomers' },
+        { id: 'print-jobs', label: t('requests', 'Requests'), icon: Send, route: '/print-jobs', perm: null },
+        { id: 'sales', label: t('sales', 'Sales'), icon: TrendingUp, route: '/(tabs)/invoices', perm: 'canAccessSales' as const },
+        { id: 'pos', label: t('pos', 'Counter POS'), icon: ShoppingBag, route: '/(tabs)/pos', perm: 'canAccessSales' as const },
         ...(isFeatureVisible('calculator')
-          ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
+          ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator', perm: 'canAccessSales' as const }]
           : []),
         ...(isFeatureVisible('tokens')
-          ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
+          ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens', perm: 'canAccessSales' as const }]
           : []),
       ]
     : [
-        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
-        { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos' },
+        { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)', perm: null },
+        { id: 'print-jobs', label: t('requests', 'Requests'), icon: Send, route: '/print-jobs', perm: null },
+        { id: 'pos', label: t('pos', 'Full POS Checkout'), icon: ShoppingBag, route: '/(tabs)/pos', perm: 'canAccessSales' as const },
         ...(isFeatureVisible('calculator')
-          ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator' }]
+          ? [{ id: 'calculator', label: t('calculator', 'POS Calculator'), icon: Calculator, route: '/(tabs)/calculator', perm: 'canAccessSales' as const }]
           : []),
-        { id: 'sales', label: t('sales', 'Sales'), icon: TrendingUp, route: '/(tabs)/invoices' },
+        { id: 'sales', label: t('sales', 'Sales'), icon: TrendingUp, route: '/(tabs)/invoices', perm: 'canAccessSales' as const },
         ...(isFeatureVisible('tokens')
-          ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens' }]
+          ? [{ id: 'tokens', label: t('quickTokens', 'Quick Counter Tokens'), icon: Ticket, route: '/quick-tokens', perm: 'canAccessSales' as const }]
           : []),
-      ];
+      ]
+  ).filter((item) => {
+    const agent = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
+    if (!agent || !item.perm) return true;
+    return hasPermission(item.perm);
+  });
 
   const theme = isDark
     ? {
@@ -148,7 +155,7 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       : [];
 
   const inventoryItems = [
-    ...(hasPermission('canManipulateStock')
+    ...(hasPermission('canAccessProducts')
       ? [
           {
             id: 'products',
@@ -167,23 +174,55 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
   ];
 
   const customerItems = [
-    { id: 'customers', label: t('customers', 'Customers & Credit Ledger'), icon: Users, route: '/customers' },
-    { id: 'credits', label: t('dayBook', 'Daybook Cashflow'), icon: BookOpen, route: '/credits' },
+    ...( !(user?.accountType === 'managed' || Boolean((user as any)?.adminId)) || hasPermission('canAccessCustomers')
+      ? [{ id: 'customers', label: t('customers', 'Customers & Credit Ledger'), icon: Users, route: '/customers' }]
+      : []),
+    ...( !(user?.accountType === 'managed' || Boolean((user as any)?.adminId)) || hasPermission('canAccessReports') || hasPermission('canAccessSales')
+      ? [{ id: 'credits', label: t('dayBook', 'Daybook Cashflow'), icon: BookOpen, route: '/credits' }]
+      : []),
     ...(hasPermission('canAccessExpenses')
       ? [{ id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: TrendingDown, route: '/expenses' }]
       : []),
   ];
 
+  const isAgent = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
+
   const settingsItems = [
     ...(hasPermission('canAccessReports')
       ? [{ id: 'reports', label: t('reports', 'P&L Reports & GST Output'), icon: BarChart3, route: '/reports' }]
       : []),
-    ...(hasPermission('canManageUsers') || user?.role === 'admin'
+    ...(!isAgent && (hasPermission('canManageUsers') || user?.role === 'admin' || hasPermission('canAccessSettings'))
       ? [{ id: 'settings', label: t('settings', 'Settings & Staff Users'), icon: Settings, route: '/settings' }]
       : []),
   ];
 
-  const navGroups = [
+  const navGroups = kotFirst
+    ? [
+        {
+          title: t('kotRestaurantOrders', 'RESTAURANT'),
+          items: [
+            { id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: LayoutDashboard, route: '/(tabs)' },
+            { id: 'kot-tables', label: t('restaurantTables', 'Tables'), icon: LayoutGrid, route: '/kot/tables' },
+            { id: 'kot-new', label: t('newBill', 'New Bill'), icon: PlusCircle, route: '/kot/new' },
+            { id: 'kot-orders', label: t('ordersBoard', 'KOT Board'), icon: ChefHat, route: '/kot' },
+            ...(hasPermission('canAccessProducts')
+              ? [{ id: 'products', label: catalogLabel, icon: Package, route: '/products' }]
+              : []),
+            { id: 'kitchen', label: t('kitchenInventory', 'Kitchen Inventory'), icon: ChefHat, route: '/kitchen-inventory' },
+            ...(hasPermission('canAccessReports')
+              ? [{ id: 'reports', label: t('reports', 'Reports & Analytics'), icon: BarChart3, route: '/reports' }]
+              : []),
+            ...(!isAgent && (hasPermission('canManageUsers') || user?.role === 'admin')
+              ? [{ id: 'staff', label: t('staffRoles', 'Staff & Roles'), icon: ShieldCheck, route: '/staff' }]
+              : []),
+            { id: 'printers', label: t('thermalPrinter', 'Printer & Devices'), icon: Printer, route: '/printers' },
+            ...(!isAgent && (hasPermission('canAccessSettings') || user?.role === 'admin' || hasPermission('canManageUsers'))
+              ? [{ id: 'settings', label: t('settings', 'Business Settings'), icon: Settings, route: '/settings' }]
+              : []),
+          ],
+        },
+      ]
+    : [
     ...(kotFirst ? kotGroup : []),
     {
       title: kotFirst
@@ -203,10 +242,17 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
     {
       title: t('hardwarePrinters', 'HARDWARE & PRINTERS'),
       items: [
-        { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
-        { id: 'quick-print', label: t('quickPrint', 'Text to Thermal Print'), icon: FileText, route: '/printers/quick-print' },
-        { id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, route: '/a4-to-receipt' },
-        { id: 'print-jobs', label: t('remotePrint', 'Remote Print Requests'), icon: Send, route: '/print-jobs' },
+        ...(!(user?.accountType === 'managed' || Boolean((user as any)?.adminId)) ||
+        hasPermission('canAccessSales') ||
+        hasPermission('canAccessKOT')
+          ? [
+              { id: 'printers', label: t('thermalPrinter', 'Printers & Calibration'), icon: Printer, route: '/printers' },
+              { id: 'quick-print', label: t('quickPrint', 'Text to Thermal Print'), icon: FileText, route: '/printers/quick-print' },
+            ]
+          : []),
+        ...(!(user?.accountType === 'managed' || Boolean((user as any)?.adminId)) || hasPermission('canAccessSales')
+          ? [{ id: 'bill-converter', label: 'A4 Bill to Receipt (AI)', icon: Zap, route: '/a4-to-receipt' }]
+          : []),
       ],
     },
     ...(supplierItems.length > 0
@@ -237,8 +283,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       router.push(route as any);
     }, 100);
   };
-
-  const isAgent = user?.role === 'agent' || user?.accountType === 'managed';
 
   return (
     <>

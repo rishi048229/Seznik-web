@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { Printer, X } from 'lucide-react-native';
 import { usePendingPrintJobsForAgent } from '@/hooks/usePrintJobs';
+import { printJobsApi } from '@/api/printJobs';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
+import { useQueryClient } from '@tanstack/react-query';
+import { debugFa19Log } from '@/utils/debugFa19Log';
 
 /** Polls slowly in the background for the whole session. A push is the primary delivery path, but
  *  it can silently never arrive — notification permission denied, Android Doze, a killed app on
@@ -24,8 +27,9 @@ export function IncomingPrintRequestBanner() {
   const pathname = usePathname();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const currentActorId = useAuthStore((s) => s.user?.id);
+  const [accepting, setAccepting] = useState(false);
 
   // Suppressed on the print-job screens themselves — they already show this job in full.
   const onPrintJobScreen = pathname?.startsWith('/print-jobs') ?? false;
@@ -39,11 +43,10 @@ export function IncomingPrintRequestBanner() {
   const topJob = useMemo(() => {
     return jobs.find(
       (job) =>
-        job.status === 'delivered' &&
-        !dismissedIds.includes(job.id) &&
-        (job.targetAgentId === currentActorId || (!!job.targetLocationId && !job.acceptedByAgentId))
+        (job.status === 'delivered' || job.status === 'queued' || job.status === 'accepted' || job.status === 'printer_connect_pending') &&
+        !dismissedIds.includes(job.id)
     );
-  }, [jobs, dismissedIds, currentActorId]);
+  }, [jobs, dismissedIds]);
 
   // The effect below is the only place that drives the animation, so dismissing flips this flag
   // and lets the same exit animation play rather than mutating the shared values from a handler.
@@ -70,6 +73,7 @@ export function IncomingPrintRequestBanner() {
   if (!topJob) return null;
 
   const topOffset = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0) + 8;
+  const needsAccept = topJob.status === 'delivered' || topJob.status === 'queued';
 
   // Lets the exit animation finish before the job leaves the list and this view unmounts —
   // dismissing is the most common interaction here, so it shouldn't just blink out.
@@ -79,26 +83,66 @@ export function IncomingPrintRequestBanner() {
     setTimeout(() => setDismissedIds((prev) => [...prev, jobId]), 220);
   };
 
+  const handleAccept = async () => {
+    if (accepting) return;
+    setAccepting(true);
+    try {
+      if (needsAccept) {
+        await printJobsApi.updateStatus(topJob.id, 'accepted');
+        queryClient.invalidateQueries({ queryKey: ['printJobs'] });
+      }
+      // #region agent log
+      debugFa19Log({
+        hypothesisId: 'C',
+        location: 'IncomingPrintRequestBanner.tsx:handleAccept',
+        message: 'Banner accept — navigating to print job',
+        data: { jobId: topJob.id, needsAccept, priorStatus: topJob.status },
+      });
+      // #endregion
+      router.push(`/print-jobs/${topJob.id}` as any);
+    } catch {
+      router.push(`/print-jobs/${topJob.id}` as any);
+    } finally {
+      setAccepting(false);
+    }
+  };
+
   return (
     <Animated.View style={[styles.wrap, { top: topOffset }, animatedStyle]} pointerEvents="box-none">
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => router.push(`/print-jobs/${topJob.id}` as any)}
-        style={[styles.banner, { backgroundColor: theme.cardBg, borderColor: BRAND_COLORS.blue600 }]}
-      >
-        <View style={styles.iconCircle}>
-          <Printer size={18} color="#FFFFFF" />
-        </View>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={[styles.title, { color: theme.textPrimary }]}>New receipt to print</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-            {topJob.requestedByName} sent invoice {topJob.sale.invoiceNumber} · Tap to accept
-          </Text>
-        </View>
+      <View style={[styles.banner, { backgroundColor: theme.cardBg, borderColor: BRAND_COLORS.blue600 }]}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push(`/print-jobs/${topJob.id}` as any)}
+          style={styles.bannerMain}
+        >
+          <View style={styles.iconCircle}>
+            <Printer size={18} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>New receipt to print</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+              {topJob.requestedByName} sent invoice {topJob.sale.invoiceNumber}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        {needsAccept ? (
+          <TouchableOpacity
+            onPress={handleAccept}
+            disabled={accepting}
+            style={styles.acceptBtn}
+            hitSlop={8}
+          >
+            {accepting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.acceptBtnText}>Accept</Text>
+            )}
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity onPress={handleDismiss} hitSlop={12} style={styles.dismissBtn}>
           <X size={16} color={theme.textSecondary} />
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 }
@@ -118,6 +162,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
+  bannerMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   iconCircle: {
     width: 36,
     height: 36,
@@ -128,5 +177,15 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 14, fontWeight: '800' },
   subtitle: { fontSize: 12, marginTop: 2 },
-  dismissBtn: { padding: 4, marginLeft: 6 },
+  acceptBtn: {
+    backgroundColor: BRAND_COLORS.blue600,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginLeft: 8,
+    minWidth: 68,
+    alignItems: 'center',
+  },
+  acceptBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  dismissBtn: { padding: 6, marginLeft: 4 },
 });

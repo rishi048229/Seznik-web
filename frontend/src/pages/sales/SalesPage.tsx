@@ -7,37 +7,40 @@ import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { DataTable, type ColumnDef } from '@/components/data-display/DataTable'
 import { Modal } from '@/components/ui/Modal'
-import { useSales, useBulkDeleteSales } from '@/hooks/useSales'
+import { useSales, useBulkDeleteSales, useUpdateSaleDeliveryStatus, useDeliveryReminders } from '@/hooks/useSales'
 import { useSettings } from '@/hooks/useSettings'
 import { useCustomers } from '@/hooks/useCustomers'
-import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth } from 'lucide-react'
+import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth, Truck, User, Clock, CheckCircle2, AlertCircle, Bell, Send } from 'lucide-react'
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
-import { downloadA4InvoicePdf } from '@/utils/invoicePdf'
+import { downloadA4InvoicePdf } from '@/utils/a4Invoice'
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { ROUTES } from '@/constants/routes'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import type { Sale } from '@/types/sale.types'
-import { isCancelledSale } from '@/utils/saleStatus'
+import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal'
+import type { Sale, DeliveryStatus, PaymentStatus } from '@/types/sale.types'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 export const SalesPage = () => {
   const { t } = useLanguage()
-  const { data: sales, isLoading } = useSales()
+  const { data: sales, isLoading } = useSales({ refetchInterval: 12000 })
   const { mutate: bulkDeleteSales, isPending: isBulkDeleting } = useBulkDeleteSales()
+  const { mutate: updateDeliveryStatus } = useUpdateSaleDeliveryStatus()
+  const { data: reminders } = useDeliveryReminders()
 
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all')
+  const [orderTypeFilter, setOrderTypeFilter] = useState<'all' | 'walk_in' | 'delivery'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [printSaleId, setPrintSaleId] = useState<string | null>(null)
+  const [remotePrintSaleId, setRemotePrintSaleId] = useState<string | null>(null)
   const [printFormat, setPrintFormat] = useState<'a4' | 'thermal'>('a4')
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [isBlePrinting, setIsBlePrinting] = useState(false)
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [shareSaleId, setShareSaleId] = useState<string | null>(null)
   const [sharePhone, setSharePhone] = useState('')
   const navigate = useNavigate()
@@ -49,9 +52,9 @@ export const SalesPage = () => {
     if (!printSale) return
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = printSale.customerId
+    const customerName = (printSale.customerId
       ? customers?.find(c => c.id === printSale.customerId)?.name
-      : ''
+      : undefined) || (printSale as any).customerName || (printSale as any).customer?.name || 'Walk-in Customer'
 
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
     const paperWidth: '50mm' | '80mm' | '210mm' = printFormat === 'thermal'
@@ -66,6 +69,8 @@ export const SalesPage = () => {
           sale: printSale,
           receiptConfig,
           paperSize,
+          printerConfig: settings?.printerConfig,
+          receiptFont: settings?.printerConfig?.receiptFont,
           businessName: settings?.businessName,
           businessAddress: settings?.businessAddress,
           customerName,
@@ -82,13 +87,19 @@ export const SalesPage = () => {
       return
     }
 
+    const customerObj = printSale.customerId ? customers?.find(c => c.id === printSale.customerId) : undefined
+    const customerPhone = customerObj?.phone || (printSale as any).customerPhone || (printSale as any).customer?.phone || undefined
+
     const receiptHTML = generateReceiptHTML({
       sale: printSale,
       receiptConfig,
       printerConfig: settings?.printerConfig,
       businessName: settings?.businessName,
       businessAddress: settings?.businessAddress,
+      businessPhone: settings?.businessPhone,
+      businessGSTIN: settings?.businessGSTIN,
       customerName,
+      customerPhone,
       width: paperWidth,
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
@@ -97,7 +108,7 @@ export const SalesPage = () => {
     printReceipt(receiptHTML, paperWidth, printSale.invoiceNumber, () => {
       setIsPrintModalOpen(false)
       setPrintSaleId(null)
-    })
+    }, settings?.printerConfig?.receiptFont)
   }
 
   const handlePrintBluetooth = async () => {
@@ -108,16 +119,22 @@ export const SalesPage = () => {
         await blePrinter.connect()
       }
       const receiptConfig = resolveEffectiveReceiptConfig(settings)
-      const customerName = printSale.customerId
-        ? customers?.find(c => c.id === printSale.customerId)?.name
-        : ''
+      const customerObj = printSale.customerId ? customers?.find(c => c.id === printSale.customerId) : undefined
+      const customerName = (customerObj?.name) || (printSale as any).customerName || (printSale as any).customer?.name || 'Walk-in Customer'
+      const customerPhone = customerObj?.phone || (printSale as any).customerPhone || (printSale as any).customer?.phone || undefined
       const bytes = await generateReceiptEscPos({
         sale: printSale,
         receiptConfig,
         paperSize: settings?.printerConfig?.paperSize || '58mm',
+        printerConfig: settings?.printerConfig,
+        receiptFont: settings?.printerConfig?.receiptFont,
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
+        businessPhone: settings?.businessPhone,
+        businessGSTIN: settings?.businessGSTIN,
+        businessLogoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
         customerName,
+        customerPhone,
       })
       await blePrinter.print(bytes)
       setIsPrintModalOpen(false)
@@ -131,16 +148,17 @@ export const SalesPage = () => {
 
   const openPrintModal = (saleId: string) => {
     setPrintSaleId(saleId)
+    setPrintFormat(settings?.printerConfig?.connectionType === 'bluetooth' ? 'thermal' : 'a4')
     setIsPrintModalOpen(true)
   }
 
-  const handleDownload = async (saleId: string) => {
+  const handleDownload = (saleId: string) => {
     const sale = sales?.find(s => s.id === saleId)
     if (!sale) return
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
-    const customerName = sale.customerId
+    const customerName = (sale.customerId
       ? customers?.find(c => c.id === sale.customerId)?.name
-      : ''
+      : undefined) || (sale as any).customerName || (sale as any).customer?.name || 'Walk-in Customer'
     const html = generateReceiptHTML({
       sale,
       receiptConfig,
@@ -153,20 +171,25 @@ export const SalesPage = () => {
       logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
       settingsTaxName: 'GST',
     })
-    const toastId = toast.loading('Preparing PDF…')
-    setIsDownloadingPdf(true)
-    try {
-      await downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
-      toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} downloaded`, { id: toastId })
-    } catch (error) {
-      toast.dismiss(toastId)
-      toastError(error, 'Could not download the invoice PDF')
-    } finally {
-      setIsDownloadingPdf(false)
-    }
+    downloadA4InvoicePdf(html, `${sale.invoiceNumber}.pdf`, settings?.printerConfig?.invoicePaperSize || 'A4')
+    toast.success(`${t('sales.invoiceHeader')} ${sale.invoiceNumber} — click Save as PDF`)
+  }
+
+  const handleStatusChange = (saleId: string, deliveryStatus: DeliveryStatus, paymentStatus?: PaymentStatus) => {
+    updateDeliveryStatus(
+      { saleId, data: { deliveryStatus, paymentStatus } },
+      {
+        onSuccess: () => toast.success('Delivery status updated'),
+        onError: (err) => toastError(err, 'Failed to update delivery status'),
+      }
+    )
   }
 
   const filtered = sales?.filter(sale => {
+    if (orderTypeFilter !== 'all' && (sale.orderType || 'walk_in') !== orderTypeFilter) {
+      return false
+    }
+
     if (dateFilter === 'all') return true
     const rawDate = sale.createdAt as unknown as { toDate?: () => Date }
     const saleDate = rawDate?.toDate ? rawDate.toDate() : new Date(sale.createdAt || Date.now())
@@ -220,7 +243,7 @@ export const SalesPage = () => {
       : (shareSale.createdAt ? new Date(shareSale.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
     const customerName = shareSale.customerId
       ? customers?.find(c => c.id === shareSale.customerId)?.name ?? 'Customer'
-      : 'Walk-in Customer'
+      : (shareSale.customerName || (shareSale.orderType === 'delivery' ? 'Delivery Customer' : 'Walk-in Customer'))
     const businessName = settings?.businessName || 'Our Store'
     const items = (shareSale.items ?? [])
       .map(i => `  • ${i.productName} x${i.quantity} — ${formatINR(i.sellingPrice * i.quantity)}`)
@@ -231,7 +254,9 @@ export const SalesPage = () => {
       ``,
       `Invoice No : *${shareSale.invoiceNumber}*`,
       `Date       : ${dateStr}`,
+      `Type       : ${shareSale.orderType === 'delivery' ? '🚚 DELIVERY ORDER' : '🚶 WALK-IN'}`,
       `Customer   : ${customerName}`,
+      shareSale.deliveryAddress ? `Address    : ${shareSale.deliveryAddress}` : null,
       ``,
       `*Items:*`,
       items,
@@ -240,9 +265,9 @@ export const SalesPage = () => {
       shareSale.totalDiscount > 0 ? `Discount   : -${formatINR(shareSale.totalDiscount)}` : null,
       shareSale.totalTax > 0 ? `Tax        : ${formatINR(shareSale.totalTax)}` : null,
       `*Total      : ${formatINR(shareSale.grandTotal)}*`,
-      `Payment    : ${shareSale.paymentMethod?.toUpperCase()}`,
+      `Payment    : ${shareSale.paymentMethod?.toUpperCase()} (${shareSale.paymentStatus === 'pending' ? 'PENDING' : 'PAID'})`,
       ``,
-      `Thank you for your purchase! 🙏`,
+      `Thank you for your business! 🙏`,
     ].filter(Boolean).join('\n')
 
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
@@ -291,21 +316,100 @@ export const SalesPage = () => {
       header: t('sales.invoiceHeader'),
       render: (row) => (
         <div>
-          <span className="font-medium">{row.invoiceNumber}</span>
-          {isCancelledSale(row) && (
-            <Badge variant="danger" className="ml-2">Cancelled</Badge>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{row.invoiceNumber}</span>
+            {row.returnStatus === 'full' && (
+              <Badge variant="danger" className="text-[10px] px-1.5 py-0">
+                RETURNED
+              </Badge>
+            )}
+            {row.returnStatus === 'partial' && (
+              <Badge variant="warning" className="text-[10px] px-1.5 py-0">
+                PARTIAL RETURN
+              </Badge>
+            )}
+            {row.isRemotePrint && (
+              <Badge variant="info" className="text-[10px] px-1.5 py-0">
+                REMOTE PRINT
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-gray-400">{row.items?.length ?? 0} {t('sales.itemsSuffix')}</p>
         </div>
       ),
       sortable: true,
     },
     {
+      key: 'orderType',
+      header: 'Order / Delivery',
+      render: (row) => {
+        const isDelivery = row.orderType === 'delivery'
+        if (!isDelivery) {
+          return (
+            <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+              <User size={13} className="text-gray-400" />
+              <span>Walk-in</span>
+            </div>
+          )
+        }
+
+        const status = row.deliveryStatus || 'pending'
+        const isPaymentPending = row.paymentStatus === 'pending'
+
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Truck size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
+              <select
+                value={status}
+                onChange={(e) => handleStatusChange(row.id, e.target.value as DeliveryStatus)}
+                className={`text-[11px] font-bold py-0.5 px-2 rounded-lg border cursor-pointer ${
+                  status === 'delivered'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                    : status === 'out_for_delivery'
+                    ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+                    : status === 'cancelled'
+                    ? 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300'
+                    : 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
+                }`}
+              >
+                <option value="pending">⏳ Pending</option>
+                <option value="out_for_delivery">🚚 Out for Delivery</option>
+                <option value="delivered">✓ Delivered</option>
+                <option value="cancelled">✕ Cancelled</option>
+              </select>
+            </div>
+            {isPaymentPending ? (
+              <button
+                type="button"
+                onClick={() => handleStatusChange(row.id, row.deliveryStatus || 'pending', 'paid')}
+                className="text-[10px] font-bold text-amber-700 dark:text-amber-300 hover:underline flex items-center gap-1 cursor-pointer"
+                title="Click to mark payment collected"
+              >
+                <span>COD Pending (Mark Paid)</span>
+              </button>
+            ) : null}
+            {row.scheduledDeliveryDate && (
+              <p className="text-[10px] text-gray-400">
+                Due: {new Date(row.scheduledDeliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+              </p>
+            )}
+          </div>
+        )
+      },
+    },
+    {
       key: 'customer',
       header: t('sales.customerHeader'),
-      render: (row) => (
-        <span>{row.customerId ? t('sales.registered') : t('sales.walkin')}</span>
-      ),
+      render: (row) => {
+        const custName = row.customerId ? customers?.find(c => c.id === row.customerId)?.name : (row.customerName || (row.orderType === 'delivery' ? 'Delivery Customer' : t('sales.walkin')))
+        return (
+          <div>
+            <span className="font-medium text-gray-900 dark:text-gray-100">{custName}</span>
+            {row.deliveryPhone && <p className="text-[11px] text-gray-400">{row.deliveryPhone}</p>}
+          </div>
+        )
+      },
     },
     {
       key: 'createdAt',
@@ -336,13 +440,20 @@ export const SalesPage = () => {
       key: 'paymentMethod',
       header: t('sales.methodHeader'),
       render: (row) => (
-        <Badge variant={
-          row.paymentMethod === 'cash' ? 'success' :
-          row.paymentMethod === 'card' ? 'info' :
-          row.paymentMethod === 'upi' ? 'default' : 'warning'
-        }>
-          {row.paymentMethod?.toUpperCase()}
-        </Badge>
+        <div className="space-y-1">
+          <Badge variant={
+            row.paymentMethod === 'cash' ? 'success' :
+            row.paymentMethod === 'card' ? 'info' :
+            row.paymentMethod === 'upi' ? 'default' : 'warning'
+          }>
+            {row.paymentMethod?.toUpperCase()}
+          </Badge>
+          {row.paymentStatus === 'pending' && (
+            <Badge variant="warning" className="text-[10px] block w-fit">
+              UNPAID / COD
+            </Badge>
+          )}
+        </div>
       ),
     },
     {
@@ -356,11 +467,19 @@ export const SalesPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openPrintModal(row.id)} title={t('pos.printReceiptTitle')}>
             <Printer size={16} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => handleDownload(row.id)} title={t('sales.downloadInvoiceTitle')} loading={isDownloadingPdf}>
+          <Button variant="ghost" size="sm" onClick={() => handleDownload(row.id)} title={t('sales.downloadInvoiceTitle')}>
             <Download size={16} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setShareSaleId(row.id); setSharePhone('') }} title={t('daybook.shareWhatsApp')}>
+          <Button variant="ghost" size="sm" onClick={() => { setShareSaleId(row.id); setSharePhone(row.deliveryPhone || '') }} title={t('daybook.shareWhatsApp')}>
             <WhatsAppIcon size={16} className="text-green-600" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setRemotePrintSaleId(row.id)}
+            title="Send this receipt to a teammate's phone to print"
+          >
+            <Send size={16} className="text-blue-600" />
           </Button>
         </div>
       ),
@@ -370,13 +489,50 @@ export const SalesPage = () => {
   const shareSale = sales?.find(s => s.id === shareSaleId)
 
   return (
+    <div className="space-y-4">
+      {/* Delivery & Payment Due Reminders Banner */}
+      {reminders && (reminders.pendingDeliveries?.length > 0 || reminders.pendingPayments?.length > 0) && (
+        <div className="p-4 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-blue-500/10 border border-amber-300 dark:border-amber-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Bell size={20} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <span>Fulfillment & Payment Reminders</span>
+                <Badge variant="warning" size="sm">
+                  {(reminders.pendingDeliveries?.length || 0) + (reminders.pendingPayments?.length || 0)} action items
+                </Badge>
+              </h4>
+              <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                {reminders.pendingDeliveries?.length > 0 && (
+                  <span className="font-semibold text-amber-800 dark:text-amber-200">
+                    🚚 {reminders.pendingDeliveries.length} scheduled deliveries pending fulfillment.
+                  </span>
+                )}
+                {reminders.pendingDeliveries?.length > 0 && reminders.pendingPayments?.length > 0 && ' • '}
+                {reminders.pendingPayments?.length > 0 && (
+                  <span className="font-semibold text-orange-800 dark:text-orange-200">
+                    💳 {reminders.pendingPayments.length} orders awaiting COD payment collection.
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOrderTypeFilter('delivery')}
+            className="text-xs font-bold px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors shrink-0 cursor-pointer"
+          >
+            View Deliveries
+          </button>
+        </div>
+      )}
 
-
-    <div>
       <PageHeader
         title={t('page.salesHistory')}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {someSelected && (
               <Button
                 variant="danger"
@@ -388,14 +544,38 @@ export const SalesPage = () => {
                 {t('sales.deleteSelected')} ({selectedIds.size})
               </Button>
             )}
+
+            {/* Order Type Filter */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              {([
+                { id: 'all' as const, label: 'All Orders' },
+                { id: 'walk_in' as const, label: 'Walk-in', icon: User },
+                { id: 'delivery' as const, label: 'Delivery', icon: Truck },
+              ]).map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setOrderTypeFilter(id)}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                    orderTypeFilter === id
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm font-bold'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  {Icon && <Icon size={12} />}
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Date Filter */}
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               {(['all', 'today', 'week', 'month'] as const).map(period => (
                 <button
                   key={period}
                   onClick={() => setDateFilter(period)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
                     dateFilter === period
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm font-bold'
                       : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
@@ -415,6 +595,11 @@ export const SalesPage = () => {
           searchable
           pagination
           emptyMessage={t('sales.noSalesForPeriod')}
+          rowClassName={(row) =>
+            row.isRemotePrint
+              ? 'bg-sky-50/80 dark:bg-sky-950/20 ring-1 ring-inset ring-sky-200 dark:ring-sky-800'
+              : undefined
+          }
         />
       </Card>
 
@@ -504,7 +689,6 @@ export const SalesPage = () => {
               className="w-full"
               leftIcon={<Download size={16} />}
               onClick={() => handleDownload(printSaleId)}
-              loading={isDownloadingPdf}
             >
               Download PDF
             </Button>

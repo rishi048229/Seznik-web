@@ -69,8 +69,9 @@ import {
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDashboard, useRevenueTrend } from '@/hooks/useDashboard';
+import { reportsApi } from '@/api/reports';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { usePrinterStore } from '@/store/usePrinterStore';
@@ -97,7 +98,8 @@ import type { Customer } from '@/types/customer';
 import type { Product } from '@/types/product';
 import { useTranslation } from '@/store/useLanguageStore';
 import { RevenueTrendChart } from '@/components/dashboard/RevenueTrendChart';
-import { isNavFeatureVisible } from '@/utils/businessFeatures';
+import { isKotFirstNav, isNavFeatureVisible } from '@/utils/businessFeatures';
+import { debugFa19Log } from '@/utils/debugFa19Log';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -235,8 +237,49 @@ export default function DashboardScreen() {
 
   const showKot =
     isNavFeatureVisible(user?.businessType, 'kot') && hasPermission('canAccessKOT');
+  const restaurantMode = isKotFirstNav(user?.businessType);
+  const { data: restaurantDash } = useQuery({
+    queryKey: ['restaurant-dashboard'],
+    queryFn: () => reportsApi.getRestaurantDashboard(),
+    enabled: restaurantMode,
+    refetchInterval: 30000,
+  });
   const showTokens = isNavFeatureVisible(user?.businessType, 'tokens');
   const showCalculator = isNavFeatureVisible(user?.businessType, 'calculator');
+  const isManagedStaff = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
+  const canSales = hasPermission('canAccessSales');
+  const canExpenses = hasPermission('canAccessExpenses');
+  const canReports = hasPermission('canAccessReports');
+  const canSuppliers = hasPermission('canAccessSuppliers');
+  const canCustomers = hasPermission('canAccessCustomers');
+  const canProducts = hasPermission('canAccessProducts');
+  const canSettingsNav =
+    hasPermission('canAccessSettings') || hasPermission('canManageUsers') || user?.role === 'admin';
+  const showPrinterDashboard =
+    !isManagedStaff ||
+    canSales ||
+    hasPermission('canAccessKOT') ||
+    hasPermission('canSendRemotePrint');
+  const showExpenseCard = !isManagedStaff || canExpenses;
+  const showBusinessMetrics = !isManagedStaff || canReports || canSales;
+
+  useEffect(() => {
+    if (!user) return;
+    // #region agent log
+    debugFa19Log({
+      hypothesisId: 'A',
+      location: '(tabs)/index.tsx:dashboard',
+      message: 'Agent dashboard permissions snapshot',
+      data: {
+        role: user.role,
+        accountType: user.accountType,
+        businessType: user.businessType,
+        showKot,
+        perms: user.permissions,
+      },
+    });
+    // #endregion
+  }, [user?.id, showKot]);
 
   const theme = useAppTheme();
 
@@ -706,48 +749,58 @@ export default function DashboardScreen() {
                       onPress={() => router.push('/kot' as any)}
                       theme={theme}
                     />
-                    <FeatureGridTile
-                      label={t('sales', 'Sales')}
-                      icon={TrendingUp}
-                      color="#0284C7"
-                      onPress={() => router.push('/(tabs)/invoices' as any)}
-                      theme={theme}
-                    />
+                    {canSales ? (
+                      <FeatureGridTile
+                        label={t('sales', 'Sales')}
+                        icon={TrendingUp}
+                        color="#0284C7"
+                        onPress={() => router.push('/(tabs)/invoices' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
                   </>
                 ) : (
                   <>
-                    <FeatureGridTile
-                      label={t('dayBook', 'Day Book')}
-                      icon={BookOpen}
-                      color="#10B981"
-                      onPress={() => router.push('/credits' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('sales', 'Sales')}
-                      icon={TrendingUp}
-                      color="#0284C7"
-                      onPress={() => router.push('/(tabs)/invoices' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('scanStock', 'Scan Stock')}
-                      icon={Barcode}
-                      color={BRAND_COLORS.sky500}
-                      onPress={() => {
-                        if (!permission?.granted) requestPermission();
-                        setScanMode('stock');
-                        setShowScanModal(true);
-                      }}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('expenses', 'Expenses')}
-                      icon={TrendingDown}
-                      color="#EF4444"
-                      onPress={() => router.push('/expenses' as any)}
-                      theme={theme}
-                    />
+                    {canSales ? (
+                      <FeatureGridTile
+                        label={t('dayBook', 'Day Book')}
+                        icon={BookOpen}
+                        color="#10B981"
+                        onPress={() => router.push('/credits' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {canSales ? (
+                      <FeatureGridTile
+                        label={t('sales', 'Sales')}
+                        icon={TrendingUp}
+                        color="#0284C7"
+                        onPress={() => router.push('/(tabs)/invoices' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {canProducts ? (
+                      <FeatureGridTile
+                        label={t('scanStock', 'Scan Stock')}
+                        icon={Barcode}
+                        color={BRAND_COLORS.sky500}
+                        onPress={() => {
+                          if (!permission?.granted) requestPermission();
+                          setScanMode('stock');
+                          setShowScanModal(true);
+                        }}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {canExpenses ? (
+                      <FeatureGridTile
+                        label={t('expenses', 'Expenses')}
+                        icon={TrendingDown}
+                        color="#EF4444"
+                        onPress={() => router.push('/expenses' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
                   </>
                 )}
 
@@ -756,90 +809,112 @@ export default function DashboardScreen() {
                   <>
                     {showKot ? (
                       <>
+                        {canSales ? (
+                          <FeatureGridTile
+                            label={t('dayBook', 'Day Book')}
+                            icon={BookOpen}
+                            color="#10B981"
+                            onPress={() => router.push('/credits' as any)}
+                            theme={theme}
+                          />
+                        ) : null}
+                        {canSales ? (
+                          <FeatureGridTile
+                            label={t('pos', 'Counter POS')}
+                            icon={ShoppingBag}
+                            color="#0EA5E9"
+                            onPress={() => router.push('/(tabs)/pos' as any)}
+                            theme={theme}
+                          />
+                        ) : null}
+                        {canProducts ? (
+                          <FeatureGridTile
+                            label={t('scanStock', 'Scan Stock')}
+                            icon={Barcode}
+                            color={BRAND_COLORS.sky500}
+                            onPress={() => {
+                              if (!permission?.granted) requestPermission();
+                              setScanMode('stock');
+                              setShowScanModal(true);
+                            }}
+                            theme={theme}
+                          />
+                        ) : null}
+                      </>
+                    ) : null}
+                    {canProducts ? (
+                      <FeatureGridTile
+                        label={t('aiImport', 'AI Import')}
+                        badge="AI"
+                        icon={Sparkles}
+                        color="#8B5CF6"
+                        onPress={() => setShowAiImportModal(true)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {canReports ? (
+                      <FeatureGridTile
+                        label={t('reports', 'Reports')}
+                        icon={BarChart3}
+                        color="#8B5CF6"
+                        onPress={() => router.push('/reports' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {showPrinterDashboard ? (
+                      <FeatureGridTile
+                        label={t('labelStudio', 'Label Studio')}
+                        icon={Tag}
+                        color="#10B981"
+                        onPress={() => router.push('/printers/label-studio' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {canCustomers ? (
+                      <FeatureGridTile
+                        label={t('customers', 'Customers')}
+                        icon={Users}
+                        color="#F59E0B"
+                        onPress={() => router.push('/customers' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {canSuppliers ? (
+                      <FeatureGridTile
+                        label={t('suppliers', 'Suppliers')}
+                        icon={Truck}
+                        color="#14B8A6"
+                        onPress={() => router.push('/suppliers' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
+                    {showPrinterDashboard ? (
+                      <>
                         <FeatureGridTile
-                          label={t('dayBook', 'Day Book')}
-                          icon={BookOpen}
+                          label={t('thermalPrinter', 'Thermal Printer')}
+                          icon={Printer}
+                          color={BRAND_COLORS.blue600}
+                          onPress={() => router.push('/printers' as any)}
+                          theme={theme}
+                        />
+                        <FeatureGridTile
+                          label={t('quickPrint', 'Quick Print')}
+                          icon={FileText}
                           color="#10B981"
-                          onPress={() => router.push('/credits' as any)}
-                          theme={theme}
-                        />
-                        <FeatureGridTile
-                          label={t('pos', 'Counter POS')}
-                          icon={ShoppingBag}
-                          color="#0EA5E9"
-                          onPress={() => router.push('/(tabs)/pos' as any)}
-                          theme={theme}
-                        />
-                        <FeatureGridTile
-                          label={t('scanStock', 'Scan Stock')}
-                          icon={Barcode}
-                          color={BRAND_COLORS.sky500}
-                          onPress={() => {
-                            if (!permission?.granted) requestPermission();
-                            setScanMode('stock');
-                            setShowScanModal(true);
-                          }}
+                          onPress={() => router.push('/printers/quick-print' as any)}
                           theme={theme}
                         />
                       </>
                     ) : null}
-                    <FeatureGridTile
-                      label={t('aiImport', 'AI Import')}
-                      badge="AI"
-                      icon={Sparkles}
-                      color="#8B5CF6"
-                      onPress={() => setShowAiImportModal(true)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('reports', 'Reports')}
-                      icon={BarChart3}
-                      color="#8B5CF6"
-                      onPress={() => router.push('/reports' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('labelStudio', 'Label Studio')}
-                      icon={Tag}
-                      color="#10B981"
-                      onPress={() => router.push('/printers/label-studio' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('customers', 'Customers')}
-                      icon={Users}
-                      color="#F59E0B"
-                      onPress={() => router.push('/customers' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('suppliers', 'Suppliers')}
-                      icon={Truck}
-                      color="#14B8A6"
-                      onPress={() => router.push('/suppliers' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('thermalPrinter', 'Thermal Printer')}
-                      icon={Printer}
-                      color={BRAND_COLORS.blue600}
-                      onPress={() => router.push('/printers' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('quickPrint', 'Quick Print')}
-                      icon={FileText}
-                      color="#10B981"
-                      onPress={() => router.push('/printers/quick-print' as any)}
-                      theme={theme}
-                    />
-                    <FeatureGridTile
-                      label={t('expenses', 'Expenses')}
-                      icon={TrendingDown}
-                      color="#EF4444"
-                      onPress={() => router.push('/expenses' as any)}
-                      theme={theme}
-                    />
+                    {canExpenses ? (
+                      <FeatureGridTile
+                        label={t('expenses', 'Expenses')}
+                        icon={TrendingDown}
+                        color="#EF4444"
+                        onPress={() => router.push('/expenses' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
                     {showTokens ? (
                       <FeatureGridTile
                         label={t('quickTokens', 'Quick Tokens')}
@@ -867,13 +942,15 @@ export default function DashboardScreen() {
                         theme={theme}
                       />
                     ) : null}
-                    <FeatureGridTile
-                      label={t('settings', 'Settings')}
-                      icon={SettingsIcon}
-                      color={theme.textSecondary}
-                      onPress={() => router.push('/settings' as any)}
-                      theme={theme}
-                    />
+                    {canSettingsNav ? (
+                      <FeatureGridTile
+                        label={t('settings', 'Settings')}
+                        icon={SettingsIcon}
+                        color={theme.textSecondary}
+                        onPress={() => router.push('/settings' as any)}
+                        theme={theme}
+                      />
+                    ) : null}
                     <FeatureGridTile
                       label={t('feedback', 'Feedback')}
                       icon={MessageSquarePlus}
@@ -908,7 +985,53 @@ export default function DashboardScreen() {
                 )}
               </TouchableOpacity>
 
+              {/* Restaurant floor snapshot. Printer fleet stays below. */}
+              {restaurantMode ? (
+                <View style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                    {[
+                      ['Running', restaurantDash ? String(restaurantDash.runningCount) : '—'],
+                      ['Orders today', restaurantDash ? String(restaurantDash.ordersToday) : '—'],
+                      ['Revenue', restaurantDash ? `₹${Math.round(restaurantDash.revenueToday)}` : '—'],
+                      ['Occupancy', restaurantDash ? `${restaurantDash.occupancyPct}%` : '—'],
+                      ['Avg wait', restaurantDash ? `${restaurantDash.avgWaitMinutes}m` : '—'],
+                    ].map(([label, value]) => (
+                      <View key={label} style={[styles.printerCard, { width: '31%', padding: 10, marginBottom: 0, backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                        <Text style={{ fontSize: 11, color: theme.textSecondary }}>{label}</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: theme.textPrimary }}>{value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => router.push('/kitchen-inventory' as any)}
+                    style={[styles.printerCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 8 }]}
+                  >
+                    <Text style={{ fontWeight: '800', color: theme.textPrimary }}>Kitchen inventory</Text>
+                    <Text style={{ color: theme.textSecondary, marginTop: 4 }}>
+                      {!restaurantDash || restaurantDash.kitchen.tracked === 0
+                        ? 'No ingredients tracked yet'
+                        : `${restaurantDash.kitchen.lowStock} low · ${restaurantDash.kitchen.outOfStock} out`}
+                    </Text>
+                  </TouchableOpacity>
+                  {(restaurantDash?.runningOrders ?? []).slice(0, 5).map((order) => (
+                    <TouchableOpacity
+                      key={order.id}
+                      onPress={() => router.push(`/kot/${order.id}` as any)}
+                      style={{ paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.borderColor }}
+                    >
+                      <Text style={{ color: theme.textPrimary, fontWeight: '700' }}>
+                        #{order.orderNumber} · {order.tableName}
+                      </Text>
+                      <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+                        {order.status === 'open' ? 'Open' : order.status === 'ready' ? 'Ready' : order.status === 'served' ? 'Served' : 'In kitchen'} · {order.itemCount} items
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+
               {/* 2.5 LIVE THERMAL & BLUETOOTH PRINTER HARDWARE STATUS CARD */}
+              {showPrinterDashboard ? (
               <View style={[styles.printerCard, { backgroundColor: theme.cardBg, borderColor: isPrinterConnected ? '#10B981' : theme.borderColor }]}>
                 <View style={styles.printerCardHeader}>
                   <View style={[styles.printerIconBadge, { backgroundColor: isPrinterConnected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)' }]}>
@@ -1076,8 +1199,10 @@ export default function DashboardScreen() {
                   ) : null}
                 </View>
               </View>
+              ) : null}
 
               {/* 2.6 LIVE BUSINESS SPENDING & OUTFLOW CARD */}
+              {showExpenseCard ? (
               <View style={[styles.expenseCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={styles.expenseCardHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -1131,8 +1256,11 @@ export default function DashboardScreen() {
                   </View>
                 </View>
               </View>
+              ) : null}
 
               {/* 3. EXECUTIVE METRICS STRIP */}
+              {showBusinessMetrics ? (
+              <>
               <Text style={styles.sectionHeader}>{t('todayPerformance', "TODAY'S PERFORMANCE & P&L")}</Text>
               <View style={styles.kpiGrid}>
                 {/* Revenue */}
@@ -1370,7 +1498,11 @@ export default function DashboardScreen() {
                 surfaceBg={theme.bg}
               />
 
+              </>
+              ) : null}
+
               {/* 9. RECENT SALES FEED */}
+              {canSales ? (
               <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionHeader}>{t('recentSales', 'RECENT SALES TRANSACTIONS')}</Text>
@@ -1401,6 +1533,7 @@ export default function DashboardScreen() {
                   )}
                 </View>
               </View>
+              ) : null}
             </>
           )}
         </ScrollView>

@@ -6,7 +6,7 @@ import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { useCustomers } from '@/hooks/useCustomers'
 import { useSettings } from '@/hooks/useSettings'
 import { formatINR, roundCurrency } from '@/utils/currency'
-import { Wallet, CreditCard, Smartphone, UserPlus, AlertTriangle, Printer } from 'lucide-react'
+import { Wallet, CreditCard, Smartphone, UserPlus, AlertTriangle, Printer, Send } from 'lucide-react'
 import type { KOTBillPayload, KOTOrderType } from '@/types/kot.types'
 import type { KotRoomType } from '@/types/settings.types'
 import {
@@ -31,6 +31,8 @@ interface KOTBillModalProps {
   onCustomerChange: (id: string) => void
   loading: boolean
   onSettle: (payload: KOTBillPayload) => void
+  sendRemotePrint?: boolean
+  onSendRemotePrintChange?: (value: boolean) => void
 }
 
 export const KOTBillModal = ({
@@ -47,6 +49,8 @@ export const KOTBillModal = ({
   onCustomerChange,
   loading,
   onSettle,
+  sendRemotePrint = false,
+  onSendRemotePrintChange,
 }: KOTBillModalProps) => {
   const { data: settings } = useSettings()
   const { data: customers } = useCustomers()
@@ -138,6 +142,25 @@ export const KOTBillModal = ({
       }
     >
       <div className="space-y-5">
+        {onSendRemotePrintChange && (
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/20 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={sendRemotePrint}
+              onChange={e => onSendRemotePrintChange(e.target.checked)}
+            />
+            <span>
+              <span className="flex items-center gap-1.5 text-sm font-bold text-slate-800 dark:text-gray-100">
+                <Send size={14} className="text-blue-600" />
+                Send to teammate to print
+              </span>
+              <span className="block text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                After settling, pick who should print this bill on their phone or browser.
+              </span>
+            </span>
+          </label>
+        )}
         <div>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Order type</p>
           <div className={`grid gap-1.5 ${typeOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>

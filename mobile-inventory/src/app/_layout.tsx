@@ -117,6 +117,9 @@ function RootLayoutNav() {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         refreshApiBaseUrl();
+        if (useAuthStore.getState().isAuthenticated) {
+          registerPushTokenWithBackend().catch(() => {});
+        }
       }
     });
     return () => sub.remove();
@@ -170,7 +173,7 @@ function RootLayoutNav() {
     const onAccessSelection = segments[0] === '(auth)' && segments[1] === 'access-selection';
     const inAuthGroup = segments[0] === '(auth)' && !onAccessSelection;
     const onOnboarding = segments[0] === 'onboarding';
-    const isManagedUser = user?.accountType === 'managed' || user?.role === 'agent';
+    const isManagedUser = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
     const needsOnboarding =
       isAuthenticated &&
       !isManagedUser &&
@@ -184,13 +187,14 @@ function RootLayoutNav() {
 
     if (!isAuthenticated && !inAuthGroup && !onAccessSelection) {
       router.replace('/(auth)/login' as any);
-    } else if (isAuthenticated && isManagedUser && (onOnboarding || onAccessSelection)) {
+    } else if (isAuthenticated && isManagedUser && onOnboarding) {
       router.replace('/(tabs)' as any);
     } else if (isAuthenticated && needsSetup && !onOnboarding) {
       router.replace('/onboarding' as any);
     } else if (isAuthenticated && (inAuthGroup || onOnboarding) && !needsSetup) {
-      const canChooseWorkstation = !isManagedUser;
-      router.replace((canChooseWorkstation ? '/(auth)/access-selection' : '/(tabs)') as any);
+      // Managed (agent) sessions may open access-selection to switch back to Store Admin.
+      if (onAccessSelection) return;
+      router.replace('/(tabs)' as any);
     }
 
     SplashScreen.hideAsync().catch(() => {});

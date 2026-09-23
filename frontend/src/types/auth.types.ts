@@ -15,6 +15,8 @@ export interface UserPermissions {
   canAccessReports: boolean
   canAccessSettings: boolean
   canManageUsers: boolean
+  canAccessKOT: boolean
+  canSendRemotePrint: boolean
 }
 
 export const ADMIN_PERMISSIONS: UserPermissions = {
@@ -28,6 +30,8 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
   canAccessReports: true,
   canAccessSettings: true,
   canManageUsers: true,
+  canAccessKOT: true,
+  canSendRemotePrint: true,
 }
 
 export const AGENT_PERMISSIONS: UserPermissions = {
@@ -41,6 +45,8 @@ export const AGENT_PERMISSIONS: UserPermissions = {
   canAccessReports: false,
   canAccessSettings: true,
   canManageUsers: false,
+  canAccessKOT: false,
+  canSendRemotePrint: true,
 }
 
 export interface UserProfile {
@@ -60,6 +66,7 @@ export interface UserProfile {
   onboardingCompleted?: boolean
   seznikUser?: boolean
   accountType?: 'user' | 'managed'
+  adminId?: string | null
   role?: UserRole | null
   permissions?: UserPermissions
 }

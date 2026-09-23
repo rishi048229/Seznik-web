@@ -1,12 +1,14 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
+import { normalizePermissions } from '../utils/ownerUser';
 import { sendPushToActor, sendPushToActors } from '../services/pushNotificationService';
+import { debugFa19Log } from '../utils/debugFa19Log';
 
 /** How long a job waits for an agent to accept/reject before it's treated as expired and the
  *  admin is offered reassignment (Step 6). Kept as one constant so the create-time deadline and
  *  the lazy expiry check below never drift apart. */
-const RESPONSE_WINDOW_MS = 90_000;
+const RESPONSE_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 const VALID_STATUSES = [
   'queued',
@@ -46,9 +48,10 @@ async function resolveSenderAuthority(
   });
   if (!managed) return null;
 
-  const perms = (managed.permissions as Record<string, any>) || {};
+  const perms = normalizePermissions(managed.permissions, managed.role);
   const ok = perms.canSendRemotePrint === true || managed.role === 'admin';
-  return { ok, ownerUserId: managed.adminId, actorName: managed.displayName || managed.email || 'Staff' };
+  const ownerUserId = await getOwnerUserId(managed.adminId);
+  return { ok, ownerUserId, actorName: managed.displayName || managed.email || 'Staff' };
 }
 
 async function resolveActorName(actorId: string): Promise<string> {
@@ -143,16 +146,26 @@ export const createPrintJob = async (req: Request, res: Response) => {
     let agentIdsToNotify: string[] = [];
 
     if (targetAgentId) {
-      // Confirm the target is actually this business's own agent/owner, not an arbitrary id.
       const isOwner = targetAgentId === authority.ownerUserId;
+      const owner = await prisma.user.findUnique({
+        where: { id: authority.ownerUserId },
+        select: { id: true, uid: true },
+      });
+      const adminIds = Array.from(new Set([authority.ownerUserId, owner?.uid].filter(Boolean))) as string[];
       const managed = isOwner
         ? null
-        : await prisma.managedUser.findFirst({ where: { id: targetAgentId, adminId: authority.ownerUserId } });
+        : await prisma.managedUser.findFirst({
+            where: {
+              adminId: { in: adminIds },
+              OR: [{ id: targetAgentId }, { uid: targetAgentId }],
+            },
+          });
       if (!isOwner && !managed) {
         return res.status(404).json({ success: false, message: 'Target agent not found for this business.' });
       }
-      targetAgentName = await resolveActorName(targetAgentId);
-      agentIdsToNotify = [targetAgentId];
+      const canonicalTargetId = isOwner ? authority.ownerUserId : managed!.id;
+      targetAgentName = await resolveActorName(canonicalTargetId);
+      agentIdsToNotify = [canonicalTargetId];
     }
 
     let targetLocationName: string | null = null;
@@ -181,11 +194,11 @@ export const createPrintJob = async (req: Request, res: Response) => {
         saleId: sale.id,
         requestedById: actorId,
         requestedByName: authority.actorName,
-        targetAgentId: targetAgentId || null,
+        targetAgentId: agentIdsToNotify[0] || targetAgentId || null,
         targetAgentName,
         targetLocationId: targetLocationId || null,
         targetLocationName,
-        paperWidth: paperWidth === '80mm' ? '80mm' : '58mm',
+        paperWidth: paperWidth === '58mm' ? '58mm' : '80mm',
         copies: Math.max(1, Math.min(10, Number(copies) || 1)),
         status: 'delivered',
         expiresAt: new Date(now.getTime() + RESPONSE_WINDOW_MS),
@@ -201,9 +214,9 @@ export const createPrintJob = async (req: Request, res: Response) => {
       channelId: 'remote-print',
       data: { type: 'remote_print_job', printJobId: job.id, screen: `/print-jobs/${job.id}` },
     };
-    if (targetAgentId) {
-      await sendPushToActor(targetAgentId, pushPayload);
-    } else {
+    if (agentIdsToNotify.length === 1) {
+      await sendPushToActor(agentIdsToNotify[0], pushPayload);
+    } else if (agentIdsToNotify.length > 1) {
       await sendPushToActors(agentIdsToNotify, pushPayload);
     }
 
@@ -222,7 +235,14 @@ export const listPrintJobsForAdmin = async (req: Request, res: Response) => {
 
     const where: any = { userId: ownerUserId };
     if (status) where.status = status;
-    if (targetAgentId) where.targetAgentId = targetAgentId;
+    if (targetAgentId) {
+      const managed = await prisma.managedUser.findFirst({
+        where: { OR: [{ id: targetAgentId }, { uid: targetAgentId }] },
+        select: { id: true, uid: true },
+      });
+      const ids = Array.from(new Set([targetAgentId, managed?.id, managed?.uid].filter(Boolean))) as string[];
+      where.targetAgentId = { in: ids };
+    }
 
     const jobs = await prisma.printJob.findMany({
       where,
@@ -247,10 +267,16 @@ export const listPendingJobsForAgent = async (req: Request, res: Response) => {
     const actorId = (req as any).user?.id;
     if (!actorId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
+    const managed = await prisma.managedUser.findUnique({
+      where: { id: actorId },
+      select: { uid: true, adminId: true },
+    });
+    const actorIds = Array.from(new Set([actorId, managed?.uid].filter(Boolean))) as string[];
+
     const jobs = await prisma.printJob.findMany({
       where: {
-        status: { in: ['delivered', 'accepted', 'printer_connect_pending'] },
-        OR: [{ targetAgentId: actorId }, { targetLocationId: { not: null }, acceptedByAgentId: null }],
+        status: { in: ['queued', 'delivered', 'accepted', 'printer_connect_pending'] },
+        OR: [{ targetAgentId: { in: actorIds } }, { targetLocationId: { not: null }, acceptedByAgentId: null }],
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -261,7 +287,7 @@ export const listPendingJobsForAgent = async (req: Request, res: Response) => {
     // for — filtered by ownerUserId matching this agent's business, since the query above can't
     // express that join directly against a plain string id.
     const ownerUserId = await getOwnerUserId(actorId);
-    const eligible = jobs.filter((j) => j.targetAgentId === actorId || j.targetLocationId != null);
+    const eligible = jobs.filter((j) => (j.targetAgentId && actorIds.includes(j.targetAgentId)) || j.targetLocationId != null);
     const scoped = await prisma.printJob.findMany({
       where: { id: { in: eligible.map((j) => j.id) }, userId: ownerUserId },
       select: jobListSelect,
@@ -269,7 +295,7 @@ export const listPendingJobsForAgent = async (req: Request, res: Response) => {
     });
 
     const resolved = (await Promise.all(scoped.map((j) => withLazyExpiry(j)))).filter(
-      (j) => j.status === 'delivered' || j.status === 'accepted' || j.status === 'printer_connect_pending'
+      (j) => j.status === 'queued' || j.status === 'delivered' || j.status === 'accepted' || j.status === 'printer_connect_pending'
     );
     return res.json({ success: true, data: resolved });
   } catch (error: any) {
@@ -312,10 +338,29 @@ export const updatePrintJobStatus = async (req: Request, res: Response) => {
     const job = await prisma.printJob.findUnique({ where: { id: String(req.params.id) } });
     if (!job) return res.status(404).json({ success: false, message: 'Print job not found' });
 
-    const isDirectTarget = job.targetAgentId === actorId;
+    const managedActor = await prisma.managedUser.findUnique({
+      where: { id: actorId },
+      select: { uid: true },
+    });
+    const actorIds = Array.from(new Set([actorId, managedActor?.uid].filter(Boolean))) as string[];
+    const isDirectTarget = !!(job.targetAgentId && actorIds.includes(job.targetAgentId));
     const isLocationJobUnclaimed = job.targetLocationId != null && job.acceptedByAgentId == null;
-    const isLocationJobOwner = job.acceptedByAgentId === actorId;
+    const isLocationJobOwner = !!(job.acceptedByAgentId && actorIds.includes(job.acceptedByAgentId));
     if (!isDirectTarget && !isLocationJobUnclaimed && !isLocationJobOwner) {
+      // #region agent log
+      debugFa19Log({
+        hypothesisId: 'D',
+        location: 'printJobController.ts:updatePrintJobStatus:forbidden',
+        message: 'Print job status denied',
+        data: {
+          actorId,
+          actorIds,
+          targetAgentId: job.targetAgentId,
+          requestedStatus: status,
+          jobStatus: job.status,
+        },
+      });
+      // #endregion
       return res.status(403).json({ success: false, message: 'This job is not addressed to you.' });
     }
 
@@ -328,7 +373,7 @@ export const updatePrintJobStatus = async (req: Request, res: Response) => {
 
     if (status === 'accepted' || status === 'rejected') {
       data.respondedAt = new Date();
-      if (isLocationJobUnclaimed && status === 'accepted') {
+      if (status === 'accepted') {
         data.acceptedByAgentId = actorId;
         data.acceptedByAgentName = actorName;
       }
@@ -340,6 +385,22 @@ export const updatePrintJobStatus = async (req: Request, res: Response) => {
       data.completedAt = new Date();
     }
 
+    // #region agent log
+    debugFa19Log({
+      hypothesisId: 'C',
+      location: 'printJobController.ts:updatePrintJobStatus:ok',
+      message: 'Print job status updated',
+      data: {
+        jobId: job.id,
+        from: job.status,
+        to: status,
+        actorId,
+        isDirectTarget,
+        isLocationJobUnclaimed,
+        isLocationJobOwner,
+      },
+    });
+    // #endregion
     const updated = await prisma.printJob.update({ where: { id: job.id }, data, select: jobListSelect });
     await prisma.printJobEvent.create({
       data: { printJobId: job.id, status, note: status === 'failed' ? data.failureReason || null : null },

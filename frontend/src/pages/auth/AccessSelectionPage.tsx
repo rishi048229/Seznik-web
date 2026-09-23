@@ -35,8 +35,9 @@ export const AccessSelectionPage = () => {
         return
       }
 
-      // If user is already logged in with agent role, agent access is directly allowed
-      if (user.role === 'agent') {
+      // Only skip the roster when this session is already a staff (ManagedUser) account.
+      // Owner rows that were historically flipped to role=agent still need the agent list.
+      if (user.accountType === 'managed' || user.adminId) {
         setIsLoadingAgents(false)
         return
       }
@@ -45,10 +46,10 @@ export const AccessSelectionPage = () => {
         const uid = user.uid || (user as UserProfile & { id?: string }).id || ''
         const list = await getAllUsers(uid)
         if (isMounted) {
-          const agentList = (list || []).filter(u => u.role === 'agent')
+          const agentList = (list || []).filter(u => (u.role || 'agent') !== 'admin')
           setAgents(agentList)
           if (agentList.length > 0) {
-            setSelectedAgentUid(agentList[0].uid)
+            setSelectedAgentUid(agentList[0].uid || agentList[0].id || '');
           }
         }
       } catch (err) {
@@ -62,13 +63,25 @@ export const AccessSelectionPage = () => {
     return () => { isMounted = false }
   }, [user])
 
-  const isCurrentUserAgent = user?.role === 'agent'
+  const isCurrentUserAgent = user?.accountType === 'managed' || Boolean(user?.adminId)
   const hasAgents = isCurrentUserAgent || agents.length > 0
 
   const handleRoleSelect = (role: UserRole) => {
-    if (role === 'admin' && user?.role === 'agent') {
-      toast.error(t('access.deniedAdmin').replace('{email}', user?.email || 'Your account'))
-      return
+    if (role === 'admin' && isCurrentUserAgent) {
+      const backup = (() => {
+        try {
+          const raw = localStorage.getItem('seznik_owner_session_backup')
+          return raw ? JSON.parse(raw) : null
+        } catch {
+          return null
+        }
+      })()
+      if (!backup?.token) {
+        toast.error(
+          'No saved Store Owner session here. Log out and sign in with the store owner account, then choose Admin.'
+        )
+        return
+      }
     }
 
     if (role === 'agent' && !hasAgents) {
@@ -79,7 +92,7 @@ export const AccessSelectionPage = () => {
     setSelectedRole(role)
     if (role === 'agent' && agents.length > 0) {
       const defaultAgent = agents[0]
-      setSelectedAgentUid(defaultAgent.uid)
+      setSelectedAgentUid(defaultAgent.uid || defaultAgent.id || '')
       setName(defaultAgent.displayName || defaultAgent.email || '')
     } else {
       setName(user?.displayName || user?.email || '')
@@ -324,13 +337,13 @@ export const AccessSelectionPage = () => {
                 value={selectedAgentUid}
                 onChange={(e) => {
                   setSelectedAgentUid(e.target.value)
-                  const chosen = agents.find(a => a.uid === e.target.value)
+                  const chosen = agents.find(a => (a.uid || a.id) === e.target.value)
                   if (chosen) setName(chosen.displayName || chosen.email || '')
                 }}
                 className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-dark-border-strong bg-white dark:bg-dark-elevated text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
               >
                 {agents.map(a => (
-                  <option key={a.uid} value={a.uid}>
+                  <option key={a.uid || a.id} value={a.uid || a.id || ''}>
                     {a.displayName} {a.email ? `(${a.email})` : ''}
                   </option>
                 ))}
@@ -357,7 +370,13 @@ export const AccessSelectionPage = () => {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={selectedRole === 'agent' ? "Enter password for selected agent" : "Enter admin password to confirm access"}
+            onFocus={(e) => {
+              // Keep the field above the mobile keyboard / bottom sheet footer
+              window.setTimeout(() => {
+                (e.target as HTMLElement).scrollIntoView({ block: 'center', behavior: 'smooth' })
+              }, 80)
+            }}
+            placeholder={selectedRole === 'agent' ? "This agent's own password — not the store owner password" : "Enter admin password to confirm access"}
             autoFocus
           />
           <p className="text-xs text-gray-500 dark:text-gray-400">

@@ -7,11 +7,19 @@ import type {
   UtilityBillStats,
 } from '@/types/utilityBill'
 
+function unwrapData<T>(payload: any, fallback?: T): T {
+  if (payload && typeof payload === 'object' && 'data' in payload && payload.data !== undefined) {
+    return payload.data as T
+  }
+  return (payload ?? fallback) as T
+}
+
 export const extractUtilityBill = async (imageBase64: string, mimeType: string): Promise<UtilityBillExtractResult> => {
-  return await fetchApi('/utility-bills/extract', {
+  const payload = await fetchApi('/utility-bills/extract', {
     method: 'POST',
     body: JSON.stringify({ imageBase64, mimeType }),
   })
+  return unwrapData<UtilityBillExtractResult>(payload)
 }
 
 export const getUtilityBills = async (params?: {
@@ -26,18 +34,31 @@ export const getUtilityBills = async (params?: {
   query.set('page', String(params?.page || 1))
   query.set('limit', String(params?.limit || 50))
   const qs = query.toString()
-  return await fetchApi(`/utility-bills?${qs}`)
+  const payload = await fetchApi(`/utility-bills?${qs}`)
+  if (payload && typeof payload === 'object' && Array.isArray((payload as any).bills)) {
+    return payload as UtilityBillListResponse
+  }
+  const bills = unwrapData<UtilityBill[]>(payload, [])
+  const pagination = (payload as any)?.pagination || {}
+  return {
+    bills: Array.isArray(bills) ? bills : [],
+    total: Number(pagination.total || bills?.length || 0),
+    page: Number(pagination.page || params?.page || 1),
+    limit: Number(pagination.limit || params?.limit || 50),
+  }
 }
 
 export const getUtilityBillStats = async (): Promise<UtilityBillStats> => {
-  return await fetchApi('/utility-bills/stats')
+  const payload = await fetchApi('/utility-bills/stats')
+  return unwrapData<UtilityBillStats>(payload)
 }
 
 export const createUtilityBill = async (data: CreateUtilityBillPayload): Promise<UtilityBill> => {
-  return await fetchApi('/utility-bills', {
+  const payload = await fetchApi('/utility-bills', {
     method: 'POST',
     body: JSON.stringify(data),
   })
+  return unwrapData<UtilityBill>(payload)
 }
 
 export const deleteUtilityBill = async (id: string): Promise<void> => {

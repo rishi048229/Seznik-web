@@ -100,6 +100,17 @@ export const useTopCategories = (limit = 3) => {
   })
 }
 
+export const useRestaurantDashboard = (enabled: boolean) => {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: [QUERY_KEYS.REPORTS_DASHBOARD, user?.uid, 'restaurant'],
+    queryFn: () => reportService.getRestaurantDashboard(),
+    enabled: !!user && enabled,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+  })
+}
+
 export const useExpenseSummary = () => {
   const { user } = useAuth()
   return useQuery({

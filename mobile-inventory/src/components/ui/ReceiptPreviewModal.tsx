@@ -137,12 +137,20 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const storeProfileRef = useRef(storeProfile);
   storeProfileRef.current = storeProfile;
   const [joshConnected, setJoshConnected] = useState(false);
+  const [td404Connected, setTd404Connected] = useState(false);
+  const connectedModel = usePrinterStore((s) => s.connectedPrinterModel);
 
-  const isPrinterReady = Boolean((activeDevice && connectionState === 'connected') || joshConnected);
+  const isPrinterReady = Boolean(
+    (activeDevice && connectionState === 'connected') || joshConnected || td404Connected
+  );
   const printerDisplayName = (activeDevice && connectionState === 'connected')
     ? activeDevice.name
+    : td404Connected
+    ? connectedModel === 'tejas'
+      ? 'SEZNIK TEJAS'
+      : 'SEZNIK RUDRA'
     : joshConnected
-    ? 'Josh Printer (Dual Mode)'
+    ? 'SEZNIK JOSH (Dual Mode)'
     : null;
 
   // Local Editable Copy
@@ -150,19 +158,30 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
   useEffect(() => {
     let mounted = true;
-    const syncJosh = async () => {
+    const syncPrinters = async () => {
       try {
-        const connected = await ThermalPrinterService.joshIsConnected();
-        if (mounted) setJoshConnected(connected);
+        const [josh, td404] = await Promise.all([
+          ThermalPrinterService.joshIsConnected(),
+          ThermalPrinterService.td404IsConnected(),
+        ]);
+        if (mounted) {
+          setJoshConnected(josh);
+          setTd404Connected(td404 || connectedModel === 'rudra' || connectedModel === 'tejas');
+        }
       } catch {}
     };
     if (visible) {
-      syncJosh();
+      syncPrinters();
+      const timer = setInterval(syncPrinters, 3000);
+      return () => {
+        mounted = false;
+        clearInterval(timer);
+      };
     }
     return () => {
       mounted = false;
     };
-  }, [visible]);
+  }, [visible, connectedModel]);
 
   useEffect(() => {
     if (visible && saleData) {
@@ -379,11 +398,11 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     if (!editableSale) return;
     if (printLockRef.current || isPrinting) return;
 
-    // Check both standard ESC/POS active device and Josh dual-mode printer
+    const isTd404Ready = await ThermalPrinterService.td404IsConnected();
     const isJoshReady = await ThermalPrinterService.joshEnsureConnected();
     const isStandardReady = activeDevice && connectionState === 'connected';
 
-    if (!isStandardReady && !isJoshReady) {
+    if (!isStandardReady && !isJoshReady && !isTd404Ready) {
       setShowConnectModal(true);
       return;
     }
@@ -398,7 +417,36 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
         totalTax: computedTotals.totalTax,
         grandTotal: computedTotals.grandTotal,
       };
-      await ThermalPrinterService.printReceipt(payload, paperWidth, printOptions);
+
+      // Utility / A4-to-receipt slips must print the same layout as UtilityReceiptSlip preview.
+      if (payload.consumerNo || payload.providerName || payload.billType) {
+        const billAmount = Math.max(
+          0,
+          (payload.grandTotal || 0) - (payload.convenienceFee || 0)
+        );
+        await ThermalPrinterService.printUtilityBillSlip(
+          {
+            kioskName: payload.storeName,
+            billType: payload.billType || 'ELECTRICITY',
+            provider: payload.providerName,
+            consumerNumber: payload.consumerNo,
+            consumerName: payload.customerName,
+            dueDate: payload.dueDate,
+            unitsConsumed: payload.unitsConsumed,
+            billAmount: billAmount || payload.subtotal || 0,
+            convenienceFee: payload.convenienceFee || 0,
+            totalAmount: payload.grandTotal || 0,
+            status: 'SUCCESS',
+            receiptNumber: payload.invoiceNumber,
+            createdAt: undefined,
+            billDate: payload.date,
+          },
+          paperWidth,
+          { copies: printOptions?.copies || 1, autoCut: printOptions?.autoCut }
+        );
+      } else {
+        await ThermalPrinterService.printReceipt(payload, paperWidth, printOptions);
+      }
       finishAfterPrint();
     } catch (e: any) {
       Alert.alert('Print Error', e?.message || 'Failed to print thermal receipt.');
@@ -563,12 +611,8 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
 
               {/* Printer Status Pill */}
               {(() => {
-                const isReady = (activeDevice && connectionState === 'connected') || joshConnected;
-                const displayName = (activeDevice && connectionState === 'connected')
-                  ? activeDevice.name
-                  : joshConnected
-                  ? 'Josh Printer (Dual Mode)'
-                  : null;
+                const isReady = isPrinterReady;
+                const displayName = printerDisplayName;
 
                 return (
                   <TouchableOpacity

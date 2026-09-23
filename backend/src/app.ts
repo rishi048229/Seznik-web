@@ -43,6 +43,8 @@ import saleExchangeRoutes from './routes/saleExchangeRoutes';
 import purchaseReturnRoutes from './routes/purchaseReturnRoutes';
 import deviceTokenRoutes from './routes/deviceTokenRoutes';
 import printJobRoutes from './routes/printJobRoutes';
+import debugSessionRoutes from './routes/debugSessionRoutes';
+import kitchenInventoryRoutes from './routes/kitchenInventoryRoutes';
 import { trackApiUsage } from './middlewares/apiUsageMiddleware';
 const app = express();
 
@@ -85,7 +87,7 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'x-client-platform'],
   })
 );
 
@@ -124,6 +126,7 @@ app.use('/api/token-types', tokenTypeRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/restaurant-tables', restaurantTableRoutes);
 app.use('/api/kot-orders', kotOrderRoutes);
+app.use('/api/kitchen', kitchenInventoryRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/utility-bills', utilityBillRoutes);
@@ -133,6 +136,7 @@ app.use('/api/sale-exchanges', saleExchangeRoutes);
 app.use('/api/purchase-returns', purchaseReturnRoutes);
 app.use('/api/device-tokens', deviceTokenRoutes);
 app.use('/api/print-jobs', printJobRoutes);
+app.use('/api/debug', debugSessionRoutes);
 app.use(publicReceiptRoutes);
 
 // 5. Comprehensive Server & Database Health Check Endpoint

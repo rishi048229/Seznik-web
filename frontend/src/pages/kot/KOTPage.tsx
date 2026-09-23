@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { ChefHat, Check, Clock, CreditCard, LayoutGrid, MoreVertical, Plus, Receipt, Store, UtensilsCrossed } from 'lucide-react'
@@ -31,6 +31,7 @@ type WorkspaceTarget =
 
 export const KOTPage = () => {
   const { t } = useLanguage()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: settings } = useSettings()
   const { mutate: updateSettings } = useUpdateSettings()
   const { mutate: createSettings } = useCreateSettings()
@@ -71,6 +72,14 @@ export const KOTPage = () => {
   const openNewBill = () => {
     setWorkspace({ kind: 'walkin', orderType: kotCfg.defaultOrderType })
   }
+
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    setWorkspace({ kind: 'walkin', orderType: kotCfg.defaultOrderType })
+    const next = new URLSearchParams(searchParams)
+    next.delete('new')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams, kotCfg.defaultOrderType])
 
   const toggleKitchenTickets = () => {
     const next = !kotCfg.kitchenTicketsEnabled

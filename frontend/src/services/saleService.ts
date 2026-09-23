@@ -16,12 +16,12 @@ export const getSaleById = async (_uid: string, saleId: string): Promise<Sale | 
 export const createSale = async (
   _uid: string,
   saleData: Omit<Sale, 'id' | 'invoiceNumber' | 'createdAt'> & { createdAt?: string }
-): Promise<{ id: string; invoiceNumber: string }> => {
+): Promise<{ id: string; invoiceNumber: string; grandTotal: number }> => {
   const sale = await fetchApi('/sales', {
     method: 'POST',
     body: JSON.stringify({ ...saleData, platform: 'web' }),
   })
-  return { id: sale.id, invoiceNumber: sale.invoiceNumber }
+  return { id: sale.id, invoiceNumber: sale.invoiceNumber, grandTotal: Number(sale.grandTotal) || Number(saleData.grandTotal) || 0 }
 }
 
 export const getSalesByDateRange = async (_uid: string, start: string | Date, end: string | Date): Promise<Sale[]> => {

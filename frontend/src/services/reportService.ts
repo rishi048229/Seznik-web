@@ -17,6 +17,23 @@ export const getDashboardStats = async (_uid: string): Promise<DashboardStats> =
   return await fetchApi('/reports/dashboard')
 }
 
+export interface RestaurantDashboard {
+  runningCount: number
+  ordersToday: number
+  revenueToday: number
+  occupancyPct: number
+  avgWaitMinutes: number
+  runningOrders: Array<{ id: string; orderNumber: number; status: string; tableName: string; createdAt: string; itemCount: number }>
+  topItems: Array<{ name: string; qty: number; amount: number; category: string }>
+  categories: Array<{ name: string; amount: number }>
+  kitchen: { lowStock: number; outOfStock: number; tracked: number }
+  recentSales: Array<{ id: string; invoiceNumber: string; grandTotal: number; createdAt: string }>
+}
+
+export const getRestaurantDashboard = async (): Promise<RestaurantDashboard> => {
+  return await fetchApi('/reports/restaurant-dashboard')
+}
+
 export const getSalesReport = async (_uid: string, startDate: Date, endDate: Date): Promise<SalesReportData> => {
   return await fetchApi(`/reports/sales?start=${encodeURIComponent(startDate.toISOString())}&end=${encodeURIComponent(endDate.toISOString())}`)
 }

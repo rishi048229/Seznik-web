@@ -3,6 +3,8 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
 import { handleApiError } from '../utils/apiErrorHandler';
+import { debugFa19Log } from '../utils/debugFa19Log';
+import { deductKitchenStockForOrder } from '../services/kitchenStock';
 
 const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
 
@@ -44,7 +46,7 @@ const enrichOrder = (o: { items: Array<{ unitPrice: number; quantity: number; ta
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const { status, orderType, tableId } = req.query;
 
     let statusFilter: any = undefined;
@@ -83,7 +85,7 @@ export const getOrders = async (req: Request, res: Response) => {
 
 export const getOrderById = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const id = String(req.params.id);
 
     const order = await prisma.kOTOrder.findFirst({
@@ -117,7 +119,22 @@ export const getOrderById = async (req: Request, res: Response) => {
 
 export const createOrder = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const actorId = (req as any).user?.id;
+    const userId = await getOwnerUserId(actorId);
+    // #region agent log
+    debugFa19Log({
+      hypothesisId: 'B',
+      location: 'kotOrderController.ts:createOrder:entry',
+      message: 'KOT create attempt',
+      data: {
+        actorId,
+        ownerUserId: userId,
+        role: (req as any).user?.role,
+        itemCount: Array.isArray(req.body?.items) ? req.body.items.length : 0,
+        orderType: req.body?.orderType,
+      },
+    });
+    // #endregion
     const {
       orderType = 'dine_in',
       tableId,
@@ -135,6 +152,21 @@ export const createOrder = async (req: Request, res: Response) => {
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'Order must contain at least one item' });
+    }
+
+    const ownerRow = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!ownerRow) {
+      // #region agent log
+      debugFa19Log({
+        hypothesisId: 'B',
+        location: 'kotOrderController.ts:createOrder:ownerMissing',
+        message: 'Resolved owner userId not found',
+        data: { actorId, userId },
+      });
+      // #endregion
+      return res.status(400).json({
+        error: 'Store account is not linked correctly. Ask your admin to re-save this agent profile.',
+      });
     }
 
     // Compute today's sequential order number (resets daily)
@@ -155,7 +187,7 @@ export const createOrder = async (req: Request, res: Response) => {
         data: {
           orderNumber: nextOrderNumber,
           orderType,
-          tableId: tableId || null,
+          tableId: tableId && String(tableId).trim() ? String(tableId).trim() : null,
           partyLabel: partyLabel?.trim() || null,
           guestCount: guestCount ? Number(guestCount) : null,
           customerId: customerId || null,
@@ -190,16 +222,35 @@ export const createOrder = async (req: Request, res: Response) => {
       return order;
     });
 
+    // #region agent log
+    debugFa19Log({
+      hypothesisId: 'B',
+      location: 'kotOrderController.ts:createOrder:success',
+      message: 'KOT created',
+      data: { orderId: result.id, orderNumber: result.orderNumber },
+    });
+    // #endregion
     res.status(201).json(result);
   } catch (error) {
     console.error('createOrder error:', error);
+    // #region agent log
+    debugFa19Log({
+      hypothesisId: 'B',
+      location: 'kotOrderController.ts:createOrder:error',
+      message: 'KOT create failed',
+      data: {
+        errorName: error instanceof Error ? error.name : 'unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    });
+    // #endregion
     res.status(500).json({ error: 'Failed to create KOT order' });
   }
 };
 
 export const addItemsToOrder = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const id = String(req.params.id);
     const { items = [] } = req.body;
 
@@ -247,7 +298,7 @@ export const addItemsToOrder = async (req: Request, res: Response) => {
 
 export const editOrder = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const id = String(req.params.id);
     const {
       status,
@@ -366,7 +417,7 @@ export const editOrder = async (req: Request, res: Response) => {
 
 export const sendToKitchen = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const id = String(req.params.id);
 
     const order = await prisma.kOTOrder.findFirst({
@@ -429,7 +480,7 @@ export const sendToKitchen = async (req: Request, res: Response) => {
 
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = await getOwnerUserId((req as any).user.id);
     const id = String(req.params.id);
     const { status, priority, notes } = req.body;
 
@@ -662,6 +713,10 @@ export const generateBill = async (req: Request, res: Response) => {
         items: true,
         sale: true,
       },
+    });
+
+    await deductKitchenStockForOrder(userId, updatedOrder.items).catch((err) => {
+      console.warn('kitchen stock deduction failed', err);
     });
 
     res.json({ order: updatedOrder, sale });

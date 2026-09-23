@@ -2,8 +2,49 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { loginUser, registerUser, getUserProfile, signOutUser, setUserRoleAndProfile, completeOnboarding, updateBusinessType, redeemAccessCode as redeemAccessCodeApi } from '@/services/authService'
 import type { UserProfile, UserRole, UserPermissions, CompleteOnboardingPayload, BusinessType } from '@/types/auth.types'
-import { getAuthToken } from '@/services/api'
+import { getAuthToken, setAuthToken } from '@/services/api'
 import { queryClient } from '@/lib/queryClient'
+import { resolveUserPermissions } from '@/utils/permissions'
+
+const withAuthIds = (profile: UserProfile | null | undefined): UserProfile | null => {
+  if (!profile) return null
+  const id = profile.id || profile.uid
+  const uid = profile.uid || profile.id || ''
+  return { ...profile, id, uid, permissions: resolveUserPermissions({ ...profile, uid }) || profile.permissions }
+}
+
+const isManagedAccount = (profile: UserProfile | null | undefined) =>
+  profile?.accountType === 'managed' || Boolean(profile?.adminId && profile.accountType !== 'user')
+
+const OWNER_SESSION_BACKUP_KEY = 'seznik_owner_session_backup'
+
+const saveOwnerSessionBackup = (token: string, profile: UserProfile) => {
+  try {
+    localStorage.setItem(OWNER_SESSION_BACKUP_KEY, JSON.stringify({ token, user: profile }))
+  } catch {
+    /* ignore */
+  }
+}
+
+const loadOwnerSessionBackup = (): { token: string; user: UserProfile } | null => {
+  try {
+    const raw = localStorage.getItem(OWNER_SESSION_BACKUP_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed?.token && parsed?.user) return parsed
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+const clearOwnerSessionBackup = () => {
+  try {
+    localStorage.removeItem(OWNER_SESSION_BACKUP_KEY)
+  } catch {
+    /* ignore */
+  }
+}
 
 interface AuthContextType {
   user: UserProfile | null
@@ -26,6 +67,7 @@ interface AuthContextType {
   completeOnboarding: (payload: CompleteOnboardingPayload) => Promise<void>
   updateBusinessType: (businessType: BusinessType) => Promise<void>
   clearWorkspaceSelection: () => void
+  adoptSession: (profile: UserProfile) => void
   hasRole: () => boolean
   permissions: UserPermissions | null
 }
@@ -46,10 +88,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const token = getAuthToken()
       if (token) {
         try {
-          const profile = await getUserProfile()
+          const profile = withAuthIds(await getUserProfile())
           const isWorkspaceSelected = localStorage.getItem('hasSelectedWorkspace') === 'true'
 
-          if (!isWorkspaceSelected) {
+          if (isManagedAccount(profile)) {
+            setUser(profile)
+            setUserProfile(profile)
+            setHasSelectedWorkspace(true)
+            localStorage.setItem('hasSelectedWorkspace', 'true')
+          } else if (!isWorkspaceSelected) {
             setUser(profile)
             setUserProfile(profile ? { ...profile, role: null } : null)
             setHasSelectedWorkspace(false)
@@ -94,11 +141,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleLogin = async (email: string, pass: string) => {
     clearTransientStorage()
     const data = await loginUser(email, pass)
-    setUser(data.user)
-    setHasSelectedWorkspace(false)
-    setUserProfile(data.user ? { ...data.user, role: null } : null)
+    const nextUser = withAuthIds(data.user)
+    if (!nextUser) return
+    setUser(nextUser)
+    setHasSelectedWorkspace(true)
+    setUserProfile(nextUser.role ? nextUser : { ...nextUser, role: 'admin' })
+    localStorage.setItem('hasSelectedWorkspace', 'true')
   }
   
+  const adoptSession = (profile: UserProfile) => {
+    clearTransientStorage()
+    const nextUser = withAuthIds(profile)
+    setUser(nextUser)
+    setHasSelectedWorkspace(true)
+    setUserProfile(nextUser && nextUser.role ? nextUser : nextUser ? { ...nextUser, role: 'admin' } : null)
+    localStorage.setItem('hasSelectedWorkspace', 'true')
+  }
+
   const handleRegister = async (
     email: string,
     pass: string,
@@ -126,22 +185,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  const handleSetUserRole = async (role: UserRole, name: string, password: string, agentUid?: string) => {
+    if (!user) throw new Error('No user logged in')
+
+    const prevToken = getAuthToken()
+    const prevUser = user
+    const wasOwner = !isManagedAccount(prevUser)
+
+    if (role === 'admin' && isManagedAccount(prevUser)) {
+      const backup = loadOwnerSessionBackup()
+      if (!backup?.token) {
+        throw new Error(
+          'No saved Store Owner session in this browser. Log out and sign in with the store owner account, then choose Admin.'
+        )
+      }
+      setAuthToken(backup.token)
+      try {
+        const res = await setUserRoleAndProfile(
+          backup.user.id || backup.user.uid,
+          'admin',
+          backup.user.displayName || backup.user.email || name,
+          password
+        )
+        clearOwnerSessionBackup()
+        const updatedProfile = withAuthIds(res?.user || backup.user)
+        setUser(updatedProfile)
+        setUserProfile(updatedProfile ? { ...updatedProfile, role: 'admin' } : null)
+        setHasSelectedWorkspace(true)
+        localStorage.setItem('hasSelectedWorkspace', 'true')
+      } catch (err) {
+        if (prevToken) setAuthToken(prevToken)
+        throw err
+      }
+      return
+    }
+
+    const res = await setUserRoleAndProfile(user.id || user.uid, role, name, password, agentUid)
+    const updatedProfile = withAuthIds(res?.user || await getUserProfile())
+    if (role === 'agent' && !isManagedAccount(updatedProfile)) {
+      throw new Error('Could not switch into the agent account. Pick the agent from the list and try again.')
+    }
+    if (role === 'agent' && !res?.token) {
+      throw new Error('Agent login did not issue a new session. Pick the agent from the list and try again.')
+    }
+    if (role === 'agent' && wasOwner && prevToken && prevUser) {
+      saveOwnerSessionBackup(prevToken, prevUser)
+    }
+    setUser(updatedProfile)
+    setUserProfile(updatedProfile ? { ...updatedProfile, role: updatedProfile.role || role } : null)
+    setHasSelectedWorkspace(true)
+    localStorage.setItem('hasSelectedWorkspace', 'true')
+  }
+
+  const handleClearWorkspaceSelection = () => {
+    setHasSelectedWorkspace(false)
+    localStorage.removeItem('hasSelectedWorkspace')
+    setUserProfile(prev => prev ? { ...prev, role: null } : null)
+  }
+
   const handleSignOut = async () => {
     clearTransientStorage()
+    clearOwnerSessionBackup()
     setHasSelectedWorkspace(false)
     await signOutUser()
     setUser(null)
     setUserProfile(null)
-  }
-
-  const handleSetUserRole = async (role: UserRole, name: string, password: string, agentUid?: string) => {
-    if (!user) throw new Error('No user logged in')
-    const res = await setUserRoleAndProfile(user.id || user.uid, role, name, password, agentUid)
-    const updatedProfile = res?.user || await getUserProfile()
-    setUser(updatedProfile)
-    setUserProfile(updatedProfile ? { ...updatedProfile, role } : null)
-    setHasSelectedWorkspace(true)
-    localStorage.setItem('hasSelectedWorkspace', 'true')
   }
 
   const handleCompleteOnboarding = async (payload: CompleteOnboardingPayload) => {
@@ -177,12 +285,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const handleClearWorkspaceSelection = () => {
-    setHasSelectedWorkspace(false)
-    localStorage.removeItem('hasSelectedWorkspace')
-    setUserProfile(prev => prev ? { ...prev, role: null } : null)
-  }
-
   const hasRole = (): boolean => {
     return !!userProfile?.role && hasSelectedWorkspace
   }
@@ -202,8 +304,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         completeOnboarding: handleCompleteOnboarding,
         updateBusinessType: handleUpdateBusinessType,
         clearWorkspaceSelection: handleClearWorkspaceSelection,
+        adoptSession,
         hasRole,
-        permissions: userProfile?.permissions || null,
+        permissions: resolveUserPermissions(userProfile),
       }}
     >
       {children}

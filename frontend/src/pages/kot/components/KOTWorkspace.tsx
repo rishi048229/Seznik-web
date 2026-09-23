@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Printer, CreditCard, Plus, Ban } from 'lucide-react'
+import { X, Printer, CreditCard, Plus, Ban, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { Button } from '@/components/ui/Button'
@@ -28,9 +28,11 @@ import { generateRestaurantBillEscPos, printRestaurantBill } from '@/utils/resta
 import { shouldPrintThermalOverBle } from '@/utils/printTarget'
 import { MenuPicker } from './MenuPicker'
 import { ItemNotesDialog } from './ItemNotesDialog'
+import { AddFoodItemModal } from './AddFoodItemModal'
 import { OrderTicketPanel } from './OrderTicketPanel'
 import { KOTBillModal } from './KOTBillModal'
 import { CancelOrderDialog } from './CancelOrderDialog'
+import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 import type { KOTBillResult, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
@@ -85,8 +87,11 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [pickedProduct, setPickedProduct] = useState<Product | null>(null)
   const [itemNotes, setItemNotes] = useState('')
   const [itemMods, setItemMods] = useState<string[]>([])
+  const [addFoodOpen, setAddFoodOpen] = useState(false)
   const [billOpen, setBillOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [sendRemotePrint, setSendRemotePrint] = useState(false)
+  const [remotePrintSale, setRemotePrintSale] = useState<{ id: string; invoiceNumber: string; grandTotal: number } | null>(null)
   const [assignTableId, setAssignTableId] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [mobileTab, setMobileTab] = useState<'menu' | 'ticket'>('menu')
@@ -573,6 +578,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               categoryId={categoryId}
               onCategoryChange={setCategoryId}
               stockFor={stockFor}
+              onAddFoodItem={() => setAddFoodOpen(true)}
               onPick={(p) => {
                 setPickedProduct(p)
                 setItemNotes('')
@@ -695,6 +701,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         onConfirm={confirmAddItem}
       />
 
+      <AddFoodItemModal isOpen={addFoodOpen} onClose={() => setAddFoodOpen(false)} />
+
       <KOTBillModal
         isOpen={billOpen}
         onClose={() => setBillOpen(false)}
@@ -705,6 +713,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         customerId={customerId}
         onCustomerChange={setCustomerId}
         loading={isBilling}
+        sendRemotePrint={sendRemotePrint}
+        onSendRemotePrintChange={setSendRemotePrint}
         onSettle={(payload) => {
           if (!orderId) return
           generateBill(
@@ -713,10 +723,19 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               onSuccess: async (result) => {
                 toast.success('Bill settled — start the next one')
                 setBillOpen(false)
-                try {
-                  await printCustomerReceipt(result.sale)
-                } catch (err) {
-                  console.error(err)
+                if (sendRemotePrint && result.sale?.id) {
+                  setRemotePrintSale({
+                    id: String(result.sale.id),
+                    invoiceNumber: String(result.sale.invoiceNumber || ''),
+                    grandTotal: Number(result.sale.grandTotal) || 0,
+                  })
+                  setSendRemotePrint(false)
+                } else {
+                  try {
+                    await printCustomerReceipt(result.sale)
+                  } catch (err) {
+                    console.error(err)
+                  }
                 }
                 startFreshBill()
               },
@@ -733,6 +752,11 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         hadKitchen={sentItems.length > 0 || !!order?.sentToKitchenAt}
         loading={isCancelling}
         onConfirm={(payload) => void handleCancelOrder(payload)}
+      />
+      <RemotePrintSendModal
+        isOpen={!!remotePrintSale}
+        onClose={() => setRemotePrintSale(null)}
+        sale={remotePrintSale}
       />
     </div>
   )

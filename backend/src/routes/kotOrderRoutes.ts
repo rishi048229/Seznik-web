@@ -17,7 +17,7 @@ import { requirePermission } from '../middlewares/requirePermission';
 const router = express.Router();
 
 router.use(protect);
-router.use(requirePermission('canAccessSales'));
+router.use(requirePermission('canAccessSales', 'canAccessKOT'));
 
 router.get('/', getOrders);
 router.get('/:id', getOrderById);

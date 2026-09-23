@@ -89,7 +89,7 @@ export default function RestaurantTablesScreen() {
     if (table.isOccupied && table.activeOrder) {
       router.push(`/kot/${table.activeOrder.id}` as any);
     } else {
-      router.push('/kot/new' as any);
+      router.push({ pathname: '/kot/new', params: { tableId: table.id, orderType: 'dine_in' } } as any);
     }
   };
 

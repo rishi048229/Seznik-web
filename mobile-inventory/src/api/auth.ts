@@ -1,4 +1,5 @@
 import { fetchApi } from './client';
+import { setAuthToken } from '@/services/secureStore';
 import {
   AuthResponse,
   CompleteOnboardingPayload,
@@ -23,6 +24,20 @@ export const authApi = {
     return fetchApi<AuthResponse>('/auth/qr-login', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    });
+  },
+
+  requestAgentOtp: async (email: string) => {
+    return fetchApi<{ message?: string; existingAgents?: string[] }>('/auth/agent/request-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  verifyAgentOtp: async (email: string, otp: string, displayName: string): Promise<AuthResponse> => {
+    return fetchApi<AuthResponse>('/auth/agent/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, displayName }),
     });
   },
 
@@ -129,7 +144,10 @@ export const authApi = {
    * The `:adminUid` segment is REST shape only — the backend resolves the business from the token.
    */
   getAllUsers: async (adminUid?: string): Promise<UserProfile[]> => {
-    return fetchApi<UserProfile[]>(`/auth/managed-users/${adminUid || 'me'}`);
+    const data = await fetchApi<any>(`/auth/managed-users/${adminUid || 'me'}`);
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.data)) return data.data;
+    return [];
   },
 
   setRole: async (payload: {
@@ -138,17 +156,24 @@ export const authApi = {
     agentUid?: string;
     name?: string;
   }): Promise<{ user?: UserProfile; token?: string }> => {
-    return fetchApi<{ user?: UserProfile; token?: string }>('/auth/setRole', {
+    const data = await fetchApi<{ user?: UserProfile; token?: string }>('/auth/setRole', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (data?.token) {
+      await setAuthToken(data.token);
+    }
+    return data;
   },
 
   // Staff sub-accounts. The `:adminUid` URL segment is accepted by the backend for REST shape but
   // not actually used for scoping (it derives the admin from the auth token instead) — the caller's
   // own id is passed for semantic correctness.
   getManagedUsers: async (adminUid: string): Promise<ManagedUser[]> => {
-    return fetchApi<ManagedUser[]>(`/auth/managed-users/${adminUid}`);
+    const data = await fetchApi<any>(`/auth/managed-users/${adminUid}`);
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.data)) return data.data;
+    return [];
   },
 
   createManagedUser: async (adminUid: string, payload: CreateManagedUserPayload): Promise<ManagedUser> => {
