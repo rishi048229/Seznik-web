@@ -171,10 +171,13 @@ const MenuFoodCard = memo(function MenuFoodCard({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.availabilityBtn}
           >
+            {/* The label states the CURRENT status, so the colour has to match that status.
+                These were inverted — an in-stock dish showed "Available" in red, which reads as
+                a warning and had staff thinking the item was off the menu. */}
             <Text
               style={[
                 styles.availabilityBtnText,
-                { color: unavailable ? '#10B981' : '#EF4444' },
+                { color: unavailable ? '#EF4444' : '#10B981' },
               ]}
             >
               {unavailable ? 'Not available' : 'Available'}

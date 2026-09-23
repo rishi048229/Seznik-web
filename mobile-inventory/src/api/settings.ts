@@ -1,4 +1,5 @@
 import { fetchApi } from './client';
+import type { KotConfig } from '@shared/kotConfig';
 
 export interface Settings {
   id: string;
@@ -16,6 +17,10 @@ export interface Settings {
   labelConfig?: Record<string, any> | null;
   // Multi-location inventory (opt-in — see src/hooks/useLocations.ts, src/app/stores/index.tsx).
   locationConfig?: { enabled: boolean } | null;
+  /** Restaurant / KOT behaviour. Shape and defaults are shared with the web app — see
+   *  shared/kotConfig.ts. Read it through mergeKotConfig(), never raw, so a partial or absent
+   *  config still resolves to the venue's preset. */
+  kotConfig?: KotConfig | null;
   /** When false (restaurants/cafes), quantity stock is not tracked — use Product.isAvailable. */
   trackStock?: boolean;
   userId: string;

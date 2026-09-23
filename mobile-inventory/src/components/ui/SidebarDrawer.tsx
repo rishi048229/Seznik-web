@@ -208,7 +208,12 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
             ...(hasPermission('canAccessProducts')
               ? [{ id: 'products', label: catalogLabel, icon: Package, route: '/products' }]
               : []),
-            { id: 'kitchen', label: t('kitchenInventory', 'Kitchen Inventory'), icon: ChefHat, route: '/kitchen-inventory' },
+            // Kitchen Inventory removed from the restaurant profile on request — restaurants
+            // manage a menu, not a raw-ingredient stock list. The screen itself still exists at
+            // /kitchen-inventory for anyone who navigates there directly.
+            ...(!isAgent && (hasPermission('canAccessSettings') || user?.role === 'admin')
+              ? [{ id: 'restaurant-settings', label: t('restaurantSettings', 'Restaurant Settings'), icon: ChefHat, route: '/restaurant-settings' }]
+              : []),
             ...(hasPermission('canAccessReports')
               ? [{ id: 'reports', label: t('reports', 'Reports & Analytics'), icon: BarChart3, route: '/reports' }]
               : []),
