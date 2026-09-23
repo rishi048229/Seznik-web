@@ -234,7 +234,7 @@ export default function KotOrderDetailScreen() {
           copyType: 'KITCHEN COPY',
           items: activeItems,
         },
-        paperWidth || '58mm'
+        undefined
       );
       Alert.alert('Printed!', `Full kitchen slip for KOT #${order.orderNumber} printed.`);
     } catch (err: any) {
@@ -355,7 +355,7 @@ export default function KotOrderDetailScreen() {
               version: (order.version || 1) + 1,
               changes: deltaChanges,
             },
-            paperWidth || '58mm'
+            undefined
           );
         } catch (printErr) {
           console.warn('Delta KOT thermal print failed:', printErr);

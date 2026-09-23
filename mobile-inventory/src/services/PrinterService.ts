@@ -2453,10 +2453,14 @@ class ThermalPrinterServiceManager {
             let rawVal = this.interpolateReceiptVariables(entry.value, data);
             if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
               rawVal = this.upiPayPayload(data, entry.upiId) || rawVal;
-            } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
+            } else if (rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
               rawVal = billPdfUrl;
             } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
               rawVal = data.invoiceNumber || 'INV-0000';
+            } else if (!rawVal) {
+              // Untyped QR defaults to the payment QR when a UPI ID exists — see the same
+              // reasoning in the thermal path below.
+              rawVal = this.upiPayPayload(data) || billPdfUrl;
             }
 
             const align = entry.align || 'center';
@@ -6815,10 +6819,16 @@ class ThermalPrinterServiceManager {
           if (entry.qrType === 'upi' || entry.value?.includes('{{upi_qr}}') || entry.upiId) {
             const merchantUpi = entry.upiId || data.upiId || '';
             rawVal = this.upiPayPayload(data, merchantUpi) || '';
-          } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
+          } else if (rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
             rawVal = buildBillPdfUrl(data);
           } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
             rawVal = data.invoiceNumber || 'INV-0000';
+          } else if (!rawVal) {
+            // A QR entry with no explicit type used to fall through to the bill PDF URL, so a
+            // merchant who had configured a UPI ID still got a QR that opens a web bill page
+            // instead of a payment. If there is a usable UPI ID, an untyped QR is a payment QR;
+            // the bill link stays available, but only when actually asked for.
+            rawVal = this.upiPayPayload(data) || buildBillPdfUrl(data);
           }
 
           if (!rawVal || !rawVal.trim()) {
@@ -7547,7 +7557,15 @@ class ThermalPrinterServiceManager {
   ): Promise<boolean> {
     const { usePrinterStore } = require('../store/usePrinterStore');
     const printerState = usePrinterStore.getState();
-    const effectivePaperWidth = options.paperWidth || printerState.paperWidth || '58mm';
+    // Go through the same resolver the receipt path uses, so an 80mm printer that the merchant
+    // never explicitly configured still prints full width instead of falling back to the store's
+    // generic '58mm' starting value.
+    const effectivePaperWidth = this.resolvePaperWidth(
+      options.paperWidth,
+      printerState.connectedPrinterModel,
+      printerState.paperWidth,
+      printerState.paperWidthSource
+    );
     const effectiveCopies = Math.max(1, options.copies || printerState.printCopies || 1);
     const effectiveAutoCut = options.autoCut !== undefined ? options.autoCut : printerState.autoCut;
     const effectiveFont = resolveReceiptFontId(options.receiptFont || printerState.receiptFont);

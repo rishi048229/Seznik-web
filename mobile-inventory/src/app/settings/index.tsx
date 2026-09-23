@@ -12,6 +12,7 @@ import {
   Linking,
   StatusBar,
   Platform,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -59,6 +60,8 @@ import { BusinessTypeIcon } from '@/components/ui/BusinessTypeIcon';
 import { BUSINESS_TYPE_OPTIONS, BusinessType, getBusinessTypeLabel } from '@/constants/businessTypes';
 import { setStoredSettings } from '@/services/secureStore';
 import { extractUpiFromQrImageAsync, isValidUpiVpa } from '@/utils/billQrService';
+import { usePrinterStore } from '@/store/usePrinterStore';
+import { useShallow } from 'zustand/react/shallow';
 
 
 const SUPPORT_PHONE = '+918237869618';
@@ -72,6 +75,15 @@ export default function SettingsScreen() {
   const queryClient = useQueryClient();
 
   const [activeSection, setActiveSection] = useState<'menu' | 'profile' | 'language' | 'support'>('menu');
+
+  // Same flag the Printers screen edits, so the payment-QR setting is one value wherever it is
+  // shown. setEnableBillQrCode persists it to the backend itself.
+  const { enableBillQrCode, setEnableBillQrCode } = usePrinterStore(
+    useShallow((s) => ({
+      enableBillQrCode: s.enableBillQrCode,
+      setEnableBillQrCode: s.setEnableBillQrCode,
+    }))
+  );
 
   // Business Profile Form State
   const [storeName, setStoreName] = useState('');
@@ -881,6 +893,26 @@ export default function SettingsScreen() {
                     </View>
                   </View>
 
+                  {/* Whether the payment QR is printed at all. Lives next to the UPI ID because
+                      that is where merchants look for it, and writes the same printer-store flag
+                      the Printers screen uses, so the two never disagree. */}
+                  <View style={[styles.qrToggleRow, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#18181B' : '#F8FAFC' }]}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={[styles.qrToggleLabel, { color: theme.textPrimary }]}>Print payment QR on bills</Text>
+                      <Text style={[styles.helperText, { color: theme.textSecondary, fontSize: 11 }]}>
+                        {enableBillQrCode
+                          ? 'Every printed bill carries a scannable UPI QR for its exact amount.'
+                          : 'Bills print without a payment QR.'}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={enableBillQrCode}
+                      onValueChange={setEnableBillQrCode}
+                      trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+
 
                   <TouchableOpacity
                     activeOpacity={0.85}
@@ -1230,6 +1262,16 @@ const styles = StyleSheet.create({
   multilineInput: {
     height: '100%',
   },
+  qrToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginTop: 14,
+  },
+  qrToggleLabel: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   saveProfileBtn: {
     borderRadius: 16,
     paddingVertical: 15,

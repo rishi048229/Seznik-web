@@ -284,10 +284,16 @@ export function CustomReceiptMockup({
         if (isUpi) {
           const merchantUpi = entry.upiId || upiId || 'store@upi';
           rawVal = buildUpiPayString(merchantUpi, storeName || 'Store', grandTotal, invoiceNumber);
-        } else if (!rawVal || rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
+        } else if (rawVal === '{{bill_pdf_url}}' || entry.qrType === 'digital_bill') {
           rawVal = sampleBillPdfUrl;
         } else if (rawVal === '{{invoice_no}}' || entry.qrType === 'invoice_barcode') {
           rawVal = invoiceNumber || 'INV-2026-0042';
+        } else if (!rawVal) {
+          // Matches PrinterService: an untyped QR is a payment QR when a UPI ID is configured,
+          // so the preview shows the same thing the printer will produce.
+          rawVal = upiId
+            ? buildUpiPayString(upiId, storeName || 'Store', grandTotal, invoiceNumber)
+            : sampleBillPdfUrl;
         }
 
         const qrSize =

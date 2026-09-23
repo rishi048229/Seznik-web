@@ -446,7 +446,7 @@ export default function NewKotOrderScreen() {
               notes: it.notes,
             })),
           },
-          paperWidth || '58mm'
+          undefined
         );
       } catch (printErr) {
         console.warn('KOT Print warning:', printErr);
