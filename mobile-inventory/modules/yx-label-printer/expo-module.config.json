@@ -1,6 +1,3 @@
 {
-  "platforms": ["android"],
-  "android": {
-    "modules": ["com.seznik.yxlabelprinter.YxLabelPrinterModule"]
-  }
+  "platforms": []
 }
