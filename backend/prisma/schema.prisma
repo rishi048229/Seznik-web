@@ -313,6 +313,11 @@ model Sale {
   lastRemotePrintJobId  String?
   printJobs             PrintJob[]
 
+  // Creator segregation (Admin vs Staff Agent vs Remote)
+  createdById           String?
+  createdByName         String?
+  createdByRole         String?   // 'admin' | 'agent'
+
   status          String    @default("completed") // completed | cancelled
   cancelReason    String?
   cancelledAt     DateTime?
@@ -325,6 +330,7 @@ model Sale {
   @@index([userId, orderType, deliveryStatus])
   @@index([userId, paymentStatus])
   @@index([userId, isRemotePrint])
+  @@index([userId, createdByRole])
 }
 
 model Location {

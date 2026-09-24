@@ -33,6 +33,7 @@ import {
   Bluetooth,
   RotateCcw,
   ArrowRightLeft,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { useSales } from '@/hooks/useSales';
 import { Sale } from '@/types/sale';
@@ -115,6 +116,7 @@ export default function InvoicesTabScreen() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  const [creatorFilter, setCreatorFilter] = useState<'all' | 'admin' | 'agent' | 'remote'>('all');
   const [datePreset, setDatePreset] = useState<DateRangePreset>('all');
   const [customStartDate, setCustomStartDate] = useState(formatDateInputValue(new Date()));
   const [customStartTime, setCustomStartTime] = useState('00:00');
@@ -161,6 +163,40 @@ export default function InvoicesTabScreen() {
   const formatCurrency = (val: number) =>
     `₹${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+  const creatorStats = useMemo(() => {
+    let allCount = 0;
+    let allTotal = 0;
+    let adminCount = 0;
+    let adminTotal = 0;
+    let agentCount = 0;
+    let agentTotal = 0;
+    let remoteCount = 0;
+    let remoteTotal = 0;
+
+    for (const sale of sales) {
+      allCount++;
+      allTotal += sale.grandTotal || 0;
+      if (sale.isRemotePrint) {
+        remoteCount++;
+        remoteTotal += sale.grandTotal || 0;
+      }
+      if (sale.createdByRole === 'agent') {
+        agentCount++;
+        agentTotal += sale.grandTotal || 0;
+      } else if (sale.createdByRole === 'admin' || (!sale.createdByRole && !sale.isRemotePrint)) {
+        adminCount++;
+        adminTotal += sale.grandTotal || 0;
+      }
+    }
+
+    return {
+      all: { count: allCount, total: allTotal },
+      admin: { count: adminCount, total: adminTotal },
+      agent: { count: agentCount, total: agentTotal },
+      remote: { count: remoteCount, total: remoteTotal },
+    };
+  }, [sales]);
+
   const filteredSales = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     let list = sales.filter((sale) => {
@@ -170,7 +206,17 @@ export default function InvoicesTabScreen() {
         (sale.customerName && sale.customerName.toLowerCase().includes(q));
       const matchesPayment = selectedPaymentMethod ? sale.paymentMethod === selectedPaymentMethod : true;
       const matchesDate = saleInDateRange(sale.createdAt, activeDateRange);
-      return matchesSearch && matchesPayment && matchesDate;
+
+      let matchesCreator = true;
+      if (creatorFilter === 'admin') {
+        matchesCreator = sale.createdByRole === 'admin' || (!sale.createdByRole && !sale.isRemotePrint);
+      } else if (creatorFilter === 'agent') {
+        matchesCreator = sale.createdByRole === 'agent';
+      } else if (creatorFilter === 'remote') {
+        matchesCreator = Boolean(sale.isRemotePrint);
+      }
+
+      return matchesSearch && matchesPayment && matchesDate && matchesCreator;
     });
 
     list = [...list].sort((a, b) => {
@@ -181,7 +227,7 @@ export default function InvoicesTabScreen() {
     });
 
     return list;
-  }, [sales, searchQuery, selectedPaymentMethod, activeDateRange, sortBy]);
+  }, [sales, searchQuery, selectedPaymentMethod, activeDateRange, creatorFilter, sortBy]);
 
   const buildPrintOptions = useCallback(() => {
     const template = getTemplateById(activeTemplateId);
@@ -294,7 +340,50 @@ export default function InvoicesTabScreen() {
 
   const renderFilters = () => (
     <View style={[styles.filtersPanel, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-      <Text style={[styles.filterSectionLabel, { color: theme.textPrimary }]}>{t('filterByDate', 'Filter by date')}</Text>
+      {/* Creator Segregation Chips */}
+      <Text style={[styles.filterSectionLabel, { color: theme.textPrimary }]}>Segregate Bills</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll} contentContainerStyle={styles.presetRow}>
+        {[
+          { id: 'all' as const, label: 'All Bills', count: creatorStats.all.count, total: creatorStats.all.total, icon: null },
+          { id: 'admin' as const, label: 'Admin', count: creatorStats.admin.count, total: creatorStats.admin.total, icon: ShieldCheck, color: '#D97706' },
+          { id: 'agent' as const, label: 'Agent / Staff', count: creatorStats.agent.count, total: creatorStats.agent.total, icon: UserCheck, color: '#7C3AED' },
+          { id: 'remote' as const, label: 'Remote Prints', count: creatorStats.remote.count, total: creatorStats.remote.total, icon: Send, color: '#0284C7' },
+        ].map((seg) => {
+          const active = creatorFilter === seg.id;
+          const Icon = seg.icon;
+          return (
+            <TouchableOpacity
+              key={seg.id}
+              onPress={() => setCreatorFilter(seg.id)}
+              style={[
+                styles.creatorChip,
+                {
+                  backgroundColor: active ? (seg.color ? seg.color : BRAND_COLORS.navyInk) : theme.bg,
+                  borderColor: active ? (seg.color ? seg.color : BRAND_COLORS.navyInk) : theme.borderColor,
+                },
+              ]}
+              activeOpacity={0.8}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                {Icon && <Icon size={12} color={active ? '#FFFFFF' : (seg.color || BRAND_COLORS.blue600)} />}
+                <Text style={[styles.creatorChipTitle, { color: active ? '#FFFFFF' : theme.textPrimary }]}>
+                  {seg.label}
+                </Text>
+                <View style={[styles.countBadge, { backgroundColor: active ? 'rgba(255,255,255,0.25)' : 'rgba(100,116,139,0.15)' }]}>
+                  <Text style={[styles.countBadgeText, { color: active ? '#FFFFFF' : theme.textPrimary }]}>
+                    {seg.count}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.creatorChipTotal, { color: active ? 'rgba(255,255,255,0.9)' : BRAND_COLORS.blue600 }]}>
+                {formatCurrency(seg.total)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <Text style={[styles.filterSectionLabel, { color: theme.textPrimary, marginTop: 10 }]}>{t('filterByDate', 'Filter by date')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator style={styles.presetScroll} contentContainerStyle={styles.presetRow}>
         {DATE_PRESETS.map((preset) => {
           const active = datePreset === preset.id;
@@ -489,6 +578,19 @@ export default function InvoicesTabScreen() {
                             </View>
                           )}
                           {item.isRemotePrint ? <RemoteSaleBadge compact /> : null}
+                          {item.createdByRole === 'agent' ? (
+                            <View style={[styles.agentPill, { backgroundColor: 'rgba(124, 58, 237, 0.12)' }]}>
+                              <UserCheck size={10} color="#7C3AED" />
+                              <Text style={[styles.agentPillText, { color: '#7C3AED' }]} numberOfLines={1}>
+                                {item.createdByName ? `Agent: ${item.createdByName}` : 'Agent'}
+                              </Text>
+                            </View>
+                          ) : (item.createdByRole === 'admin' || (!item.createdByRole && !item.isRemotePrint)) ? (
+                            <View style={[styles.adminPill, { backgroundColor: 'rgba(217, 119, 6, 0.12)' }]}>
+                              <ShieldCheck size={10} color="#D97706" />
+                              <Text style={[styles.adminPillText, { color: '#D97706' }]}>Admin</Text>
+                            </View>
+                          ) : null}
                         </View>
                         <Text style={[styles.invoiceAmount, { color: BRAND_COLORS.blue600 }]}>
                           {formatCurrency(item.grandTotal)}
@@ -961,4 +1063,56 @@ const styles = StyleSheet.create({
   sortMenuCard: { width: '100%', maxWidth: 320, borderRadius: 16, padding: 12, borderWidth: 1 },
   sortMenuTitle: { fontSize: 14, fontWeight: '900', marginBottom: 8, paddingHorizontal: 4 },
   sortOption: { paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10 },
+  creatorChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginRight: 8,
+    minWidth: 110,
+  },
+  creatorChipTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  creatorChipTotal: {
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  countBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  countBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  agentPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  agentPillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  adminPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  adminPillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
 });

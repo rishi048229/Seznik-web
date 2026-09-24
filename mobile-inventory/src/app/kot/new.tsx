@@ -55,6 +55,7 @@ import { isProductAvailable } from '@/utils/businessFeatures';
 import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling';
 import type { Sale } from '@/types/sale';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
+import { AppBottomNavBar } from '@/components/ui/AppBottomNavBar';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { debugFa19Log } from '@/utils/debugFa19Log';
 
@@ -1177,6 +1178,7 @@ export default function NewKotOrderScreen() {
           onConnected={() => setShowPrinterModal(false)}
         />
       </View>
+      <AppBottomNavBar activeTab="new_bill" />
     </ScreenBackground>
   );
 }

@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   Plus,
   ChefHat,
+  Utensils,
 } from 'lucide-react-native';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -220,7 +221,6 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="more"
           options={{
-            href: restaurantPrimary ? null : undefined,
             tabBarLabel: ({ color, focused }) => (
               <Text
                 style={{
@@ -231,15 +231,24 @@ export default function TabsLayout() {
                 }}
                 numberOfLines={1}
               >
-                {t('more', 'More')}
+                {restaurantPrimary ? t('menu', 'Menu') : t('more', 'More')}
               </Text>
             ),
-            tabBarIcon: ({ color, size }) => <Menu size={size} color={color} />,
+            tabBarIcon: ({ color, size }) =>
+              restaurantPrimary ? (
+                <Utensils size={size} color={color} />
+              ) : (
+                <Menu size={size} color={color} />
+              ),
           }}
           listeners={{
             tabPress: (e) => {
               e.preventDefault();
-              openMoreMenu();
+              if (restaurantPrimary) {
+                router.push('/products' as any);
+              } else {
+                openMoreMenu();
+              }
             },
           }}
         />

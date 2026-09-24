@@ -33,6 +33,7 @@ import { ScreenLoadingState } from '@/components/ui/ScreenLoadingState';
 import { KotTablesGridSkeleton } from '@/components/ui/ScreenSkeleton';
 import { BRAND_COLORS } from '@/constants/theme';
 import { KeyboardAvoidingWrapper } from '@/components/ui/KeyboardAvoidingWrapper';
+import { AppBottomNavBar } from '@/components/ui/AppBottomNavBar';
 
 export default function RestaurantTablesScreen() {
   const router = useRouter();
@@ -235,6 +236,7 @@ export default function RestaurantTablesScreen() {
           </KeyboardAvoidingWrapper>
         </Modal>
       </View>
+      <AppBottomNavBar activeTab="tables" />
     </ScreenBackground>
   );
 }

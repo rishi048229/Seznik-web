@@ -40,6 +40,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useLanguageStore } from '@/store/useLanguageStore';
 import { ListScreenSkeleton, KotOrdersListSkeleton } from '@/components/ui/ScreenSkeleton';
 import { ScreenLoadingState, ScreenErrorState } from '@/components/ui/ScreenLoadingState';
+import { AppBottomNavBar } from '@/components/ui/AppBottomNavBar';
 import ThermalPrinterService from '@/services/PrinterService';
 
 export default function KotOrdersScreen() {
@@ -429,6 +430,7 @@ export default function KotOrdersScreen() {
           onConnected={() => setShowPrinterModal(false)}
         />
       </View>
+      <AppBottomNavBar activeTab="kot" />
     </ScreenBackground>
   );
 }

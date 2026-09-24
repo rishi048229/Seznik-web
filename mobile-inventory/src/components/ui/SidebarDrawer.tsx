@@ -140,6 +140,8 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
         reviewArrow: BRAND_COLORS.blue600,
       };
 
+  const isAgent = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
+
   const kotGroup =
     isFeatureVisible('kot') && hasPermission('canAccessKOT')
       ? [
@@ -149,6 +151,9 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
               { id: 'kot-tables', label: t('restaurantTables', 'Tables'), icon: LayoutGrid, route: '/kot/tables' },
               { id: 'kot-new', label: t('newBill', 'New Bill'), icon: PlusCircle, route: '/kot/new' },
               { id: 'kot-orders', label: t('ordersBoard', 'Orders Board'), icon: ChefHat, route: '/kot' },
+              ...(!isAgent && (hasPermission('canAccessSettings') || user?.role === 'admin')
+                ? [{ id: 'restaurant-settings', label: t('restaurantSettings', 'Restaurant Settings'), icon: ChefHat, route: '/restaurant-settings' }]
+                : []),
             ],
           },
         ]
@@ -184,8 +189,6 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
       ? [{ id: 'expenses', label: t('expenses', 'Expense Tracker'), icon: TrendingDown, route: '/expenses' }]
       : []),
   ];
-
-  const isAgent = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
 
   const settingsItems = [
     ...(hasPermission('canAccessReports')

@@ -59,6 +59,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useProducts } from '@/hooks/useProducts';
+import { useSettings } from '@/hooks/useSettings';
 import { useCategories } from '@/hooks/useCategories';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { Product } from '@/types/product';
@@ -83,8 +84,9 @@ import { calculateProductGstBreakdown } from '@/utils/gst';
 import { GstBreakdownCard } from '@/components/products/GstBreakdownCard';
 import { useTabTransitionReady } from '@/hooks/useTabTransitionReady';
 import { useAuth } from '@/hooks/useAuth';
-import { useSettings } from '@/hooks/useSettings';
 import { isKotFirstNav, isProductAvailable, usesStockTracking } from '@/utils/businessFeatures';
+import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
+import { AppBottomNavBar } from '@/components/ui/AppBottomNavBar';
 
 const getProductInitials = (name: string): string => {
   if (!name || !name.trim()) return 'P';
@@ -150,6 +152,7 @@ export default function ProductsScreen() {
   // General Camera & Modal States
   const [showScanner, setShowScanner] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [showAddFoodModal, setShowAddFoodModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Product Detail View Modal State
@@ -451,6 +454,10 @@ export default function ProductsScreen() {
   };
 
   const handleOpenAddModal = () => {
+    if (kotFirst) {
+      setShowAddFoodModal(true);
+      return;
+    }
     setEditingProduct(null);
     setName('');
     setSellingPrice('');
@@ -2139,7 +2146,15 @@ export default function ProductsScreen() {
         visible={showAiModal}
         onClose={() => setShowAiModal(false)}
       />
+
+      {/* RESTAURANT FOOD ITEM MODAL */}
+      <AddFoodItemModal
+        visible={showAddFoodModal}
+        onClose={() => setShowAddFoodModal(false)}
+        onItemCreated={() => refetchProducts()}
+      />
     </View>
+    <AppBottomNavBar />
     </ScreenBackground>
   );
 }

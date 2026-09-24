@@ -55,6 +55,11 @@ export interface Sale {
   isRemotePrint?: boolean;
   lastRemotePrintJobId?: string | null;
 
+  // Creator segregation (Admin vs Staff Agent vs Remote)
+  createdById?: string | null;
+  createdByName?: string | null;
+  createdByRole?: 'admin' | 'agent' | string | null;
+
   // Delivery & Fulfillment fields
   orderType?: OrderType;
   deliveryAddress?: string | null;

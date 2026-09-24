@@ -101,6 +101,11 @@ export const createSale = async (req: Request, res: Response) => {
     const count = await prisma.sale.count({ where: { userId } });
     const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
 
+    const actorUser = (req as any).user;
+    const createdById = actorUser?.id ? String(actorUser.id) : null;
+    const createdByRole = actorUser?.role === 'agent' ? 'agent' : 'admin';
+    const createdByName = actorUser?.displayName || (createdByRole === 'agent' ? 'Staff Agent' : 'Store Admin');
+
     // Create the sale record first — avoid Prisma interactive $transaction on RDS
     // (P2028 "Transaction not found" when stock updates run inside a long-lived tx).
     const sale = await prisma.sale.create({
@@ -121,6 +126,9 @@ export const createSale = async (req: Request, res: Response) => {
         locationId,
         platform,
         userId,
+        createdById,
+        createdByName,
+        createdByRole,
         orderType,
         deliveryAddress,
         deliveryPhone,

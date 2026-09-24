@@ -34,6 +34,12 @@ const STATEMENTS = [
   'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "lastRemotePrintJobId" TEXT',
   'CREATE INDEX IF NOT EXISTS "Sale_userId_isRemotePrint_idx" ON "Sale"("userId", "isRemotePrint")',
 
+  // Creator segregation (Admin vs Staff Agent vs Remote)
+  'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "createdById" TEXT',
+  'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "createdByName" TEXT',
+  'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "createdByRole" TEXT',
+  'CREATE INDEX IF NOT EXISTS "Sale_userId_createdByRole_idx" ON "Sale"("userId", "createdByRole")',
+
   // Sale cancel fields from production main (KOT cancel-without-revenue).
   'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT \'completed\'',
   'ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT',
