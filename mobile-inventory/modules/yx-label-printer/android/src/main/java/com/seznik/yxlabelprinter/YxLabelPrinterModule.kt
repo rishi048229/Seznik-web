@@ -75,7 +75,15 @@ class YxLabelPrinterModule : Module() {
     @Volatile private var sdkInitialized = false
   }
 
-  private val printer: Printer by lazy { PrinterManage.getInstance().getPrinter(PrinterConstantPool.SocketType.SPP) }
+  private var _printer: Printer? = null
+  private val printer: Printer
+    get() {
+      if (_printer == null) {
+        ensureSdkInitialized()
+        _printer = PrinterManage.getInstance().getPrinter(PrinterConstantPool.SocketType.SPP)
+      }
+      return _printer!!
+    }
   private var helper: PrintImgHelper? = null
 
   /** Discovered/bonded printers, keyed by MAC, so connect() can reuse the exact DeviceItem. */
@@ -108,10 +116,16 @@ class YxLabelPrinterModule : Module() {
     if (sdkInitialized) return
     synchronized(this) {
       if (sdkInitialized) return
-      val app = appContext.reactContext?.applicationContext as? Application ?: return
-      SDKUtils.init(app, SDK_KEY)
-      bypassCheckBTName()
-      sdkInitialized = true
+      try {
+        val app = appContext.reactContext?.applicationContext as? Application
+        if (app != null) {
+          SDKUtils.init(app, SDK_KEY)
+          bypassCheckBTName()
+          sdkInitialized = true
+        }
+      } catch (e: Throwable) {
+        Log.w("YxLabelPrinter", "ensureSdkInitialized error: ${e.message}")
+      }
     }
   }
 
