@@ -14,3 +14,8 @@ expo-env.d.ts
 /ios
 .gradle/
 
+
+# Signing material must never be committed. android/ is already ignored above (it is
+# prebuild-generated), so this only guards keystores placed anywhere else in the project.
+*.jks
+*.keystore

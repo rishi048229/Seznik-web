@@ -12,6 +12,7 @@ expo-env.d.ts
 # Vendor printer SDKs and binaries do not belong in the API tree.
 backend/src/Android SDK*
 backend/src/Demo_small/
+backend/src/TEJ-Printer SDK*
 backend/src/**/*.jar
 backend/src/**/*.apk
 backend/src/**/*.exe
