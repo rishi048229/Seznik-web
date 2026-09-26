@@ -112,6 +112,7 @@
     },
     "extra": {
       "router": {},
+      "productionApiUrl": "http://54.175.133.69:5001/api",
       "eas": {
         "projectId": "fe03bcde-b899-40d9-96d8-a59892db22a3"
       }

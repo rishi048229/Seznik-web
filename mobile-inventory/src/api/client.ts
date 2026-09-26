@@ -5,7 +5,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 // Environment Configurable Base URLs
-const PROD_DEFAULT_API_URL = 'http://54.175.133.69:5000/api';
+/** Live EC2 API (must match backend listen port — currently 5001, not 5000). */
+const PROD_DEFAULT_API_URL = 'http://54.175.133.69:5001/api';
 const DEFAULT_PORT = (
   process.env.EXPO_PUBLIC_API_PORT ||
   process.env.EXPO_PUBLIC_PORT ||
@@ -13,6 +14,16 @@ const DEFAULT_PORT = (
 ).trim();
 
 const getDynamicHostIp = () => {
+  // 0. Baked into app.json extra — survives OTA when env vars are missing from the bundle
+  const extraUrl = Constants.expoConfig?.extra?.productionApiUrl as string | undefined;
+  if (extraUrl?.trim()) {
+    let url = extraUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `http://${url}`;
+    }
+    return url.endsWith('/api') ? url : `${url.replace(/\/$/, '')}/api`;
+  }
+
   // 1. Explicit Full API URL from environment (EAS build, .env, or production config)
   if (process.env.EXPO_PUBLIC_API_URL) {
     let url = process.env.EXPO_PUBLIC_API_URL.trim();

@@ -21,15 +21,15 @@ module.exports = {
       // admin permissions. Use `--env development` locally if you want those fallbacks.
       env: {
         NODE_ENV: 'production',
-        PORT: 5000
+        PORT: 5001
       },
       env_development: {
         NODE_ENV: 'development',
-        PORT: 5000
+        PORT: 5001
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 5000
+        PORT: 5001
       }
     }
   ]

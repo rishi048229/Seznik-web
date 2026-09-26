@@ -7,9 +7,14 @@ export async function checkForOtaUpdateOnLaunch(): Promise<void> {
   if (!Updates.isEnabled) return;
 
   try {
-    const result = await Updates.checkForUpdateAsync();
+    const withTimeout = <T,>(p: Promise<T>, ms: number) =>
+      Promise.race([
+        p,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('OTA check timeout')), ms)),
+      ]);
+    const result = await withTimeout(Updates.checkForUpdateAsync(), 8000);
     if (!result.isAvailable) return;
-    await Updates.fetchUpdateAsync();
+    await withTimeout(Updates.fetchUpdateAsync(), 20000);
     await Updates.reloadAsync();
   } catch (err) {
     console.warn('[OTA] Update check failed (app continues on bundled JS):', err);
