@@ -208,32 +208,48 @@ const STATEMENTS = [
 
 async function main() {
   for (const sql of STATEMENTS) {
-    await prisma.$executeRawUnsafe(sql)
-    console.log('applied:', sql)
+    try {
+      await prisma.$executeRawUnsafe(sql)
+      console.log('applied:', sql.slice(0, 80))
+    } catch (err) {
+      console.warn('warning on statement:', err.message)
+    }
   }
 
-  const saleStatusBackfill = await prisma.$executeRawUnsafe(`
-    UPDATE "Sale" SET "status" = 'completed' WHERE "status" IS NULL OR btrim("status") = ''
-  `)
-  console.log('backfilled Sale.status:', saleStatusBackfill)
+  try {
+    const saleStatusBackfill = await prisma.$executeRawUnsafe(`
+      UPDATE "Sale" SET "status" = 'completed' WHERE "status" IS NULL OR btrim("status") = ''
+    `)
+    console.log('backfilled Sale.status:', saleStatusBackfill)
+  } catch (err) {
+    console.warn('saleStatusBackfill warning:', err.message)
+  }
 
-  const kotBatchBackfill = await prisma.$executeRawUnsafe(`
-    UPDATE "KOTOrderItem"
-    SET "kotBatchNumber" = 1
-    WHERE "sentToKitchenAt" IS NOT NULL AND "kotBatchNumber" IS NULL
-  `)
-  console.log('backfilled KOTOrderItem.kotBatchNumber:', kotBatchBackfill)
+  try {
+    const kotBatchBackfill = await prisma.$executeRawUnsafe(`
+      UPDATE "KOTOrderItem"
+      SET "kotBatchNumber" = 1
+      WHERE "sentToKitchenAt" IS NOT NULL AND "kotBatchNumber" IS NULL
+    `)
+    console.log('backfilled KOTOrderItem.kotBatchNumber:', kotBatchBackfill)
+  } catch (err) {
+    console.warn('kotBatchBackfill warning:', err.message)
+  }
 
-  const backfilled = await prisma.$executeRawUnsafe(`
-    UPDATE "Settings" AS s
-    SET "businessName" = u."businessName"
-    FROM "User" AS u
-    WHERE s."userId" = u.id
-      AND (s."businessName" IS NULL OR btrim(s."businessName") = '')
-      AND u."businessName" IS NOT NULL
-      AND btrim(u."businessName") <> ''
-  `)
-  console.log('backfilled empty Settings.businessName rows:', backfilled)
+  try {
+    const backfilled = await prisma.$executeRawUnsafe(`
+      UPDATE "Settings" AS s
+      SET "businessName" = u."businessName"
+      FROM "User" AS u
+      WHERE s."userId" = u.id
+        AND (s."businessName" IS NULL OR btrim(s."businessName") = '')
+        AND u."businessName" IS NOT NULL
+        AND btrim(u."businessName") <> ''
+    `)
+    console.log('backfilled empty Settings.businessName rows:', backfilled)
+  } catch (err) {
+    console.warn('businessName backfill warning:', err.message)
+  }
 
   const cols = await prisma.$queryRawUnsafe(`
     SELECT column_name

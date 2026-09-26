@@ -158,55 +158,79 @@ const ADDITIVE_TABLES = [
 let ensured: Promise<void> | null = null
 
 const runEnsure = async () => {
-  for (const sql of ADDITIVE_COLUMNS) {
-    await prisma.$executeRawUnsafe(sql)
-  }
-
   for (const sql of ADDITIVE_TABLES) {
-    await prisma.$executeRawUnsafe(sql)
+    try {
+      await prisma.$executeRawUnsafe(sql)
+    } catch (err) {
+      console.warn('[ensureAdditiveSchema] table query warning:', err instanceof Error ? err.message : err)
+    }
   }
 
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS "Product_userId_isAvailable_idx" ON "Product" ("userId", "isAvailable")
-  `)
+  for (const sql of ADDITIVE_COLUMNS) {
+    try {
+      await prisma.$executeRawUnsafe(sql)
+    } catch (err) {
+      console.warn('[ensureAdditiveSchema] column query warning:', err instanceof Error ? err.message : err)
+    }
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "Product_userId_isAvailable_idx" ON "Product" ("userId", "isAvailable")
+    `)
+  } catch (err) {
+    console.warn('[ensureAdditiveSchema] index warning:', err instanceof Error ? err.message : err)
+  }
 
   // Keep Settings.trackStock aligned with restaurant_cafe business profiles.
-  await prisma.$executeRawUnsafe(`
-    UPDATE "Settings" AS s
-    SET "trackStock" = false
-    FROM "User" AS u
-    WHERE s."userId" = u.id
-      AND u."businessType" = 'restaurant_cafe'
-      AND s."trackStock" = true
-  `)
+  try {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "Settings" AS s
+      SET "trackStock" = false
+      FROM "User" AS u
+      WHERE s."userId" = u.id
+        AND u."businessType" = 'restaurant_cafe'
+        AND s."trackStock" = true
+    `)
+  } catch (err) {
+    console.warn('[ensureAdditiveSchema] trackStock warning:', err instanceof Error ? err.message : err)
+  }
 
-  await prisma.$executeRawUnsafe(`
-    UPDATE "Settings" AS s
-    SET "businessName" = u."businessName"
-    FROM "User" AS u
-    WHERE s."userId" = u.id
-      AND (s."businessName" IS NULL OR btrim(s."businessName") = '')
-      AND u."businessName" IS NOT NULL
-      AND btrim(u."businessName") <> ''
-  `)
+  try {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "Settings" AS s
+      SET "businessName" = u."businessName"
+      FROM "User" AS u
+      WHERE s."userId" = u.id
+        AND (s."businessName" IS NULL OR btrim(s."businessName") = '')
+        AND u."businessName" IS NOT NULL
+        AND btrim(u."businessName") <> ''
+    `)
+  } catch (err) {
+    console.warn('[ensureAdditiveSchema] businessName warning:', err instanceof Error ? err.message : err)
+  }
 
-  await prisma.$executeRawUnsafe(`
-    UPDATE "Settings" AS s
-    SET "personalInfo" = jsonb_build_object(
-      'ownerName', COALESCE(u."displayName", ''),
-      'ownerPhone', COALESCE(s."businessPhone", u."phone", ''),
-      'ownerAddress', COALESCE(s."businessAddress", '')
-    )
-    FROM "User" AS u
-    WHERE s."userId" = u.id
-      AND (
-        s."personalInfo" IS NULL
-        OR s."personalInfo"->>'ownerName' IS NULL
-        OR btrim(s."personalInfo"->>'ownerName') = ''
+  try {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "Settings" AS s
+      SET "personalInfo" = jsonb_build_object(
+        'ownerName', COALESCE(u."displayName", ''),
+        'ownerPhone', COALESCE(s."businessPhone", u."phone", ''),
+        'ownerAddress', COALESCE(s."businessAddress", '')
       )
-      AND u."displayName" IS NOT NULL
-      AND btrim(u."displayName") <> ''
-  `)
+      FROM "User" AS u
+      WHERE s."userId" = u.id
+        AND (
+          s."personalInfo" IS NULL
+          OR s."personalInfo"->>'ownerName' IS NULL
+          OR btrim(s."personalInfo"->>'ownerName') = ''
+        )
+        AND u."displayName" IS NOT NULL
+        AND btrim(u."displayName") <> ''
+    `)
+  } catch (err) {
+    console.warn('[ensureAdditiveSchema] personalInfo warning:', err instanceof Error ? err.message : err)
+  }
 }
 
 export const ensureAdditiveSchema = async () => {
