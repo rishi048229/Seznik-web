@@ -7,6 +7,49 @@ function startOfUtcDay(d = new Date()): Date {
 
 export const DAILY_SALE_CREATE_LIMIT = 200;
 export const DAILY_PRODUCT_CREATE_LIMIT = 500;
+/** Warn merchants when they reach this fraction of the daily cap (e.g. 160/200 bills). */
+export const DAILY_LIMIT_WARN_RATIO = 0.8;
+
+export type DailyUsageSnapshot = {
+  salesToday: number;
+  salesLimit: number;
+  salesRemaining: number;
+  productsCreatedToday: number;
+  productsDailyLimit: number;
+  productsDailyRemaining: number;
+  activeProducts: number;
+  activeProductsLimit: number;
+};
+
+export async function getDailyUsageSnapshot(userId: string): Promise<DailyUsageSnapshot> {
+  const [salesToday, productsCreatedToday, activeProducts] = await Promise.all([
+    countSalesCreatedToday(userId),
+    countProductsCreatedToday(userId),
+    countActiveProducts(userId),
+  ]);
+  return {
+    salesToday,
+    salesLimit: DAILY_SALE_CREATE_LIMIT,
+    salesRemaining: Math.max(0, DAILY_SALE_CREATE_LIMIT - salesToday),
+    productsCreatedToday,
+    productsDailyLimit: DAILY_PRODUCT_CREATE_LIMIT,
+    productsDailyRemaining: Math.max(0, DAILY_PRODUCT_CREATE_LIMIT - productsCreatedToday),
+    activeProducts,
+    activeProductsLimit: MAX_ACTIVE_PRODUCTS,
+  };
+}
+
+export function dailySaleLimitUserMessage(salesToday: number, limit = DAILY_SALE_CREATE_LIMIT): string | null {
+  if (salesToday >= limit) {
+    return `Daily invoice limit reached (${limit} bills per day). Try again tomorrow or contact support.`;
+  }
+  const warnAt = Math.floor(limit * DAILY_LIMIT_WARN_RATIO);
+  if (salesToday >= warnAt) {
+    const remaining = limit - salesToday;
+    return `You have created ${salesToday} of ${limit} bills today. ${remaining} remaining before the daily limit.`;
+  }
+  return null;
+}
 export const BULK_PRODUCT_IMPORT_MAX = 500;
 export const MAX_ACTIVE_PRODUCTS = 5000;
 

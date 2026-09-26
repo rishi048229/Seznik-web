@@ -49,7 +49,9 @@ export const IncomingPrintJobModal = ({ job, onClose, onHandled }: IncomingPrint
     setBusy(true)
     try {
       await mark('accepted')
-      const sale = await getSaleById(user?.uid || user?.id || '', job.saleId)
+      const saleId = job.saleId?.trim()
+      if (!saleId) throw new Error('This print job has no linked sale.')
+      const sale = await getSaleById(user?.uid || user?.id || '', saleId)
       if (!sale) throw new Error('Sale not found')
 
       await mark('printing')

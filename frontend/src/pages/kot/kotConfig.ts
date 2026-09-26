@@ -13,6 +13,10 @@ export {
   visibleOrderTypes,
   orderTypeLabel,
   tableNounLabel,
+  ticketTitle,
+  computeServiceCharge,
+  roomChargeFor,
+  roomChargeLabel,
 } from '@shared/kotConfig'
 
 export type { VenuePreset } from '@shared/kotConfig'

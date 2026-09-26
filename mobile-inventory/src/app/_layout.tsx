@@ -88,6 +88,7 @@ import {
 } from '@/services/notificationService';
 import { registerPushTokenWithBackend } from '@/services/pushRegistration';
 import { IncomingPrintRequestBanner } from '@/components/printers/IncomingPrintRequestBanner';
+import { checkForOtaUpdateOnLaunch } from '@/services/otaUpdates';
 
 
 function AppDataPrefetcher() {
@@ -241,6 +242,10 @@ export default function RootLayout() {
   });
 
   const [fontTimeoutPassed, setFontTimeoutPassed] = React.useState(false);
+
+  useEffect(() => {
+    checkForOtaUpdateOnLaunch().catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Safety net: If fonts take longer than 2.5s to load on older Android devices, proceed anyway

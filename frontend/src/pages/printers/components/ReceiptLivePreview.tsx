@@ -16,6 +16,7 @@ import {
   type ReceiptFontId,
 } from '@shared/receiptFonts'
 import { getReceiptPreviewMaxWidth } from '../receipt-builder/receiptPreviewStyles'
+import { resolveStoreLogoUrl } from '@/utils/receiptLogo'
 
 interface ReceiptLivePreviewProps {
   paperSize: '58mm' | '80mm'
@@ -160,7 +161,7 @@ export const ReceiptLivePreview = ({
   }, [lines, paperSize, showLogo, receiptConfig.showPaymentQR, receiptConfig.upiId, receiptConfig.paymentQrURL, receiptConfig.logoURL, settings?.businessLogoURL, cutPaper, activeTemplate])
 
   const showQr = !!(receiptConfig.showPaymentQR && (receiptConfig.upiId || receiptConfig.paymentQrURL))
-  const logoSrc = receiptConfig.logoURL || settings?.businessLogoURL || ''
+  const logoSrc = resolveStoreLogoUrl(receiptConfig, settings?.businessLogoURL) || ''
 
   return (
     <div className="w-full rounded-2xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-dark-bg/60 p-3 sm:p-4 overflow-hidden">

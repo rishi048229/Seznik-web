@@ -34,7 +34,14 @@ pm2 reload ecosystem.config.js --env production
 
 If you already ran destructive `db push`, **restore the RDS snapshot** from before that run, then deploy with the safe path above.
 
-Run git/PM2 as the **`ubuntu`** user (not `root`) to avoid “dubious ownership” on `/home/ubuntu/Seznik-web`.
+Run git/PM2 as the **`ubuntu`** user (not `root`). If you see **dubious ownership** after cloning or fixing files as root:
+
+```bash
+sudo chown -R ubuntu:ubuntu /home/ubuntu/inventort-seznik
+sudo -u ubuntu -i
+```
+
+Never run `npm` or `pm2` from `/root` — there is no `package.json` or `ecosystem.config.js` there.
 
 ## Deploy after every `dev` push
 
@@ -50,19 +57,37 @@ pm2 reload ecosystem.config.js --env production
 pm2 save
 ```
 
-Or from the repo root on the server:
+Or as **ubuntu** (one script, correct paths):
+
+```bash
+bash /home/ubuntu/inventort-seznik/backend/scripts/ec2-deploy-ubuntu.sh
+```
+
+Or from the repo root:
 
 ```bash
 bash backend/scripts/deploy.sh
 ```
 
-(`deploy.sh` pulls **`dev`**, runs additive SQL, builds, and reloads PM2.)
+(`deploy.sh` / `ec2-deploy-ubuntu.sh` pull **`dev`**, run additive SQL, build, and reload PM2 from **`backend/ecosystem.config.js`**.)
 
 ## Env file location
 
 Backend loads `.env` from (in order): `backend/.env`, repo root `.env`, then  
 `/home/ubuntu/inventort-seznik/backend/.env` on EC2. Legacy `/home/ubuntu/Seznik-web/...` is still tried for older servers.
 
-## Mobile APK
+## Mobile APK and OTA (frontend-only updates)
 
-Build against the same API URL as `eas.json` production profile (`EXPO_PUBLIC_API_URL`). After UI changes, run a new release APK — OTA is off for native printer builds.
+Production API URL is set in `mobile-inventory/eas.json` (`EXPO_PUBLIC_API_URL`).
+
+1. **Install a release APK** that includes `expo-updates` (versionCode **12+**, channel **production**). Rebuild the APK when native deps or `runtimeVersion` / app version change.
+2. **Ship JS/UI fixes without a new APK** from your dev machine (logged into Expo as `rishi048229`):
+
+```bash
+cd mobile-inventory
+npm run update:production -- --message "Describe the change"
+```
+
+Devices on channel **production** check for updates on launch and reload when a bundle is available.
+
+See `mobile-inventory/docs/OTA.md` for details.

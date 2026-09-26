@@ -62,6 +62,8 @@ import { setStoredSettings } from '@/services/secureStore';
 import { extractUpiFromQrImageAsync, isValidUpiVpa } from '@/utils/billQrService';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useShallow } from 'zustand/react/shallow';
+import { triggerClosedAppTestPush } from '@/services/pushRegistration';
+import { fetchApi } from '@/api/client';
 
 
 const SUPPORT_PHONE = '+918237869618';
@@ -492,6 +494,38 @@ export default function SettingsScreen() {
                           <Text style={[styles.settingSub, { color: theme.textSecondary }]}>Text to receipt, tokens & custom notes</Text>
                         </View>
                         <ChevronRight size={16} color={theme.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.settingsGroup}>
+                    <Text style={[styles.groupHeading, { color: theme.textSecondary }]}>ALERTS</Text>
+                    <View style={[styles.insetCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, padding: 14, gap: 10 }]}>
+                      <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                        Test low-stock, daily summary, and push alerts on this device.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.secondaryActionBtn, { borderColor: theme.borderColor }]}
+                        onPress={() => {
+                          triggerClosedAppTestPush(3).then((ok) => {
+                            Alert.alert(ok ? 'Scheduled' : 'Failed', ok ? 'Low-stock sample in ~3s (lock screen + in-app).' : 'Could not schedule test.');
+                          });
+                        }}
+                      >
+                        <Text style={{ fontWeight: '700', color: BRAND_COLORS.blue600 }}>Test local low-stock alert</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.secondaryActionBtn, { borderColor: theme.borderColor }]}
+                        onPress={async () => {
+                          try {
+                            await fetchApi('/notifications/test-push', { method: 'POST', body: JSON.stringify({ kind: 'daily_summary' }) });
+                            Alert.alert('Sent', 'Check notification tray for sample daily summary push.');
+                          } catch (e: any) {
+                            Alert.alert('Push test failed', e?.message || 'Register push token by opening app with notifications allowed.');
+                          }
+                        }}
+                      >
+                        <Text style={{ fontWeight: '700', color: BRAND_COLORS.blue600 }}>Test push (daily summary)</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1031,6 +1065,13 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, marginLeft: -4 },
   backBtnText: { fontSize: 13, fontWeight: '600', marginLeft: 4 },
   title: { fontSize: 24, fontWeight: '900', marginBottom: 14, letterSpacing: -0.3 },
+  secondaryActionBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
 
   // Merchant Hero Card
   heroCard: {

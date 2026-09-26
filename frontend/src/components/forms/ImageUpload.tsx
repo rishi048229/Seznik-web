@@ -117,6 +117,14 @@ export const ImageUpload = ({
         setIsUploading(false)
       } else {
         const base64Url = await compressImage(file, 1000, 1000, 0.85)
+        const approxBytes = Math.floor((base64Url.length * 3) / 4)
+        if (approxBytes > maxBytes) {
+          setShowLimitModal(true)
+          toast.error(`Image must be ${maxSizeMB} MB or less after compression. Try a smaller photo.`)
+          if (inputRef.current) inputRef.current.value = ''
+          setIsUploading(false)
+          return
+        }
         setPreview(base64Url)
         onChange(base64Url)
         setIsUploading(false)

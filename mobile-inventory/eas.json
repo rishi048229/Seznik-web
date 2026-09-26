@@ -24,6 +24,7 @@
       }
     },
     "production": {
+      "channel": "production",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "http://54.175.133.69:5001/api"

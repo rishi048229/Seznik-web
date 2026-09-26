@@ -1618,7 +1618,9 @@ export const ProductsPage = () => {
               value={form.imageURL}
               onChange={url => setForm(prev => ({ ...prev, imageURL: url }))}
               previewSize="md"
+              maxSizeMB={1}
             />
+            <p className="text-[11px] text-gray-400 -mt-2">Product photos must be 1 MB or less (JPG/PNG).</p>
           </div>
 
           <div>

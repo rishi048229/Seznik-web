@@ -23,6 +23,7 @@ import { KotInsightsPanel } from './components/KotInsightsPanel'
 import { mergeKotConfig, orderTypeLabel, tableNounLabel, VENUE_PRESETS } from './kotConfig'
 import { venueIcon } from './components/VenueTypePicker'
 import { formatElapsed } from './kotUtils'
+import { DailyUsageBanner } from '@/components/common/DailyUsageBanner'
 import type { KOTOrder, KOTOrderType, RestaurantTable } from '@/types/kot.types'
 
 type WorkspaceTarget =
@@ -101,6 +102,7 @@ export const KOTPage = () => {
 
   return (
     <div className="pb-4">
+      <DailyUsageBanner className="mb-3" />
       <PageHeader
         title={t('nav.kot')}
         breadcrumb={[t('nav.kot')]}

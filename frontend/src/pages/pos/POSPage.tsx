@@ -35,6 +35,8 @@ import { toastError } from '@/utils/userMessage'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 import type { Category } from '@/services/categoryService'
+import { DailyUsageBanner } from '@/components/common/DailyUsageBanner'
+import { isBrowserLoadableImageSrc } from '@/utils/receiptLogo'
 
 const pillClass = (active: boolean, nested = false) =>
   `rounded-full font-semibold whitespace-nowrap transition-all shrink-0 ${
@@ -492,7 +494,9 @@ export const POSPage = () => {
   }
 
   return (
-    <div className="flex flex-col sm:flex-row h-[calc(100dvh-8.5rem)] lg:h-[calc(100dvh-4.25rem)] gap-0 -mx-3 sm:-mx-4 lg:-mx-6 -mt-3 sm:-mt-4 lg:-mt-6 min-h-0 min-w-0 max-w-full overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-8.5rem)] lg:h-[calc(100dvh-4.25rem)] -mx-3 sm:-mx-4 lg:-mx-6 -mt-3 sm:-mt-4 lg:-mt-6 min-h-0 min-w-0 max-w-full overflow-hidden">
+      <DailyUsageBanner className="mx-3 sm:mx-4 lg:mx-6 mb-2 shrink-0" />
+    <div className="flex flex-col sm:flex-row flex-1 gap-0 min-h-0 min-w-0 overflow-hidden">
 
       {/* Mobile Tab Switcher */}
       <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
@@ -700,8 +704,8 @@ export const POSPage = () => {
                   }`}
                 >
                   <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                    {product.imageURL ? (
-                      <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
+                    {isBrowserLoadableImageSrc(product.imageURL) ? (
+                      <img src={product.imageURL!} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
                       <ShoppingCart size={28} className="text-gray-300" />
                     )}
@@ -822,8 +826,8 @@ export const POSPage = () => {
                   <div className="flex items-center gap-3">
                     {/* Product Image */}
                     <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-gray-600 overflow-hidden flex-shrink-0">
-                      {item.imageURL ? (
-                        <img src={item.imageURL} alt={item.productName} className="w-full h-full object-cover" />
+                      {isBrowserLoadableImageSrc(item.imageURL) ? (
+                        <img src={item.imageURL!} alt={item.productName} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400">
                           <ShoppingCart size={18} />
@@ -1016,6 +1020,7 @@ export const POSPage = () => {
           </div>
         </div>
       </Card>
+      </div>
 
       {/* Payment Modal */}
       <Modal

@@ -2,7 +2,19 @@
   "expo": {
     "name": "seznik-app",
     "slug": "seznik-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/fe03bcde-b899-40d9-96d8-a59892db22a3",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "seznikapp",
@@ -19,7 +31,7 @@
       }
     },
     "android": {
-      "versionCode": 11,
+      "versionCode": 12,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
@@ -45,6 +57,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-updates",
       "expo-router",
       [
         "expo-camera",

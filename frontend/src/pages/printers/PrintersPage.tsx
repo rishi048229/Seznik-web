@@ -1107,10 +1107,11 @@ export const PrintersPage = () => {
                         setConfig(prev => ({ ...prev, showLogo: true }))
                       }}
                       previewSize="md"
+                      maxSizeMB={1}
                       accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
                     />
                     <p className="text-[11px] text-gray-400">
-                      Upload your high-contrast brand logo. It will appear at the top of all thermal and full-sheet invoices.
+                      Max 1 MB. Upload a high-contrast logo — visible on web, mobile, and thermal prints.
                     </p>
                   </div>
                 )}
@@ -1236,6 +1237,7 @@ export const PrintersPage = () => {
                       value={receiptConfig.paymentQrURL || ''}
                       onChange={(url) => setReceiptConfig(prev => ({ ...prev, paymentQrURL: url, showPaymentQR: true }))}
                       previewSize="md"
+                      maxSizeMB={1}
                       accept="image/png,image/jpeg,image/jpg,image/webp"
                     />
                     <p className="text-[11px] text-gray-400">

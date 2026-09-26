@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/forms/ImageUpload'
+import { NotificationTestPanel } from '@/components/settings/NotificationTestPanel'
 import { useSettings, useUpdateSettings, useCreateSettings } from '@/hooks/useSettings'
 import { useLanguage } from '@/contexts/LanguageContext'
 
@@ -364,9 +365,11 @@ export const SettingsPage = () => {
                       setIsLogoUploading(false)
                     }}
                     previewSize="lg"
+                    maxSizeMB={1}
                     enableBackgroundCleanup={true}
                     accept="image/png,image/jpeg,image/jpg,image/svg+xml"
                   />
+                  <p className="text-[11px] text-gray-400 -mt-2">Max 1 MB — syncs to web Printers and receipts.</p>
                   {isLogoUploading && (
                     <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
                       <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -616,6 +619,7 @@ export const SettingsPage = () => {
                 <p className="text-xs text-gray-400">
                   {t('settings.notifThresholdNote')}
                 </p>
+                <NotificationTestPanel />
                 <div className="pt-2">
                   <Button onClick={() => handleTabSave('notifications')} loading={isPending} className="w-full sm:w-auto">
                     {hasSettings ? t('settings.updateNotifications') : t('settings.saveNotificationSettings')}

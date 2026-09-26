@@ -20,7 +20,7 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useSettings } from '@/hooks/useSettings';
 import { settingsApi } from '@/api/settings';
-import { persistBusinessLogo } from '@/utils/businessLogoStorage';
+import { persistBusinessLogo, resolveBusinessLogoUri } from '@/utils/businessLogoStorage';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { useShallow } from 'zustand/react/shallow';
 import { RECEIPT_FONT_LIBRARY, type ReceiptFontId } from '@shared/receiptFonts';
@@ -56,6 +56,15 @@ const TOGGLE_ROWS: Array<{ key: ReceiptToggleKey; label: string; hint: string }>
 ];
 
 const MAX_IMAGE_BYTES = 1024 * 1024;
+
+const RECEIPT_HEADER_PRESETS: Array<{ value: string; label: string }> = [
+  { value: 'TAX INVOICE', label: 'Tax invoice' },
+  { value: 'RETAIL BILL', label: 'Retail bill' },
+  { value: 'BILL OF SUPPLY', label: 'Bill of supply' },
+  { value: 'ESTIMATE / QUOTATION', label: 'Estimate' },
+  { value: 'CASH MEMO', label: 'Cash memo' },
+  { value: '', label: 'None (hide title)' },
+];
 
 async function uriToDataUrlIfSmall(uri: string): Promise<string | null> {
   const info = await FileSystem.getInfoAsync(uri, { size: true });
@@ -106,8 +115,9 @@ export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: 
     setDraft({ ...receipt });
     setShowLogo(printer.showLogo !== false && receipt.showLogo !== false);
     setAutoPrintOnSale(Boolean(printer.autoPrintOnSale));
-    setLogoUri(receipt.logoURL || settings?.businessLogoURL || null);
     setPaymentQrPreview(typeof receipt.paymentQrURL === 'string' ? receipt.paymentQrURL : null);
+    const rawLogo = receipt.logoURL || settings?.businessLogoURL || null;
+    resolveBusinessLogoUri(rawLogo).then((resolved) => setLogoUri(resolved));
   }, [receipt, printer, settings?.businessLogoURL]);
 
   const patchReceipt = useCallback((partial: Record<string, unknown>) => {
@@ -155,7 +165,12 @@ export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: 
       allowsEditing: true,
     });
     if (!result.canceled && result.assets[0]?.uri) {
-      setLogoUri(result.assets[0].uri);
+      const dataUrl = await uriToDataUrlIfSmall(result.assets[0].uri);
+      if (!dataUrl) {
+        Alert.alert('Image too large', 'Store logo must be 1 MB or less (JPG/PNG).');
+        return;
+      }
+      setLogoUri(dataUrl);
       setShowLogo(true);
     }
   };
@@ -179,18 +194,19 @@ export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: 
   const handleSave = async () => {
     try {
       setSaving(true);
-      let logoUrl = logoUri;
-      if (logoUri && !logoUri.startsWith('http') && !logoUri.startsWith('data:')) {
-        logoUrl = await persistBusinessLogo(logoUri);
-        setLogoUri(logoUrl);
-      } else if (logoUri?.startsWith('file:')) {
+      let logoUrl: string | null | undefined = logoUri;
+      if (logoUri && logoUri.startsWith('data:')) {
+        logoUrl = logoUri;
+        await persistBusinessLogo(logoUri).catch(() => {});
+      } else if (logoUri && !logoUri.startsWith('http')) {
         const dataUrl = await uriToDataUrlIfSmall(logoUri);
         if (!dataUrl) {
-          Alert.alert('Logo too large', 'Logo must be under 1 MB.');
+          Alert.alert('Logo too large', 'Logo must be 1 MB or less to sync with web.');
           setSaving(false);
           return;
         }
         logoUrl = dataUrl;
+        await persistBusinessLogo(logoUri).catch(() => {});
       }
 
       const upi = String(draft.upiId || settings?.upiId || '').trim();
@@ -250,10 +266,34 @@ export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: 
 
       <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
         <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Header & footer text</Text>
+        <Text style={[styles.cardSub, { color: theme.textSecondary, marginBottom: 6 }]}>
+          Receipt header title (same presets as web)
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+          {RECEIPT_HEADER_PRESETS.map((opt) => {
+            const current = String(draft.headerTitle ?? receipt.headerTitle ?? 'TAX INVOICE');
+            const active = current === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.label}
+                onPress={() => patchReceipt({ headerTitle: opt.value })}
+                style={[
+                  styles.chip,
+                  { borderColor: active ? BRAND_COLORS.blue600 : theme.borderColor },
+                  active && { backgroundColor: 'rgba(37, 99, 235, 0.12)' },
+                ]}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: active ? BRAND_COLORS.blue600 : theme.textSecondary }}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
         <TextInput
           value={String(draft.headerTitle ?? receipt.headerTitle ?? '')}
           onChangeText={(v) => patchReceipt({ headerTitle: v })}
-          placeholder="Receipt title (e.g. TAX INVOICE)"
+          placeholder="Custom title (e.g. TAX INVOICE)"
           placeholderTextColor={theme.textSecondary}
           style={[styles.input, { color: theme.textPrimary, borderColor: theme.borderColor }]}
         />
@@ -302,6 +342,9 @@ export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: 
             <Text style={{ color: BRAND_COLORS.blue600, fontWeight: '700', fontSize: 12 }}>Upload logo</Text>
           </TouchableOpacity>
         </View>
+        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 8 }}>
+          Max 1 MB. Saved to cloud so web Printers and receipts show the same logo.
+        </Text>
       </View>
 
       <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>

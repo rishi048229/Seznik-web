@@ -439,6 +439,49 @@ router.post('/send-feature-tip', protect, async (req: any, res: any) => {
 /**
  * 8. Trigger Weekly Summary Push
  */
+/**
+ * Send a test push + in-app style alert (Settings → Notifications test buttons).
+ */
+router.post('/test-push', protect, async (req: any, res: any) => {
+  try {
+    const userId = await getOwnerUserId(req.user.id);
+    const kind = String(req.body?.kind || 'general');
+    const messages: Record<string, { title: string; body: string; data: Record<string, string> }> = {
+      low_stock: {
+        title: 'Test: Low stock alert',
+        body: 'Sample: only 3 units left for "Demo Item". Configure thresholds in Settings → Notifications.',
+        data: { type: 'low_stock', test: '1' },
+      },
+      daily_summary: {
+        title: 'Test: Daily sales summary',
+        body: 'Sample end-of-day summary push. Your real totals appear after day close.',
+        data: { type: 'daily_sales_summary', test: '1' },
+      },
+      credit_due: {
+        title: 'Test: Credit reminder',
+        body: 'Sample: ₹500 due from a customer. Enable credit alerts in notification settings.',
+        data: { type: 'credit_due', test: '1' },
+      },
+      update: {
+        title: 'Test: Store update',
+        body: 'If you see this, push notifications are working on this device.',
+        data: { type: 'announcement', test: '1' },
+      },
+    };
+    const msg = messages[kind] || messages.update;
+    const sent = await sendPushNotificationToUser(userId, {
+      title: msg.title,
+      body: msg.body,
+      data: msg.data,
+      channelId: 'inventory-alerts',
+    });
+    return res.json({ success: sent, kind });
+  } catch (err) {
+    console.error('[NotificationRoute] /test-push error:', err);
+    return res.status(500).json({ error: 'Failed to send test push' });
+  }
+});
+
 router.post('/send-weekly-summary', protect, async (req: any, res: any) => {
   try {
     const userId = await getOwnerUserId(req.user.id);

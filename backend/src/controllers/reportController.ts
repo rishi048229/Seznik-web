@@ -5,6 +5,7 @@ import { subDays, startOfDay, endOfDay, format, startOfWeek, startOfMonth, addDa
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { computeSaleGrossProfit, computeSaleCost } from '../utils/saleMetrics';
 import { handleApiError } from '../utils/apiErrorHandler';
+import { getDailyUsageSnapshot, dailySaleLimitUserMessage } from '../utils/dailyUsageLimits';
 
 const parseDate = (d: any, defaultDate: Date) => {
   if (!d || d === 'undefined' || d === 'null') return defaultDate;
@@ -1058,5 +1059,19 @@ export const getRestaurantDashboard = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     handleApiError(res, error, 'Failed to load restaurant dashboard');
+  }
+};
+
+export const getDailyUsage = async (req: Request, res: Response) => {
+  try {
+    const userId = await getOwnerUserId((req as any).user.id);
+    const usage = await getDailyUsageSnapshot(userId);
+    return res.json({
+      success: true,
+      usage,
+      saleLimitMessage: dailySaleLimitUserMessage(usage.salesToday, usage.salesLimit),
+    });
+  } catch (error: any) {
+    handleApiError(res, error, 'Failed to load daily usage');
   }
 };
