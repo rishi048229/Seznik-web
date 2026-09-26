@@ -12,7 +12,8 @@ Env var names stay as they are (`DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`, `V
 ## 1. Backend (EC2)
 
 ```bash
-cd /home/ubuntu/Seznik-web   # or the actual clone path
+# Live EC2 clone: https://github.com/rishi048229/inventort-seznik (branch `dev`)
+cd /home/ubuntu/inventort-seznik
 git fetch origin
 git checkout dev
 git pull origin dev

@@ -14,6 +14,8 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
+dotenv.config({ path: '/home/ubuntu/inventort-seznik/backend/.env' });
+dotenv.config({ path: '/home/ubuntu/inventort-seznik/.env' });
 dotenv.config({ path: '/home/ubuntu/Seznik-web/backend/.env' });
 dotenv.config({ path: '/home/ubuntu/Seznik-web/.env' });
 

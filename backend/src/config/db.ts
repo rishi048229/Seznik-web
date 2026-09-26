@@ -2,10 +2,19 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 
+const ec2EnvPaths = [
+  path.resolve(__dirname, '../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), 'backend/.env'),
+  '/home/ubuntu/inventort-seznik/backend/.env',
+  '/home/ubuntu/inventort-seznik/.env',
+  '/home/ubuntu/Seznik-web/backend/.env',
+];
 dotenv.config();
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: '/home/ubuntu/Seznik-web/backend/.env' });
+for (const envPath of ec2EnvPaths) {
+  dotenv.config({ path: envPath });
+}
 
 const prisma = new PrismaClient();
 

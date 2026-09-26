@@ -5,8 +5,15 @@ import { defineConfig } from "prisma/config";
 
 // Prisma 6 skips auto-loading .env when this file exists. Load it ourselves.
 const root = path.dirname(fileURLToPath(import.meta.url));
-loadEnv({ path: path.join(root, ".env") });
-loadEnv({ path: "/home/ubuntu/Seznik-web/backend/.env" });
+for (const envPath of [
+  path.join(root, ".env"),
+  path.join(root, "..", ".env"),
+  "/home/ubuntu/inventort-seznik/backend/.env",
+  "/home/ubuntu/inventort-seznik/.env",
+  "/home/ubuntu/Seznik-web/backend/.env",
+]) {
+  loadEnv({ path: envPath });
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

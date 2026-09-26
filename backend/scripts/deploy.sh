@@ -11,8 +11,10 @@ BACKEND_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 cd "$BACKEND_DIR"
 
-echo "📥 1. Pulling latest main branch code..."
-git pull origin main
+echo "📥 1. Pulling latest dev branch code (inventort-seznik)..."
+git fetch origin
+git checkout dev
+git pull origin dev
 
 echo "📦 2. Installing production dependencies..."
 npm ci --only=production

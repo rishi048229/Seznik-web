@@ -67,6 +67,7 @@ import { PRINTER_MODEL_LIST, type PrinterModelId } from '@/constants/printerMode
 import { Image } from 'react-native';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
 import { ReceiptContentSettings } from '@/components/printers/ReceiptContentSettings';
+import { A4InvoiceSettingsPanel } from '@/components/printers/A4InvoiceSettingsPanel';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
@@ -192,8 +193,15 @@ export default function PrintersScreen() {
   const hasSequenceElement =
     activeLabelTemplate?.elements.some((el) => el.type === 'text' && el.binding === 'sequence') ?? false;
 
-  const [activeTab, setActiveTab] = useState<'receipt' | 'label' | 'templates'>('receipt');
-  // Note: A4 physical printer tab is hidden per user specification (only PDF invoice export is provided)
+  type PrinterTab = 'receipt' | 'receiptBuilder' | 'label' | 'invoice';
+  const [activeTab, setActiveTab] = useState<PrinterTab>('receipt');
+
+  const PRINTER_TABS: { key: PrinterTab; label: string; hint: string; Icon: typeof FileText }[] = [
+    { key: 'receipt', label: 'Receipts', hint: 'Thermal bills', Icon: FileText },
+    { key: 'receiptBuilder', label: 'Builder', hint: 'Custom layout', Icon: Sparkles },
+    { key: 'label', label: 'Labels', hint: 'Barcode stickers', Icon: Tag },
+    { key: 'invoice', label: 'A4 invoice', hint: 'Full-page bill', Icon: Layers },
+  ];
   const [isPrintingA4, setIsPrintingA4] = useState(false);
   const [showAiBillModal, setShowAiBillModal] = useState(false);
   const [showSequencePrompt, setShowSequencePrompt] = useState(false);
@@ -806,37 +814,42 @@ export default function PrintersScreen() {
           </View>
         </View>
 
-        {/* 3-Tab Segmented Control (Invoice printing tab hidden per specification) */}
-        <View style={[styles.segmentedBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-          {(['receipt', 'label', 'templates'] as const).map((tab) => {
-            const selected = activeTab === tab;
+        {/* Tab bar — matches web Printers: Receipts | Builder | Labels | A4 invoice */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 4 }}
+          contentContainerStyle={[styles.webTabBar, { backgroundColor: theme.isDark ? 'rgba(30,41,59,0.6)' : '#F1F5F9', borderColor: theme.borderColor }]}
+        >
+          {PRINTER_TABS.map(({ key, label, hint, Icon }) => {
+            const selected = activeTab === key;
             return (
               <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[styles.segBtn, selected && styles.segBtnActive]}
+                key={key}
+                onPress={() => setActiveTab(key)}
+                style={[
+                  styles.webTabBtn,
+                  selected && { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+                ]}
               >
-                {tab === 'receipt' ? (
-                  <FileText size={14} color={selected ? '#FFFFFF' : '#64748B'} />
-                ) : tab === 'label' ? (
-                  <Tag size={14} color={selected ? '#FFFFFF' : '#64748B'} />
-                ) : (
-                  <LayoutGrid size={14} color={selected ? '#FFFFFF' : '#64748B'} />
-                )}
-                <Text style={[styles.segText, selected && styles.segTextActive]}>
-                  {tab === 'receipt' ? t('thermalPrinter', 'Receipt') : tab === 'label' ? t('labelStudio', 'Label') : t('receiptTemplates', 'Templates')}
+                <Icon size={15} color={selected ? BRAND_COLORS.blue600 : theme.textSecondary} />
+                <Text style={[styles.webTabLabel, { color: selected ? theme.textPrimary : theme.textSecondary }]}>
+                  {label}
+                </Text>
+                <Text style={[styles.webTabHint, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {hint}
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
-          {activeTab === 'templates' ? (
+          {activeTab === 'receiptBuilder' ? (
             <>
-              <Text style={[styles.title, { color: theme.textPrimary }]}>Receipt Templates</Text>
+              <Text style={[styles.title, { color: theme.textPrimary }]}>Receipt Builder</Text>
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                Pick the format that matches your business. Every new bill from POS / POS Lite prints in this style until you change it.
+                Preset thermal layouts and custom studio — same flow as web Printers → Receipt Builder.
               </Text>
 
               {/* Custom Receipt Builder Launch Banner */}
@@ -1434,8 +1447,38 @@ export default function PrintersScreen() {
                 )}
               </TouchableOpacity>
             </>
-          ) : (
+          ) : activeTab === 'invoice' ? (
             <>
+              <Text style={[styles.title, { color: theme.textPrimary }]}>A4 / PDF invoice</Text>
+              <A4InvoiceSettingsPanel />
+            </>
+          ) : activeTab === 'receipt' ? (
+            <>
+              <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>LIVE RECEIPT PREVIEW</Text>
+              <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, padding: 12, marginBottom: 14 }]}>
+                <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 10 }}>
+                  Active template: {activeCustomTemplate?.name || activeTemplate?.name || 'Standard'}
+                </Text>
+                <View style={styles.previewPaperContainer}>
+                  {activeCustomTemplate ? (
+                    <CustomReceiptMockup template={activeCustomTemplate} storeName={storeProfile.storeName} />
+                  ) : activeTemplate ? (
+                    <ReceiptTemplateMockup
+                      template={activeTemplate}
+                      storeName={storeProfile.storeName}
+                      storeAddress={settings?.businessAddress || storeProfile.storeAddress}
+                      storePhone={settings?.businessPhone || storeProfile.storePhone}
+                      storeGstin={storeProfile.storeGstin}
+                      storeLogoUrl={settings?.businessLogoURL || storeProfile.storeLogoUrl}
+                      upiId={settings?.upiId || storeProfile.upiId}
+                      logoSizeChip={receiptLogoSizeVal}
+                      qrSizeChip={receiptQrSizeVal}
+                      invoiceConfig={settings?.invoiceConfig}
+                    />
+                  ) : null}
+                </View>
+              </View>
+
               <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>PRINTER FLEET — TAP TO CONNECT</Text>
               <ScrollView
                 horizontal
@@ -1668,7 +1711,7 @@ export default function PrintersScreen() {
                 </View>
               </TouchableOpacity>
 
-              <ReceiptContentSettings />
+              <ReceiptContentSettings onOpenA4Invoice={() => setActiveTab('invoice')} />
 
               {/* HARDWARE CALIBRATION */}
               <Text style={[styles.sectionHeader, { marginTop: 6 }]}>HARDWARE CALIBRATION & PRINT SETTINGS</Text>
@@ -1960,7 +2003,7 @@ export default function PrintersScreen() {
                 )}
               </TouchableOpacity>
             </>
-          )}
+          ) : null}
         </ScrollView>
       </View>
 
@@ -2167,6 +2210,26 @@ const styles = StyleSheet.create({
   testRow: { flexDirection: 'row', gap: 8 },
   testBtn: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 12, paddingVertical: 11 },
   testBtnText: { fontSize: 12, fontWeight: '800', flexShrink: 1 },
+  webTabBar: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 14,
+    gap: 6,
+    paddingHorizontal: 6,
+  },
+  webTabBtn: {
+    minWidth: 118,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+  },
+  webTabLabel: { fontSize: 12, fontWeight: '800', marginTop: 4 },
+  webTabHint: { fontSize: 9, fontWeight: '600', marginTop: 2, opacity: 0.85 },
   segmentedBar: { flexDirection: 'row', padding: 4, borderRadius: 16, borderWidth: 1, marginBottom: 14, width: '100%' },
   segBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   segBtnActive: { backgroundColor: BRAND_COLORS.blue600, elevation: 2, shadowColor: BRAND_COLORS.blue600, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },

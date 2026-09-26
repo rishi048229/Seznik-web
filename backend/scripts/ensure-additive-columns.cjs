@@ -3,13 +3,10 @@
  * Does not use `prisma db execute` (Prisma 6 requires --url/--schema and
  * skips .env when prisma.config.ts is present).
  */
-const path = require('path')
 const dotenv = require('dotenv')
+const { loadEc2Env } = require('./ec2EnvPaths.cjs')
 
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-dotenv.config({ path: '/home/ubuntu/Seznik-web/backend/.env' })
-dotenv.config({ path: path.resolve(process.cwd(), '.env') })
-dotenv.config()
+loadEc2Env(dotenv)
 
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL is not set. Check backend/.env')

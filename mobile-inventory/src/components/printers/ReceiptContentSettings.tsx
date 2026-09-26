@@ -69,7 +69,7 @@ async function uriToDataUrlIfSmall(uri: string): Promise<string | null> {
   return `data:image/${ext};base64,${base64}`;
 }
 
-export function ReceiptContentSettings() {
+export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: () => void } = {}) {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -234,7 +234,7 @@ export function ReceiptContentSettings() {
       </Text>
 
       <TouchableOpacity
-        onPress={() => router.push('/printers/a4-invoice' as any)}
+        onPress={() => (onOpenA4Invoice ? onOpenA4Invoice() : router.push('/printers/a4-invoice' as any))}
         style={[styles.card, styles.rowBetween, { backgroundColor: theme.cardBg, borderColor: BRAND_COLORS.blue600 }]}
       >
         <View style={{ flex: 1 }}>

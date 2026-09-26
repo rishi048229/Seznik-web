@@ -76,10 +76,12 @@ jobs:
           port: 22
           script: |
             echo "🚀 Connecting to AWS EC2 instance..."
-            cd ${{ secrets.AWS_APP_DIR || '/home/ubuntu/Seznik-web' }}
+            cd ${{ secrets.AWS_APP_DIR || '/home/ubuntu/inventort-seznik' }}
             
-            echo "📥 Pulling latest changes from GitHub..."
-            git pull origin main
+            echo "📥 Pulling latest changes from GitHub (dev)..."
+            git fetch origin
+            git checkout dev
+            git pull origin dev
             
             echo "📦 Installing dependencies & building backend..."
             cd backend

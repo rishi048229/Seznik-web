@@ -62,7 +62,7 @@ A modern full-stack Point of Sale (POS) and Inventory Management System built fo
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/rishi048229/Seznik-web.git
+   git clone https://github.com/rishi048229/inventort-seznik.git
    cd inventorymanager
    ```
 
