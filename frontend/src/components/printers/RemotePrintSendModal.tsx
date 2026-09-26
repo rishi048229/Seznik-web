@@ -8,6 +8,7 @@ import { createPrintJob, listBusinessDevices, type BusinessDeviceEntry } from '@
 import { getAllUsers } from '@/services/authService'
 import { useAuth } from '@/contexts/AuthContext'
 import type { UserProfile } from '@/types/auth.types'
+import { useSettings } from '@/hooks/useSettings'
 
 interface RemotePrintSendModalProps {
   isOpen: boolean
@@ -23,6 +24,13 @@ interface RemotePrintSendModalProps {
  */
 export const RemotePrintSendModal = ({ isOpen, onClose, sale, onSent }: RemotePrintSendModalProps) => {
   const { user } = useAuth()
+  const { data: settings } = useSettings()
+  const paperWidth = useMemo((): '58mm' | '80mm' => {
+    const cfg = settings?.printerConfig as { paperWidth?: string; paperSize?: string } | undefined
+    if (cfg?.paperWidth === '58mm' || cfg?.paperSize === '58mm') return '58mm'
+    if (cfg?.paperWidth === '80mm' || cfg?.paperSize === '80mm') return '80mm'
+    return '80mm'
+  }, [settings?.printerConfig])
   const [devices, setDevices] = useState<BusinessDeviceEntry[]>([])
   const [staff, setStaff] = useState<UserProfile[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
@@ -71,7 +79,12 @@ export const RemotePrintSendModal = ({ isOpen, onClose, sale, onSent }: RemotePr
     if (!sale || !selectedAgentId) return
     setIsSending(true)
     try {
-      const job = await createPrintJob({ saleId: sale.id, targetAgentId: selectedAgentId, paperWidth: '80mm' })
+      const job = await createPrintJob({
+        saleId: sale.id,
+        jobType: 'receipt',
+        targetAgentId: selectedAgentId,
+        paperWidth,
+      })
       toast.success('Sent — they will get a notification to accept and print it.')
       onSent?.(job.id)
       onClose()

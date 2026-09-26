@@ -152,6 +152,8 @@ export default function RestaurantSettingsScreen() {
     }
 
     const kotConfigPayload: KotConfig = {
+      ...DEFAULT_KOT_CONFIG,
+      ...(settings.kotConfig || {}),
       venueType,
       defaultOrderType,
       allowedOrderTypes,

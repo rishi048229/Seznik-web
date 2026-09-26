@@ -35,6 +35,7 @@ export const ProfilePage = () => {
   const [accessCodeInput, setAccessCodeInput] = useState('')
   const [isRedeeming, setIsRedeeming] = useState(false)
   const isSeznikUser = Boolean(userProfile?.seznikUser || user?.seznikUser)
+  const isManagedAgent = user?.accountType === 'managed' || Boolean(user?.adminId)
 
   const displayName =
     settings?.businessName ||
@@ -267,9 +268,11 @@ export const ProfilePage = () => {
         </Card>
 
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-          <Button variant="secondary" onClick={handleSwitchWorkstation}>
-            {t('access.switchWorkstation')}
-          </Button>
+          {!isManagedAgent ? (
+            <Button variant="secondary" onClick={handleSwitchWorkstation}>
+              {t('access.switchWorkstation')}
+            </Button>
+          ) : null}
           <Button variant="danger" onClick={handleCompleteSignOut}>
             <LogOut size={16} className="mr-2" />
             {t('profile.signOut')}

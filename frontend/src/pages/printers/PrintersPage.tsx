@@ -491,6 +491,7 @@ export const PrintersPage = () => {
       logoURL: receiptConfig.logoURL || settings?.businessLogoURL || '',
       showPaymentQR: receiptConfig.showPaymentQR ?? false,
       paymentQrURL: receiptConfig.paymentQrURL || '',
+      enableBillQrCode: receiptConfig.enableBillQrCode ?? true,
     }
 
     if (activeTab === 'receipt') {
@@ -1243,6 +1244,27 @@ export const PrintersPage = () => {
                     </p>
                   </div>
                 )}
+              </div>
+
+              <div className="p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                      <QrCode size={16} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-gray-900 dark:text-gray-100">Online bill / PDF QR</span>
+                      <p className="text-[11px] text-gray-500">
+                        Separate from payment QR — link to view or download the digital receipt (Josh, Rudra, ESC/POS)
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    label="Print online bill QR on receipts"
+                    checked={receiptConfig.enableBillQrCode ?? true}
+                    onChange={v => setReceiptConfig(prev => ({ ...prev, enableBillQrCode: v }))}
+                  />
+                </div>
               </div>
             </Section>
           </div>

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng } from '@/utils/barcodeGenerator'
 import type { Product } from '@/types/product.types'
+import { isProductAvailable } from '@/utils/businessFeatures'
 
 export function formatDisplayUnit(unit?: string): string {
   if (!unit) return 'pcs'
@@ -28,6 +29,7 @@ interface ProductDetailModalProps {
   onEdit?: (product: Product) => void
   onDelete?: (product: Product) => void
   onPrintLabel?: (product: Product) => void
+  trackStock?: boolean
 }
 
 export const ProductDetailModal = ({
@@ -39,6 +41,7 @@ export const ProductDetailModal = ({
   onEdit,
   onDelete,
   onPrintLabel,
+  trackStock = true,
 }: ProductDetailModalProps) => {
   const { t } = useLanguage()
   const barcodeCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -68,8 +71,9 @@ export const ProductDetailModal = ({
   const currentEffectiveStock = product.currentStock
   const effectiveSellingPrice = product.sellingPrice
 
-  const isOutOfStock = currentEffectiveStock <= 0
-  const isLowStock = currentEffectiveStock > 0 && currentEffectiveStock <= product.lowStockThreshold
+  const menuAvailable = isProductAvailable(product)
+  const isOutOfStock = trackStock && currentEffectiveStock <= 0
+  const isLowStock = trackStock && currentEffectiveStock > 0 && currentEffectiveStock <= product.lowStockThreshold
   const costPrice = product.costPrice || 0
   const profitMargin = effectiveSellingPrice - costPrice
   const profitMarginPercent = costPrice > 0 ? ((profitMargin / costPrice) * 100).toFixed(1) : '100'
@@ -159,11 +163,17 @@ export const ProductDetailModal = ({
                   Unit: {displayUnit}
                 </span>
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                  isOutOfStock ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-                  isLowStock ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                  'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  trackStock
+                    ? (isOutOfStock ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                      isLowStock ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                      'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30')
+                    : (menuAvailable
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-red-500/20 text-red-300 border border-red-500/30')
                 }`}>
-                  {isOutOfStock ? 'Out of Stock' : isLowStock ? 'Low Stock Warning' : 'In Stock'}
+                  {trackStock
+                    ? (isOutOfStock ? 'Out of Stock' : isLowStock ? 'Low Stock Warning' : 'In Stock')
+                    : (menuAvailable ? 'Available on menu' : 'Hidden from menu')}
                 </span>
               </div>
               <h2 className="text-xl font-bold text-white tracking-tight truncate">{product.name}</h2>
@@ -251,7 +261,7 @@ export const ProductDetailModal = ({
           </div>
         </div>
 
-        {/* Stock Management Card */}
+        {trackStock ? (
         <div className="p-4 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
@@ -288,6 +298,7 @@ export const ProductDetailModal = ({
           </div>
 
         </div>
+        ) : null}
 
         {/* Barcode & QR Code Section with Direct Download Options */}
         <div className="p-5 rounded-xl bg-slate-50 dark:bg-gray-800/80 border border-slate-200 dark:border-gray-700 space-y-4">

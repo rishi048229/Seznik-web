@@ -24,6 +24,8 @@ import {
   setStoredActiveCustomReceiptTemplate,
   getStoredEnableBillQr,
   setStoredEnableBillQr,
+  getStoredEnablePaymentQr,
+  setStoredEnablePaymentQr,
   getStoredPairedPrinters,
   setStoredPairedPrinters,
   getStoredAutoConnect,
@@ -80,8 +82,10 @@ interface PrinterState {
   customTemplates: CustomReceiptTemplate[];
   /** Active custom receipt template id (null if using standard preset) */
   activeCustomTemplateId: string | null;
-  /** Whether to print dynamic Digital Bill PDF QR code on bills */
+  /** Online bill / PDF preview QR at bottom of receipt (synced: receiptConfig.enableBillQrCode) */
   enableBillQrCode: boolean;
+  /** UPI payment QR with bill amount (synced: receiptConfig.showPaymentQR) */
+  enablePaymentQr: boolean;
   /** Paper-saving compact receipt layout — synced via receiptConfig.compactMode. */
   compactMode: boolean;
   /** User-configured logo size on receipt: small, medium, large */
@@ -164,6 +168,7 @@ interface PrinterState {
   duplicateCustomTemplate: (id: string) => Promise<CustomReceiptTemplate>;
   setActiveCustomTemplate: (id: string | null) => Promise<void>;
   setEnableBillQrCode: (val: boolean) => Promise<void>;
+  setEnablePaymentQr: (val: boolean) => Promise<void>;
   setCompactMode: (val: boolean) => Promise<void>;
   setReceiptLogoSize: (size: ReceiptSizeChip) => Promise<void>;
   setReceiptQrSize: (size: ReceiptSizeChip) => Promise<void>;
@@ -216,6 +221,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
   customTemplates: [],
   activeCustomTemplateId: null,
   enableBillQrCode: true,
+  enablePaymentQr: false,
   compactMode: false,
   receiptLogoSize: 'medium',
   receiptQrSize: 'medium',
@@ -703,7 +709,22 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         customTemplates: get().customTemplates,
       });
     } catch (e) {
-      console.warn('Could not sync QR setting to server, persisted locally:', e);
+      console.warn('Could not sync digital bill QR setting to server, persisted locally:', e);
+    }
+  },
+
+  setEnablePaymentQr: async (enabled) => {
+    set({ enablePaymentQr: enabled });
+    await setStoredEnablePaymentQr(enabled);
+    try {
+      await settingsApi.updateReceiptConfig({
+        showPaymentQR: enabled,
+        activeCustomTemplateId: get().activeCustomTemplateId,
+        templateId: get().activeTemplateId,
+        customTemplates: get().customTemplates,
+      });
+    } catch (e) {
+      console.warn('Could not sync payment QR setting to server, persisted locally:', e);
     }
   },
 
@@ -807,6 +828,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         localCustomTemplates,
         localActiveCustomId,
         localEnableBillQr,
+        localEnablePaymentQr,
         localPairedPrinters,
         localAutoConnect,
         localLabelTemplates,
@@ -818,6 +840,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         getStoredCustomReceiptTemplates(),
         getStoredActiveCustomReceiptTemplate(),
         getStoredEnableBillQr(),
+        getStoredEnablePaymentQr(),
         getStoredPairedPrinters(),
         getStoredAutoConnect(),
         getStoredLabelTemplates(),
@@ -841,6 +864,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         customTemplates: initialTemplates,
         activeCustomTemplateId: localActiveCustomId,
         enableBillQrCode: localEnableBillQr,
+        enablePaymentQr: localEnablePaymentQr,
         autoConnect: localAutoConnect,
         labelTemplates: localLabelTemplates || get().labelTemplates,
         activeLabelTemplateId: localActiveLabelId !== undefined ? localActiveLabelId : get().activeLabelTemplateId,
@@ -931,6 +955,11 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
           ? receiptConfig.enableBillQrCode
           : localEnableBillQr;
 
+      const effectiveEnablePaymentQr =
+        typeof receiptConfig.showPaymentQR === 'boolean'
+          ? receiptConfig.showPaymentQR
+          : localEnablePaymentQr;
+
       const effectiveLabelTemplates =
         Array.isArray(labelConfig.templates) && labelConfig.templates.length > 0
           ? labelConfig.templates
@@ -951,6 +980,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
       }
       await setStoredActiveCustomReceiptTemplate(effectiveActiveCustomId);
       await setStoredEnableBillQr(effectiveEnableBillQr);
+      await setStoredEnablePaymentQr(effectiveEnablePaymentQr);
       if (effectiveLabelTemplates) {
         await setStoredLabelTemplates(effectiveLabelTemplates);
       }
@@ -996,6 +1026,7 @@ export const usePrinterStore = create<PrinterState>((set, get) => ({
         customTemplates: effectiveCustomTemplates,
         activeCustomTemplateId: effectiveActiveCustomId,
         enableBillQrCode: effectiveEnableBillQr,
+        enablePaymentQr: effectiveEnablePaymentQr,
         compactMode: typeof receiptConfig.compactMode === 'boolean' ? receiptConfig.compactMode : get().compactMode,
         receiptLogoSize: effectiveLogoSize,
         receiptQrSize: effectiveQrSize,

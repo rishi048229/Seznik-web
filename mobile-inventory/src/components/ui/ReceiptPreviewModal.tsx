@@ -104,6 +104,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    enablePaymentQr,
     receiptLogoSize,
     receiptQrSize,
   } = usePrinterStore(
@@ -119,6 +120,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     customTemplates: s.customTemplates,
     activeCustomTemplateId: s.activeCustomTemplateId,
     enableBillQrCode: s.enableBillQrCode,
+    enablePaymentQr: s.enablePaymentQr,
     receiptLogoSize: s.receiptLogoSize,
     receiptQrSize: s.receiptQrSize,
     }))
@@ -256,6 +258,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       template,
       customTemplate: activeCustomTemplate,
       includeBillQr: enableBillQrCode,
+      includePaymentQr: enablePaymentQr,
       topMargin,
       autoCut,
       fontSize,
@@ -282,6 +285,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
       template,
       activeCustomTemplate,
       enableBillQrCode,
+      enablePaymentQr,
       topMargin,
       autoCut,
       fontSize,
@@ -537,9 +541,10 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   };
 
   const upiQrString = useMemo(() => {
+    if (!enablePaymentQr) return '';
     if (!editableSale?.upiId || !isValidUpiVpa(editableSale.upiId)) return '';
     return buildUpiPayString(editableSale.upiId, editableSale.storeName || 'Shop', computedTotals.grandTotal, editableSale.invoiceNumber);
-  }, [editableSale?.upiId, editableSale?.storeName, computedTotals.grandTotal, editableSale?.invoiceNumber]);
+  }, [enablePaymentQr, editableSale?.upiId, editableSale?.storeName, computedTotals.grandTotal, editableSale?.invoiceNumber]);
 
   const modalVisible = visible && !!editableSale;
   const printDisabled = isPrinting || (hasPrinted && autoCloseAfterPrint);

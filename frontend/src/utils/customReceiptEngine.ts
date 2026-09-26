@@ -1213,7 +1213,7 @@ export async function appendCustomTemplateToEscPos(
 
   // Fallback: If no QR was printed from template entries, but payment QR or bill QR was requested in options/config:
   if (!qrPrinted) {
-    const shouldPrintUpi = Boolean(opts?.showPaymentQR || (data.upiId && opts?.showPaymentQR !== false))
+    const shouldPrintUpi = opts?.showPaymentQR === true
     if (shouldPrintUpi && data.upiId) {
       b.feed(1)
       b.align('center')
@@ -1230,7 +1230,8 @@ export async function appendCustomTemplateToEscPos(
       b.feed(1)
       b.align('left')
       qrPrinted = true
-    } else if (opts?.enableBillQrCode) {
+    }
+    if (opts?.enableBillQrCode) {
       const targetId = encodeURIComponent(data.saleId || data.invoiceNumber || 'INV-0001')
       const billPdfUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/receipt/${targetId}`

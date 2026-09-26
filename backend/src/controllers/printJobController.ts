@@ -79,6 +79,8 @@ async function withLazyExpiry<T extends { id: string; status: string; expiresAt:
 const jobListSelect = {
   id: true,
   saleId: true,
+  jobType: true,
+  kotOrderId: true,
   requestedById: true,
   requestedByName: true,
   targetAgentId: true,
@@ -107,6 +109,21 @@ const jobListSelect = {
   },
 } as const;
 
+async function resolveDefaultPaperWidth(
+  ownerUserId: string,
+  paperWidth?: '58mm' | '80mm'
+): Promise<'58mm' | '80mm'> {
+  if (paperWidth === '58mm' || paperWidth === '80mm') return paperWidth;
+  const settings = await prisma.settings.findUnique({
+    where: { userId: ownerUserId },
+    select: { printerConfig: true },
+  });
+  const cfg = (settings?.printerConfig || {}) as Record<string, unknown>;
+  if (cfg.paperWidth === '58mm' || cfg.paperSize === '58mm') return '58mm';
+  if (cfg.paperWidth === '80mm' || cfg.paperSize === '80mm') return '80mm';
+  return '80mm';
+}
+
 /** Creates a remote-print request for an existing Sale, pushes the target agent(s), and records
  *  the first audit event. Targets either one specific agent (targetAgentId) or every agent
  *  registered at a location (targetLocationId) — first-accept-wins for the latter. */
@@ -121,26 +138,51 @@ export const createPrintJob = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'You do not have permission to send remote print requests.' });
     }
 
-    const { saleId, targetAgentId, targetLocationId, paperWidth, copies } = req.body as {
+    const { saleId, kotOrderId, jobType, targetAgentId, targetLocationId, paperWidth, copies } = req.body as {
       saleId?: string;
+      kotOrderId?: string;
+      jobType?: 'receipt' | 'kot';
       targetAgentId?: string;
       targetLocationId?: string;
       paperWidth?: '58mm' | '80mm';
       copies?: number;
     };
 
-    if (!saleId) return res.status(400).json({ success: false, message: 'saleId is required' });
+    const effectiveJobType: 'receipt' | 'kot' =
+      jobType === 'kot' || (kotOrderId && !saleId) ? 'kot' : 'receipt';
+
+    if (effectiveJobType === 'receipt' && !saleId) {
+      return res.status(400).json({ success: false, message: 'saleId is required for receipt jobs' });
+    }
+    if (effectiveJobType === 'kot' && !kotOrderId) {
+      return res.status(400).json({ success: false, message: 'kotOrderId is required for KOT jobs' });
+    }
     if (!targetAgentId && !targetLocationId) {
       return res.status(400).json({ success: false, message: 'Either targetAgentId or targetLocationId is required' });
     }
 
-    // Ownership check: the sale must actually belong to this admin's business, not just any sale
-    // whose id happens to be guessable — this is the "authenticate every job creation" boundary.
-    const sale = await prisma.sale.findFirst({
-      where: { id: saleId, userId: authority.ownerUserId },
-      select: { id: true, invoiceNumber: true },
-    });
-    if (!sale) return res.status(404).json({ success: false, message: 'Sale not found for this business.' });
+    let linkedSaleId: string | null = null;
+    let pushTitle = 'New receipt to print';
+    let pushBody = '';
+
+    if (effectiveJobType === 'receipt') {
+      const sale = await prisma.sale.findFirst({
+        where: { id: saleId!, userId: authority.ownerUserId },
+        select: { id: true, invoiceNumber: true },
+      });
+      if (!sale) return res.status(404).json({ success: false, message: 'Sale not found for this business.' });
+      linkedSaleId = sale.id;
+      pushBody = `Invoice ${sale.invoiceNumber} — tap to accept or decline.`;
+    } else {
+      const kot = await prisma.kOTOrder.findFirst({
+        where: { id: kotOrderId!, userId: authority.ownerUserId },
+        select: { id: true, orderNumber: true, saleId: true },
+      });
+      if (!kot) return res.status(404).json({ success: false, message: 'KOT order not found for this business.' });
+      linkedSaleId = kot.saleId || null;
+      pushTitle = 'New KOT to print';
+      pushBody = `KOT #${kot.orderNumber} — tap to accept and print in kitchen.`;
+    }
 
     let targetAgentName: string | null = null;
     let agentIdsToNotify: string[] = [];
@@ -187,18 +229,21 @@ export const createPrintJob = async (req: Request, res: Response) => {
       agentIdsToNotify = Array.from(new Set(devices.map((d) => d.actorId)));
     }
 
+    const resolvedPaper = await resolveDefaultPaperWidth(authority.ownerUserId, paperWidth);
     const now = new Date();
     const job = await prisma.printJob.create({
       data: {
         userId: authority.ownerUserId,
-        saleId: sale.id,
+        saleId: linkedSaleId,
+        jobType: effectiveJobType,
+        kotOrderId: effectiveJobType === 'kot' ? kotOrderId! : null,
         requestedById: actorId,
         requestedByName: authority.actorName,
         targetAgentId: agentIdsToNotify[0] || targetAgentId || null,
         targetAgentName,
         targetLocationId: targetLocationId || null,
         targetLocationName,
-        paperWidth: paperWidth === '58mm' ? '58mm' : '80mm',
+        paperWidth: resolvedPaper,
         copies: Math.max(1, Math.min(10, Number(copies) || 1)),
         status: 'delivered',
         expiresAt: new Date(now.getTime() + RESPONSE_WINDOW_MS),
@@ -209,10 +254,15 @@ export const createPrintJob = async (req: Request, res: Response) => {
     await prisma.printJobEvent.create({ data: { printJobId: job.id, status: 'delivered' } });
 
     const pushPayload = {
-      title: 'New receipt to print',
-      body: `Invoice ${sale.invoiceNumber} — tap to accept or decline.`,
+      title: pushTitle,
+      body: pushBody,
       channelId: 'remote-print',
-      data: { type: 'remote_print_job', printJobId: job.id, screen: `/print-jobs/${job.id}` },
+      data: {
+        type: 'remote_print_job',
+        printJobId: job.id,
+        jobType: effectiveJobType,
+        screen: `/print-jobs/${job.id}`,
+      },
     };
     if (agentIdsToNotify.length === 1) {
       await sendPushToActor(agentIdsToNotify[0], pushPayload);
@@ -406,7 +456,7 @@ export const updatePrintJobStatus = async (req: Request, res: Response) => {
       data: { printJobId: job.id, status, note: status === 'failed' ? data.failureReason || null : null },
     });
 
-    if (status === 'completed') {
+    if (status === 'completed' && job.saleId) {
       await prisma.sale.update({
         where: { id: job.saleId },
         data: { isRemotePrint: true, lastRemotePrintJobId: job.id },
@@ -466,6 +516,8 @@ export const reassignPrintJob = async (req: Request, res: Response) => {
       data: {
         userId: authority.ownerUserId,
         saleId: original.saleId,
+        jobType: original.jobType,
+        kotOrderId: original.kotOrderId,
         requestedById: actorId,
         requestedByName: authority.actorName,
         targetAgentId,
@@ -481,11 +533,19 @@ export const reassignPrintJob = async (req: Request, res: Response) => {
       data: { printJobId: job.id, status: 'delivered', note: `Reassigned from job ${original.id}` },
     });
 
+    const isKot = job.jobType === 'kot';
     await sendPushToActor(targetAgentId, {
-      title: 'New receipt to print',
-      body: `Invoice ${job.sale.invoiceNumber} — tap to accept or decline.`,
+      title: isKot ? 'New KOT to print' : 'New receipt to print',
+      body: isKot
+        ? 'Kitchen ticket — tap to accept and print.'
+        : `Invoice ${job.sale?.invoiceNumber || '—'} — tap to accept or decline.`,
       channelId: 'remote-print',
-      data: { type: 'remote_print_job', printJobId: job.id, screen: `/print-jobs/${job.id}` },
+      data: {
+        type: 'remote_print_job',
+        printJobId: job.id,
+        jobType: job.jobType,
+        screen: `/print-jobs/${job.id}`,
+      },
     });
 
     return res.status(201).json({ success: true, data: job });

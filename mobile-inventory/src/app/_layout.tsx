@@ -187,6 +187,8 @@ function RootLayoutNav() {
 
     if (!isAuthenticated && !inAuthGroup && !onAccessSelection) {
       router.replace('/(auth)/login' as any);
+    } else if (isAuthenticated && isManagedUser && onAccessSelection) {
+      router.replace('/(tabs)' as any);
     } else if (isAuthenticated && isManagedUser && onOnboarding) {
       router.replace('/(tabs)' as any);
     } else if (isAuthenticated && needsSetup && !onOnboarding) {

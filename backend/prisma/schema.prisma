@@ -903,8 +903,12 @@ model PrintJob {
   userId              String          // business scope (getOwnerUserId)
   user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  saleId              String
-  sale                Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  /// Receipt jobs require a sale; kitchen KOT jobs use kotOrderId instead.
+  saleId              String?
+  sale                Sale?           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  jobType             String          @default("receipt") // 'receipt' | 'kot'
+  kotOrderId          String?
 
   // Plain string ids, not a Prisma relation, matching Sale.locationId's existing convention —
   // either side can be a User (owner) or ManagedUser (agent/staff) id, which Prisma can't express

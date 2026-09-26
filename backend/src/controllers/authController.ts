@@ -1476,6 +1476,36 @@ export const consumeQrLogin = async (req: Request, res: Response) => {
   }
 };
 
+async function existingAgentDisplayNamesForStoreEmail(email: string): Promise<string[]> {
+  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!owner) return [];
+  const agents = await prisma.managedUser.findMany({
+    where: { adminId: owner.id, role: { not: 'admin' } },
+    select: { displayName: true },
+    take: 2,
+  });
+  return agents.map((a) => a.displayName).filter(Boolean) as string[];
+}
+
+/** Registered agent names for a store email — no OTP sent (for login form name chips). */
+export const lookupAgentNames = async (req: Request, res: Response) => {
+  try {
+    const email = normalizeEmail(String(req.query.email || ''));
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: 'Enter a valid store email' });
+    }
+    const owner = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (!owner) {
+      return res.status(404).json({ error: 'No store is registered with that email' });
+    }
+    const existingAgents = await existingAgentDisplayNamesForStoreEmail(email);
+    res.json({ existingAgents });
+  } catch (error) {
+    console.error('lookupAgentNames error:', error);
+    res.status(500).json({ error: 'Could not load agent names' });
+  }
+};
+
 /** OTP to the store's registered email. Phone OTP is a later DLT step. */
 export const requestAgentOtp = async (req: Request, res: Response) => {
   try {
@@ -1502,14 +1532,10 @@ export const requestAgentOtp = async (req: Request, res: Response) => {
     } catch (err) {
       console.error('agent OTP email failed', err);
     }
-    const agents = await prisma.managedUser.findMany({
-      where: { adminId: owner.id, role: { not: 'admin' } },
-      select: { displayName: true },
-      take: 2,
-    });
+    const existingAgents = await existingAgentDisplayNamesForStoreEmail(email);
     res.json({
       message: 'Verification code sent to the store email',
-      existingAgents: agents.map((a) => a.displayName).filter(Boolean),
+      existingAgents,
     });
   } catch (error) {
     console.error('requestAgentOtp error:', error);

@@ -44,9 +44,9 @@ export default function TabsLayout() {
   const screenOptions = useMemo(
     () => ({
       headerShown: false,
-      lazy: true,
-      freezeOnBlur: true,
-      animation: 'shift' as const,
+      lazy: false,
+      freezeOnBlur: false,
+      animation: 'fade' as const,
       sceneStyle: { backgroundColor: isDark ? '#000000' : '#F8FAFC' },
       tabBarActiveTintColor: isDark ? BRAND_COLORS.sky400 : BRAND_COLORS.sky500,
       tabBarInactiveTintColor: isDark ? BRAND_COLORS.slate400 : '#64748B',

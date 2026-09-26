@@ -53,7 +53,8 @@ export function useDashboard() {
     queryClient.invalidateQueries({ queryKey: ['reports', 'trend'] });
   };
 
-  const isOffline = dashboardQuery.isError || paymentModesQuery.isError;
+  /** Only show offline when core dashboard data is missing — payment-mode failures should not block POS. */
+  const isOffline = dashboardQuery.isError && !dashboardQuery.data;
 
   return {
     stats: dashboardQuery.data || {

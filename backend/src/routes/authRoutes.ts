@@ -22,6 +22,7 @@ import {
   resetPasswordWithOtp,
   requestAgentOtp,
   verifyAgentOtp,
+  lookupAgentNames,
   generateQrLogin,
   getQrLoginStatus,
   consumeQrLogin,
@@ -42,6 +43,7 @@ router.post('/verify-access-code', verifyAccessCode);
 router.post('/forgot-password/send-otp', sendForgotPasswordOtp);
 router.post('/forgot-password/verify-otp', verifyForgotPasswordOtp);
 router.post('/forgot-password/reset-password', resetPasswordWithOtp);
+router.get('/agent/names', lookupAgentNames);
 router.post('/agent/request-otp', requestAgentOtp);
 router.post('/agent/verify-otp', verifyAgentOtp);
 

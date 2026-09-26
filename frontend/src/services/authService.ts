@@ -157,6 +157,11 @@ export const completeOnboarding = async (
   })
 }
 
+export const lookupAgentNames = async (email: string): Promise<{ existingAgents?: string[] }> => {
+  const q = encodeURIComponent(email.trim())
+  return fetchApi(`/auth/agent/names?email=${q}`, { method: 'GET' })
+}
+
 export const requestAgentOtp = async (email: string): Promise<{ message?: string; existingAgents?: string[] }> => {
   return fetchApi('/auth/agent/request-otp', {
     method: 'POST',

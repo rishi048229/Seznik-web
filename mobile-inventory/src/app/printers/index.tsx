@@ -62,9 +62,11 @@ import {
   getTemplateById,
 } from '@/constants/receiptTemplates';
 import { LABEL_SIZE_PRESETS } from '@/constants/labelSizePresets';
-import { JoshPrinterCard } from '@/components/printers/JoshPrinterCard';
-import { YxPrinterCard } from '@/components/printers/YxPrinterCard';
+import { DirectPrinterConnectModal } from '@/components/printers/DirectPrinterConnectModal';
+import { PRINTER_MODEL_LIST, type PrinterModelId } from '@/constants/printerModels';
+import { Image } from 'react-native';
 import { AiBillToReceiptModal } from '@/components/printers/AiBillToReceiptModal';
+import { ReceiptContentSettings } from '@/components/printers/ReceiptContentSettings';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SequencePrintPrompt } from '@/components/label-studio/SequencePrintPrompt';
@@ -135,6 +137,8 @@ export default function PrintersScreen() {
     setActiveCustomTemplate,
     enableBillQrCode,
     setEnableBillQrCode,
+    enablePaymentQr,
+    setEnablePaymentQr,
     compactMode,
     setCompactMode,
     setReceiptLogoSize,
@@ -175,6 +179,8 @@ export default function PrintersScreen() {
     setActiveCustomTemplate: s.setActiveCustomTemplate,
     enableBillQrCode: s.enableBillQrCode,
     setEnableBillQrCode: s.setEnableBillQrCode,
+    enablePaymentQr: s.enablePaymentQr,
+    setEnablePaymentQr: s.setEnablePaymentQr,
     compactMode: s.compactMode,
     setCompactMode: s.setCompactMode,
     setReceiptLogoSize: s.setReceiptLogoSize,
@@ -290,15 +296,17 @@ export default function PrintersScreen() {
 
   const activeTemplate = getTemplateById(activeTemplateId);
 
-  const [tejConnected, setTejConnected] = useState(false);
   const [joshConnected, setJoshConnected] = useState(false);
+  const [td404Connected, setTd404Connected] = useState(false);
+  const [showDirectPrinterModal, setShowDirectPrinterModal] = useState(false);
+  const [selectedFleetModel, setSelectedFleetModel] = useState<PrinterModelId>('dev');
 
   const checkBridges = useCallback(async () => {
     try {
-      const yx = await ThermalPrinterService.tejIsConnected();
-      setTejConnected(yx);
       const josh = await ThermalPrinterService.joshIsConnected();
       setJoshConnected(josh);
+      const td404On = await ThermalPrinterService.td404IsConnected();
+      setTd404Connected(td404On);
     } catch {}
   }, []);
 
@@ -308,22 +316,23 @@ export default function PrintersScreen() {
     return () => clearInterval(interval);
   }, [checkBridges]);
 
-  const isAnyConnected = connectionState === 'connected' || Boolean(activeDevice) || tejConnected || joshConnected;
+  const connectedPrinterModel = usePrinterStore((s) => s.connectedPrinterModel);
+
+  const isAnyConnected =
+    connectionState === 'connected' ||
+    Boolean(activeDevice) ||
+    joshConnected ||
+    td404Connected;
   const connectedPrinterName =
-    activeDevice?.name ||
-    (tejConnected ? 'SEZNIK TEJ' : joshConnected ? 'SEZNIK JOSH' : 'Connected Printer');
+    activeDevice?.name || (joshConnected ? 'SEZNIK JOSH' : 'Connected Printer');
 
   const handleDisconnectAll = async () => {
     try {
-      if (tejConnected) {
-        await ThermalPrinterService.tejDisconnect();
-      }
       if (joshConnected) {
         await ThermalPrinterService.joshDisconnect();
       }
       await disconnectDevice();
       usePrinterStore.getState().setConnectedPrinterModel(null as any);
-      setTejConnected(false);
       setJoshConnected(false);
       Alert.alert('Disconnected', 'Printer has been disconnected.');
     } catch (e: any) {
@@ -590,6 +599,7 @@ export default function PrintersScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    enablePaymentQr,
     topMargin: topMarginVal,
     autoCut: autoCutVal,
     fontSize: fontSizeVal,
@@ -1252,7 +1262,6 @@ export default function PrintersScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     setLabelPaperMode('gap');
-                    ThermalPrinterService.yxCalibrate(2).catch(() => {});
                   }}
                   style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'gap' ? BRAND_COLORS.blue600 : theme.borderColor }]}
                 >
@@ -1265,7 +1274,6 @@ export default function PrintersScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     setLabelPaperMode('continuous');
-                    ThermalPrinterService.yxCalibrate(0).catch(() => {});
                   }}
                   style={[styles.modeOptionRow, { borderColor: labelPaperMode === 'continuous' ? BRAND_COLORS.blue600 : theme.borderColor, marginBottom: 0 }]}
                 >
@@ -1276,25 +1284,6 @@ export default function PrintersScreen() {
                   {labelPaperMode === 'continuous' ? <CheckCircle2 size={18} color={BRAND_COLORS.blue600} /> : null}
                 </TouchableOpacity>
               </View>
-
-              {/* LABEL PRINTER FLEET */}
-              {ThermalPrinterService.isJoshSupported() && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    SEZNIK JOSH SMART PRINTER (LABELS & RECEIPTS)
-                  </Text>
-                  <JoshPrinterCard />
-                </View>
-              )}
-
-              {ThermalPrinterService.isYxSupported() && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    SEZNIK TEJ SMART PRINTER (RECEIPTS & LABELS)
-                  </Text>
-                  <YxPrinterCard />
-                </View>
-              )}
 
               {labelPaperMode === 'gap' ? (
                 <>
@@ -1447,24 +1436,49 @@ export default function PrintersScreen() {
             </>
           ) : (
             <>
-              {/* SEZNIK SMART PRINTER HARDWARE FLEET */}
-              {ThermalPrinterService.isJoshSupported() && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    SEZNIK JOSH SMART PRINTER (RECEIPTS & LABELS)
-                  </Text>
-                  <JoshPrinterCard />
-                </View>
-              )}
-
-              {ThermalPrinterService.isYxSupported() && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>
-                    SEZNIK TEJ SMART PRINTER (RECEIPTS & LABELS)
-                  </Text>
-                  <YxPrinterCard />
-                </View>
-              )}
+              <Text style={[styles.sectionHeader, { marginBottom: 8 }]}>PRINTER FLEET — TAP TO CONNECT</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 12, gap: 10 }}
+                style={{ marginBottom: 8 }}
+              >
+                {PRINTER_MODEL_LIST.map((model) => {
+                  const isConn =
+                    (model.id === 'josh' && joshConnected) ||
+                    ((model.id === 'rudra' || model.id === 'tejas') && td404Connected && connectedPrinterModel === model.id) ||
+                    ((model.id === 'dev' || model.id === 'veer' || model.id === 'other') &&
+                      connectionState === 'connected' &&
+                      connectedPrinterModel === model.id);
+                  return (
+                    <TouchableOpacity
+                      key={model.id}
+                      onPress={() => {
+                        setSelectedFleetModel(model.id);
+                        setShowDirectPrinterModal(true);
+                      }}
+                      style={{
+                        width: 92,
+                        padding: 8,
+                        borderRadius: 12,
+                        borderWidth: isConn ? 2 : 1,
+                        borderColor: isConn ? '#10B981' : theme.borderColor,
+                        backgroundColor: theme.cardBg,
+                        alignItems: 'center',
+                      }}
+                    >
+                      {model.image ? (
+                        <Image source={model.image} style={{ width: 52, height: 52 }} resizeMode="contain" />
+                      ) : (
+                        <Printer size={28} color={theme.textSecondary} />
+                      )}
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: theme.textPrimary, marginTop: 6, textAlign: 'center' }} numberOfLines={2}>
+                        {model.name.replace('SEZNIK ', '')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
 
               {/* PAIRED & DISCOVERED BLUETOOTH PRINTERS (DEV & VEER) */}
               <View style={styles.sectionHeaderRow}>
@@ -1654,6 +1668,8 @@ export default function PrintersScreen() {
                 </View>
               </TouchableOpacity>
 
+              <ReceiptContentSettings />
+
               {/* HARDWARE CALIBRATION */}
               <Text style={[styles.sectionHeader, { marginTop: 6 }]}>HARDWARE CALIBRATION & PRINT SETTINGS</Text>
 
@@ -1827,12 +1843,28 @@ export default function PrintersScreen() {
                 </View>
               </View>
 
-              {/* Dynamic Bill QR Code Toggle */}
               <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Print Digital Bill / Payment QR</Text>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Payment QR (UPI)</Text>
                   <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
-                    Prints UPI or digital invoice QR at the bottom of bills
+                    Scannable UPI QR with the exact bill amount — Josh, Rudra, Tejas, and ESC/POS
+                  </Text>
+                </View>
+                <Switch
+                  value={enablePaymentQr}
+                  onValueChange={(v) => {
+                    setEnablePaymentQr(v).catch(() => {});
+                  }}
+                  trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View style={[styles.stepperRow, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.stepperTitle, { color: theme.textPrimary }]}>Online bill / PDF QR</Text>
+                  <Text style={[styles.stepperSub, { color: theme.textSecondary }]}>
+                    Customer scans to view or download the digital receipt — separate from payment QR
                   </Text>
                 </View>
                 <Switch
@@ -2085,6 +2117,16 @@ export default function PrintersScreen() {
           </View>
         </View>
       </Modal>
+
+      <DirectPrinterConnectModal
+        visible={showDirectPrinterModal}
+        initialModelId={selectedFleetModel}
+        onClose={() => setShowDirectPrinterModal(false)}
+        onConnected={() => {
+          setShowDirectPrinterModal(false);
+          checkBridges();
+        }}
+      />
 
       <SequencePrintPrompt
         visible={showSequencePrompt}

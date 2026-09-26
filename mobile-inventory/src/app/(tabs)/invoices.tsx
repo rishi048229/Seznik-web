@@ -97,6 +97,7 @@ export default function InvoicesTabScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    enablePaymentQr,
   } = usePrinterStore(
     useShallow((s) => ({
     activeDevice: s.activeDevice,
@@ -110,6 +111,7 @@ export default function InvoicesTabScreen() {
     customTemplates: s.customTemplates,
     activeCustomTemplateId: s.activeCustomTemplateId,
     enableBillQrCode: s.enableBillQrCode,
+    enablePaymentQr: s.enablePaymentQr,
     }))
   );
   const { sales, isLoading, isRefetching, isError, refetch } = useSales();
@@ -237,6 +239,7 @@ export default function InvoicesTabScreen() {
       template,
       customTemplate,
       includeBillQr: enableBillQrCode,
+      includePaymentQr: enablePaymentQr,
       topMargin,
       autoCut,
       fontSize,
@@ -254,6 +257,7 @@ export default function InvoicesTabScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    enablePaymentQr,
     topMargin,
     autoCut,
     fontSize,

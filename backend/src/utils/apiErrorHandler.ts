@@ -18,6 +18,17 @@ export function formatErrorMessage(
     return { message: fallbackMessage, statusCode: 500 };
   }
 
+  if (typeof error === 'object' && typeof (error as { statusCode?: number }).statusCode === 'number') {
+    const statusCode = (error as { statusCode: number }).statusCode;
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : typeof (error as { message?: string }).message === 'string'
+          ? (error as { message: string }).message
+          : fallbackMessage;
+    return { message, statusCode };
+  }
+
   const raw =
     error instanceof Error
       ? error.message

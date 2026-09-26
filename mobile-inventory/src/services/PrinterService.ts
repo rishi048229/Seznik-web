@@ -251,7 +251,10 @@ export interface PrintTokenData {
 export interface ReceiptPrintOptions {
   template?: ReceiptTemplate;
   customTemplate?: CustomReceiptTemplate | null;
+  /** Online bill / PDF preview QR at bottom of receipt */
   includeBillQr?: boolean;
+  /** UPI payment QR (amount-encoded) — independent of digital bill QR */
+  includePaymentQr?: boolean;
   /** Blank feed lines before print starts. */
   topMargin?: number;
   /** Feeds + cuts after printing, via the native printText `cut` option — no-op on printers without a cutter. */
@@ -280,6 +283,23 @@ export interface ReceiptPrintOptions {
   itemWiseGst?: boolean;
   /** When unset on the table block, restaurant/cafe bills number items; retail does not. */
   isRestaurant?: boolean;
+  /** Receipt line visibility — synced from ReceiptConfig (web + mobile Printers). */
+  showCompanyHeader?: boolean;
+  showAddress?: boolean;
+  showPhone?: boolean;
+  showGSTIN?: boolean;
+  showCustomerDetails?: boolean;
+  showInvoiceNoAndDate?: boolean;
+  showPrintTime?: boolean;
+  showSubtotalDiscount?: boolean;
+  showFooterMessage?: boolean;
+  showTerms?: boolean;
+  showBarcode?: boolean;
+  showLogoOnReceipt?: boolean;
+  headerTitle?: string;
+  termsLine1?: string;
+  termsLine2?: string;
+  termsLine3?: string;
   /** User-selected logo size chip (synced from ReceiptConfig.receiptLogoSize) */
   receiptLogoSize?: ReceiptSizeChip;
   /** User-selected QR size chip (synced from ReceiptConfig.receiptQrSize) */
@@ -1140,6 +1160,23 @@ class ThermalPrinterServiceManager {
     return buildUpiPayString(upi, data.storeName || 'Store', data.grandTotal, data.invoiceNumber);
   }
 
+  /** UPI payment QR — independent from digital bill / online PDF QR. */
+  private shouldPrintPaymentQr(data: PrintSaleData, options: ReceiptPrintOptions = {}): boolean {
+    if (options.includePaymentQr === false) return false;
+    const { usePrinterStore } = require('../store/usePrinterStore');
+    const enabled =
+      options.includePaymentQr !== undefined
+        ? options.includePaymentQr
+        : usePrinterStore.getState().enablePaymentQr;
+    if (!enabled) return false;
+    return Boolean(this.upiPayPayload(data, options.upiId));
+  }
+
+  private shouldPrintDigitalBillQr(options: ReceiptPrintOptions = {}): boolean {
+    const { usePrinterStore } = require('../store/usePrinterStore');
+    return options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+  }
+
   private upiQrHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', qrSizeChip?: ReceiptSizeChip): string {
     const payload = this.upiPayPayload(data);
     if (!payload) return '';
@@ -1716,10 +1753,19 @@ class ThermalPrinterServiceManager {
     const gstin = (data.storeGstin || '').trim();
     const custName = (data.customerName || '').trim();
     const custPhone = (data.customerPhone || '').trim();
+    const showCompany = options.showCompanyHeader !== false;
+    const showAddr = options.showAddress !== false;
+    const showPh = options.showPhone !== false;
+    const showGst = options.showGSTIN !== false;
+    const showCust = options.showCustomerDetails !== false;
+    const showInvDate = options.showInvoiceNoAndDate !== false;
+    const showSubDisc = options.showSubtotalDiscount !== false;
+    const showFooter = options.showFooterMessage !== false;
+    const showTermsBlock = options.showTerms !== false;
 
     // ── 1. HEADER ──
     let hasHeader = false;
-    if (storeName) {
+    if (showCompany && storeName) {
       lines.push(...wrapProse(storeName.toUpperCase(), COLS, true));
       hasHeader = true;
     }
@@ -1727,15 +1773,15 @@ class ThermalPrinterServiceManager {
       lines.push(...wrapProse(tagline, COLS, true));
       hasHeader = true;
     }
-    if (address) {
+    if (showAddr && address) {
       lines.push(...wrapProse(address, COLS, true));
       hasHeader = true;
     }
-    if (phone) {
+    if (showPh && phone) {
       lines.push(centerText(`Phone: ${phone}`, COLS));
       hasHeader = true;
     }
-    if (gstin) {
+    if (showGst && gstin) {
       lines.push(centerText(`GSTIN: ${gstin}`, COLS));
       hasHeader = true;
     }
@@ -1744,18 +1790,24 @@ class ThermalPrinterServiceManager {
     }
 
     // ── Document Title ──
-    const docTitle = gstin ? 'TAX INVOICE' : 'BILL OF SUPPLY';
+    const docTitle =
+      (options.headerTitle || '').trim() || (gstin ? 'TAX INVOICE' : 'BILL OF SUPPLY');
     lines.push(centerText(docTitle, COLS));
     lines.push(divider('=', COLS));
 
     // ── 2. META DETAILS ──
     const billLabel = `${(template?.billLabel || 'Bill No').trim()} :`;
     const divChar = template?.dividerChar || '-';
-    if (options.compactMode) {
-      lines.push(row(`Inv:#${data.invoiceNumber}`, data.date, COLS));
-    } else {
-      lines.push(row(billLabel, data.invoiceNumber, COLS));
-      lines.push(row('Date    :', data.date, COLS));
+    if (showInvDate) {
+      if (options.compactMode) {
+        const datePart = options.showPrintTime !== false && data.time ? `${data.date} ${data.time}` : data.date;
+        lines.push(row(`Inv:#${data.invoiceNumber}`, datePart, COLS));
+      } else {
+        lines.push(row(billLabel, data.invoiceNumber, COLS));
+        const dateLine =
+          options.showPrintTime !== false && data.time ? `${data.date} ${data.time}` : data.date;
+        lines.push(row('Date    :', dateLine, COLS));
+      }
     }
     if (data.providerName) {
       lines.push(row('Provider:', data.providerName.slice(0, COLS - 11), COLS));
@@ -1772,7 +1824,7 @@ class ThermalPrinterServiceManager {
     if (data.unitsConsumed) {
       lines.push(row('Units      :', data.unitsConsumed, COLS));
     }
-    if (template.showCustomerLine && custName) {
+    if (showCust && template.showCustomerLine && custName) {
       lines.push(row('Customer:', custName, COLS));
       if (custPhone) {
         lines.push(row('Phone   :', custPhone, COLS));
@@ -1859,9 +1911,11 @@ class ThermalPrinterServiceManager {
     lines.push(divider('-', COLS));
 
     // ── 4. TOTALS BLOCK ──
-    lines.push(row('Sub Total', data.subtotal.toFixed(2), COLS));
-    if (data.totalDiscount > 0) {
-      lines.push(row('Discount', `-${data.totalDiscount.toFixed(2)}`, COLS));
+    if (showSubDisc) {
+      lines.push(row('Sub Total', data.subtotal.toFixed(2), COLS));
+      if (data.totalDiscount > 0) {
+        lines.push(row('Discount', `-${data.totalDiscount.toFixed(2)}`, COLS));
+      }
     }
     if (showBreakdown && data.totalTax > 0) {
       if (data.gstStyle === 'slab_wise' && data.gstSlabs && data.gstSlabs.length > 0) {
@@ -1914,10 +1968,15 @@ class ThermalPrinterServiceManager {
       template.footerMessage ||
       ''
     ).trim();
-    if (footerText) {
+    if (showFooter && footerText) {
       lines.push(...wrapProse(footerText, COLS, true));
     }
-    lines.push(...wrapProse(RECEIPT_DEFAULT_TERMS, COLS, true));
+    if (showTermsBlock) {
+      const terms = [options.termsLine1, options.termsLine2, options.termsLine3]
+        .filter((t) => typeof t === 'string' && t.trim())
+        .join('\n');
+      lines.push(...wrapProse(terms || RECEIPT_DEFAULT_TERMS, COLS, true));
+    }
 
     // Trailing blank lines help cheap firmware flush the final prose line before cut/feed.
     lines.push('');
@@ -2718,7 +2777,7 @@ class ThermalPrinterServiceManager {
           </table>
 
           <div class="divider"></div>
-          ${this.upiQrHtml(data, 'mm' as any, options?.receiptQrSize)}
+          ${this.shouldPrintPaymentQr(data, options) ? this.upiQrHtml(data, 'mm' as any, options?.receiptQrSize) : ''}
           <div class="center">${(data.footerMessage || options?.footerMessage || template.footerMessage || '').trim()}</div>
         </body>
       </html>
@@ -2753,10 +2812,9 @@ class ThermalPrinterServiceManager {
     const textLines = text.split('\n');
     const logo = receiptLogoHtmlMaxPxFromChip(effectiveLogoSize);
     const qrDimension = receiptStandardQrHtmlPxFromChip(effectiveQrSize);
-    const upiQrImg = data.upiId ? this.upiPayPayload(data) : '';
+    const upiQrImg = this.shouldPrintPaymentQr(data, options) ? this.upiPayPayload(data, options.upiId) : '';
     const upiImgUrl = upiQrImg ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(upiQrImg)}` : '';
-    const { usePrinterStore } = require('../store/usePrinterStore');
-    const shouldPrintBillQr = options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+    const shouldPrintBillQr = this.shouldPrintDigitalBillQr(options);
     const billPdfUrl = buildBillPdfUrl(data);
     const billQrImg = shouldPrintBillQr && billPdfUrl
       ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(billPdfUrl)}`
@@ -4330,7 +4388,7 @@ class ThermalPrinterServiceManager {
 
       const isCentered = rawLine.startsWith('    ') || rawLine.startsWith('\t');
       const isHeader = y < 35 && /^[A-Z0-9\s.,&-]{4,}$/.test(trimmed);
-      const fontH = isHeader ? (is80 ? 2.8 : 3.4) : (options.fontSize === 'large' ? 3.2 : baseFontH);
+      const fontH = isHeader ? (is80 ? 2.8 : 3.4) : baseFontH;
 
       elements.push({
         type: 'text',
@@ -4349,36 +4407,6 @@ class ThermalPrinterServiceManager {
       y += fontH + (is80 ? 0.45 : 0.9);
     }
 
-    // 3. Payment QR Code (UPI)
-    const upiPayload = this.upiPayPayload(data);
-    if (upiPayload && (options as any).enableBillQrCode !== false) {
-      const qrSide = Math.min(is80 ? 24 : 24, printableWidth * 0.42);
-      y += 2;
-      elements.push({
-        type: 'qrcode',
-        value: upiPayload,
-        x: (printableWidth - qrSide) / 2,
-        y,
-        width: qrSide,
-        height: qrSide,
-        size: qrSide,
-      });
-      y += qrSide + 2;
-      elements.push({
-        type: 'text',
-        value: 'SCAN TO PAY VIA UPI',
-        x: 0,
-        y,
-        width: printableWidth,
-        fontHeight: is80 ? 2.5 : 2.2,
-        bold: true,
-        align: 1,
-        fontFamily: 'monospace',
-        monospace: true,
-      });
-      y += 4;
-    }
-
     const totalHeightMm = Math.max(30, Math.ceil(y + 8));
 
     // Send to TD-404 in Continuous Mode (gapType: 0)
@@ -4386,7 +4414,7 @@ class ThermalPrinterServiceManager {
       widthMm: is80 ? 80 : 58,
       heightMm: totalHeightMm,
       rotation: 0,
-      copies: Math.max(1, options.copies || 1),
+      copies: 1,
       gapMm: 0,
       gapType: 0, // 0 = continuous roll
       speed: 5,
@@ -4591,9 +4619,9 @@ class ThermalPrinterServiceManager {
       y += fontH + (isMainHeader ? 1.4 : 0.9);
     }
 
-    // 3. Dynamic UPI QR Code (if available and enabled)
-    const upiPayload = this.upiPayPayload(data);
-    if (upiPayload && options.includeBillQr !== false) {
+    // 3. Dynamic UPI payment QR (independent of digital bill QR)
+    const upiPayload = this.shouldPrintPaymentQr(data, options) ? this.upiPayPayload(data, options.upiId) : null;
+    if (upiPayload) {
       y += 1.5;
       const qrSize = Math.min(24, Math.round(printableWidth * 0.52));
       const qrX = Math.max(1, (printableWidth - qrSize) / 2);
@@ -4623,8 +4651,7 @@ class ThermalPrinterServiceManager {
 
     // 4. Digital Bill PDF QR Code (if enabled)
     try {
-      const { usePrinterStore } = require('../store/usePrinterStore');
-      const shouldPrintBillQr = options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+      const shouldPrintBillQr = this.shouldPrintDigitalBillQr(options);
       const billPdfUrl = buildBillPdfUrl(data);
       if (shouldPrintBillQr && billPdfUrl) {
         y += 1.5;
@@ -6468,7 +6495,8 @@ class ThermalPrinterServiceManager {
             fonttype: receiptFontEscPosType(effectiveOptions.receiptFont),
           };
 
-          const logoPrepared = saleData.storeLogoUrl
+          const logoPrepared =
+            saleData.storeLogoUrl && options.showLogoOnReceipt !== false
             ? await this.prepareLogoForEscPos(
                 saleData.storeLogoUrl,
                 effectivePaperWidth,
@@ -6495,9 +6523,12 @@ class ThermalPrinterServiceManager {
 
             await NativeEscposPrinter.printText(textContent, printOptions);
 
-            // A scannable UPI payment QR, placed after the totals — matches where real receipts
-            // (e.g. utility bills) place their payment QR.
-            if (upiString && typeof NativeEscposPrinter.printQRCode === 'function') {
+            // UPI payment QR — gated separately from the digital bill QR below.
+            if (
+              upiString &&
+              this.shouldPrintPaymentQr(saleData, options) &&
+              typeof NativeEscposPrinter.printQRCode === 'function'
+            ) {
               try {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {
                   await NativeEscposPrinter.printerAlign(NativeEscposPrinter.ALIGN?.CENTER ?? 1);
@@ -6512,10 +6543,9 @@ class ThermalPrinterServiceManager {
               }
             }
 
-            // A scannable Digital Bill PDF QR code if enabled
+            // Digital bill / online PDF QR — independent toggle from payment QR.
             try {
-              const { usePrinterStore } = require('../store/usePrinterStore');
-              const shouldPrintBillQr = options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+              const shouldPrintBillQr = this.shouldPrintDigitalBillQr(options);
               const billPdfUrl = buildBillPdfUrl(saleData);
               if (shouldPrintBillQr && billPdfUrl && typeof NativeEscposPrinter.printQRCode === 'function') {
                 if (typeof NativeEscposPrinter.printerAlign === 'function') {

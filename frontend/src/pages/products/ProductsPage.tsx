@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { ProductDetailModal, formatDisplayUnit } from './components/ProductDetailModal'
 import { BulkProductUploadModal } from './components/BulkProductUploadModal'
+import { AddFoodItemModal } from '@/pages/kot/components/AddFoodItemModal'
 import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
 import { ExportModal, type ExportFormat } from '@/components/common/ExportModal'
 import {
@@ -169,6 +170,8 @@ export const ProductsPage = () => {
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
+  const [foodModalOpen, setFoodModalOpen] = useState(false)
+  const [foodEditProduct, setFoodEditProduct] = useState<Product | null>(null)
   const [showConsecutiveModal, setShowConsecutiveModal] = useState(false)
   const [consecutiveProducts, setConsecutiveProducts] = useState<Product[]>([])
   const [showExportModal, setShowExportModal] = useState(false)
@@ -414,6 +417,11 @@ export const ProductsPage = () => {
   }
 
   const openCreate = () => {
+    if (!trackStock) {
+      setFoodEditProduct(null)
+      setFoodModalOpen(true)
+      return
+    }
     resetForm()
     setIsFormOpen(true)
   }
@@ -616,6 +624,11 @@ export const ProductsPage = () => {
   }
 
   const openEdit = (row: Product) => {
+    if (!trackStock) {
+      setFoodEditProduct(row)
+      setFoodModalOpen(true)
+      return
+    }
     setForm({
       name: row.name,
       categoryId: row.categoryId,
@@ -2414,6 +2427,7 @@ export const ProductsPage = () => {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         product={detailProduct}
+        trackStock={trackStock}
         categoryName={detailProduct ? getCategoryName(detailProduct.categoryId) : undefined}
         supplierName={detailProduct ? (suppliers?.find(s => s.id === detailProduct.supplierId)?.name || 'None') : undefined}
         onEdit={openEdit}
@@ -2426,6 +2440,19 @@ export const ProductsPage = () => {
           }
         }}
         onPrintLabel={handlePrintLabel}
+      />
+
+      <AddFoodItemModal
+        isOpen={foodModalOpen}
+        editingProduct={foodEditProduct}
+        onClose={() => {
+          setFoodModalOpen(false)
+          setFoodEditProduct(null)
+        }}
+        onItemCreated={() => {
+          setFoodModalOpen(false)
+          setFoodEditProduct(null)
+        }}
       />
 
       <BulkProductUploadModal

@@ -5,6 +5,11 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
 import { handleApiError } from '../utils/apiErrorHandler';
+import {
+  assertCanCreateProducts,
+  BULK_PRODUCT_IMPORT_MAX,
+} from '../utils/dailyUsageLimits';
+import { validateImagePayloads } from '../utils/mediaPayloadLimits';
 
 const PRODUCT_LIST_SELECT = {
   id: true,
@@ -302,6 +307,9 @@ export const createProduct = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
+    const imageErr = validateImagePayloads(req.body || {});
+    if (imageErr) return res.status(400).json({ error: imageErr });
+    await assertCanCreateProducts(userId, 1);
     const { imageUrl, sku, categoryId, ...rest } = req.body;
 
     // Map frontend `imageUrl` → Prisma column `imageURL`
@@ -863,6 +871,8 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
   try {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
+    const imageErr = validateImagePayloads(req.body || {});
+    if (imageErr) return res.status(400).json({ error: imageErr });
     const items = Array.isArray(req.body.products)
       ? req.body.products
       : (Array.isArray(req.body.items)
@@ -883,6 +893,14 @@ export const bulkImportProducts = async (req: Request, res: Response) => {
     if (validItems.length === 0) {
       return res.status(400).json({ error: 'No valid products to import.' });
     }
+
+    if (validItems.length > BULK_PRODUCT_IMPORT_MAX) {
+      return res.status(400).json({
+        error: `Bulk import is limited to ${BULK_PRODUCT_IMPORT_MAX} products per upload. Split your file and try again.`,
+      });
+    }
+
+    await assertCanCreateProducts(userId, validItems.length);
 
     // Fetch existing catalog products for this store owner
     const existingProducts = await prisma.product.findMany({

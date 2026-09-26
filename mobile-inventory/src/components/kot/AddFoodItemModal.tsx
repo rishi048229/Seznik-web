@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   View,
@@ -27,11 +27,13 @@ import { BRAND_COLORS } from '@/constants/theme';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
+import type { Product } from '@/types/product';
 
 interface AddFoodItemModalProps {
   visible: boolean;
   onClose: () => void;
   onItemCreated?: (createdItem: any) => void;
+  productToEdit?: Product | null;
 }
 
 type FoodDietaryType = 'veg' | 'non_veg' | 'egg';
@@ -57,10 +59,11 @@ const KITCHEN_STATIONS = [
   { id: 'bakery', name: 'Bakery & Dessert' },
 ];
 
-export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodItemModalProps) {
+export function AddFoodItemModal({ visible, onClose, onItemCreated, productToEdit }: AddFoodItemModalProps) {
   const theme = useAppTheme();
-  const { createProduct, isCreating } = useProducts();
+  const { createProduct, updateProduct, isCreating, isUpdating } = useProducts();
   const { categories } = useCategories();
+  const isEdit = Boolean(productToEdit?.id);
 
   const [name, setName] = useState('');
   const [dietaryType, setDietaryType] = useState<FoodDietaryType>('veg');
@@ -71,6 +74,32 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
   const [taxRate, setTaxRate] = useState('5'); // Standard 5% restaurant GST in India
   const [kitchenStation, setKitchenStation] = useState('Main Kitchen');
   const [preparationTime, setPreparationTime] = useState('10');
+  const [isAvailable, setIsAvailable] = useState(true);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (productToEdit) {
+      setName(productToEdit.name || '');
+      setPrice(String(productToEdit.sellingPrice ?? ''));
+      setCostPrice(String(productToEdit.costPrice ?? ''));
+      setTaxRate(String(productToEdit.taxRate ?? 5));
+      setUnit(productToEdit.unit || 'Plate');
+      setIsAvailable(productToEdit.isAvailable !== false && productToEdit.isActive !== false);
+      const cat = categories.find((c) => c.id === productToEdit.categoryId);
+      if (cat?.name) setCategoryName(cat.name);
+    } else {
+      setName('');
+      setPrice('');
+      setCostPrice('');
+      setDietaryType('veg');
+      setCategoryName('Fast Food & Snacks');
+      setUnit('Plate');
+      setTaxRate('5');
+      setKitchenStation('Main Kitchen');
+      setPreparationTime('10');
+      setIsAvailable(true);
+    }
+  }, [visible, productToEdit, categories]);
 
   const handleCreateFoodItem = async () => {
     const trimmedName = name.trim();
@@ -95,35 +124,31 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
         name: trimmedName,
         sellingPrice,
         costPrice: parseFloat(costPrice) || 0,
-        // In KOT restaurants, food items are prepared on demand without inventory stock limits
         currentStock: 0,
         lowStockThreshold: 0,
         unit,
         taxRate: parseFloat(taxRate) || 0,
         priceIncludesGst: true,
         categoryId: matchedCat?.id,
-        // Food Specific metadata
         dietaryType,
         kitchenStation,
         prepTimeMinutes: parseInt(preparationTime, 10) || 10,
         isFoodItem: true,
-        isActive: true,
-        isAvailable: true,
+        isActive: isAvailable,
+        isAvailable,
       };
 
-      const result = await createProduct(payload);
-
-      // Reset Form
-      setName('');
-      setPrice('');
-      setCostPrice('');
-
-      onClose();
-
-      if (onItemCreated) {
-        onItemCreated(result);
+      if (isEdit && productToEdit?.id) {
+        await updateProduct({ id: productToEdit.id, payload });
+        onClose();
+        onItemCreated?.(productToEdit);
+        Alert.alert('Menu updated', `"${trimmedName}" was saved.`);
+        return;
       }
 
+      const result = await createProduct(payload);
+      onClose();
+      onItemCreated?.(result);
       Alert.alert('Food Item Added!', `"${trimmedName}" is now live on your food menu.`);
     } catch (err: any) {
       Alert.alert('Error', sanitizeErrorMessage(err, 'Failed to create food item. Please check item details and try again.'));
@@ -147,7 +172,7 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
               </View>
               <View style={{ marginLeft: 10 }}>
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-                  Add Food / Menu Item
+                  {isEdit ? 'Edit Menu Item' : 'Add Food / Menu Item'}
                 </Text>
                 <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
                   Quick setup for cloud kitchens, cafes, & food stalls
@@ -364,21 +389,38 @@ export function AddFoodItemModal({ visible, onClose, onItemCreated }: AddFoodIte
                 })}
               </View>
             </View>
+
+            <View style={[styles.formGroup, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+              <Text style={[styles.inputLabel, { color: theme.textPrimary, marginBottom: 0 }]}>Available on menu</Text>
+              <TouchableOpacity
+                onPress={() => setIsAvailable((v) => !v)}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: isAvailable ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.12)',
+                }}
+              >
+                <Text style={{ fontWeight: '800', color: isAvailable ? '#059669' : '#DC2626' }}>
+                  {isAvailable ? 'Available' : 'Hidden'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
 
           {/* Sticky Submit Bar */}
           <View style={[styles.footerBar, { borderTopColor: theme.borderColor, backgroundColor: theme.cardBg }]}>
             <TouchableOpacity
               onPress={handleCreateFoodItem}
-              disabled={isCreating}
-              style={[styles.createBtn, isCreating && { opacity: 0.7 }]}
+              disabled={isCreating || isUpdating}
+              style={[styles.createBtn, (isCreating || isUpdating) && { opacity: 0.7 }]}
             >
-              {isCreating ? (
+              {isCreating || isUpdating ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
                   <Plus size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.createBtnText}>Save Dish to Menu</Text>
+                  <Text style={styles.createBtnText}>{isEdit ? 'Save menu item' : 'Save dish to menu'}</Text>
                 </>
               )}
             </TouchableOpacity>

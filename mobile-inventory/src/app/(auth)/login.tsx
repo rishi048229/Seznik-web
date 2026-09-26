@@ -85,9 +85,20 @@ export default function LoginScreen() {
   const [agentEmail, setAgentEmail] = useState('');
   const [agentOtp, setAgentOtp] = useState('');
   const [agentName, setAgentName] = useState('');
-  const [agentSent, setAgentSent] = useState(false);
+  const [agentCodeSent, setAgentCodeSent] = useState(false);
   const [agentNames, setAgentNames] = useState<string[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
+
+  const refreshAgentNames = async (storeEmail: string) => {
+    const trimmed = storeEmail.trim();
+    if (!trimmed.includes('@')) return;
+    try {
+      const res = await authApi.lookupAgentNames(trimmed);
+      setAgentNames(res.existingAgents || []);
+    } catch {
+      setAgentNames([]);
+    }
+  };
 
   const onSubmit = async (data: LoginFormValues) => {
     setApiError(null);
@@ -105,7 +116,7 @@ export default function LoginScreen() {
     try {
       const res = await authApi.requestAgentOtp(agentEmail.trim());
       setAgentNames(res.existingAgents || []);
-      setAgentSent(true);
+      setAgentCodeSent(true);
     } catch (err: any) {
       setApiError(err?.message || 'Could not send the code');
     } finally {
@@ -384,7 +395,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Developer Server Setting Link */}
+            {__DEV__ ? (
             <View style={styles.devBoxContainer}>
               <TouchableOpacity
                 onPress={() => setShowApiConfig(!showApiConfig)}
@@ -418,6 +429,7 @@ export default function LoginScreen() {
                 </View>
               ) : null}
             </View>
+            ) : null}
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -492,6 +504,7 @@ export default function LoginScreen() {
                   <TextInput
                     value={agentEmail}
                     onChangeText={setAgentEmail}
+                    onBlur={() => refreshAgentNames(agentEmail)}
                     placeholder="store@example.com"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -500,62 +513,72 @@ export default function LoginScreen() {
                     style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
                   />
 
-                  {agentSent ? (
-                    <>
-                      <Text style={[styles.agentFieldLabel, { color: theme.textSecondary }]}>6-DIGIT CODE</Text>
-                      <TextInput
-                        value={agentOtp}
-                        onChangeText={setAgentOtp}
-                        placeholder="Check the store email"
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        placeholderTextColor={theme.textSecondary}
-                        style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                      />
-
-                      <Text style={[styles.agentFieldLabel, { color: theme.textSecondary }]}>YOUR NAME</Text>
-                      {agentNames.length > 0 ? (
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                          {agentNames.map((name) => {
-                            const picked = agentName === name;
-                            return (
-                              <TouchableOpacity
-                                key={name}
-                                onPress={() => setAgentName(name)}
-                                style={{
-                                  paddingHorizontal: 14,
-                                  paddingVertical: 9,
-                                  borderRadius: 999,
-                                  borderWidth: 1.5,
-                                  borderColor: picked ? BRAND_COLORS.blue600 : theme.borderColor,
-                                  backgroundColor: picked ? 'rgba(37, 99, 235, 0.12)' : theme.bg,
-                                }}
-                              >
-                                <Text style={{ color: picked ? BRAND_COLORS.blue600 : theme.textPrimary, fontWeight: '700' }}>
-                                  {name}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      ) : null}
-                      <TextInput
-                        value={agentName}
-                        onChangeText={setAgentName}
-                        placeholder="Tap your name above, or type it"
-                        placeholderTextColor={theme.textSecondary}
-                        style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
-                      />
-
-                      <TouchableOpacity onPress={verifyAgent} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk, opacity: agentBusy ? 0.6 : 1 }]}>
-                        <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Signing in…' : 'Enter store'}</Text>
-                      </TouchableOpacity>
-                    </>
+                  <Text style={[styles.agentFieldLabel, { color: theme.textSecondary }]}>YOUR NAME</Text>
+                  {agentNames.length > 0 ? (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                      {agentNames.map((name) => {
+                        const picked = agentName === name;
+                        return (
+                          <TouchableOpacity
+                            key={name}
+                            onPress={() => setAgentName(name)}
+                            style={{
+                              paddingHorizontal: 14,
+                              paddingVertical: 9,
+                              borderRadius: 999,
+                              borderWidth: 1.5,
+                              borderColor: picked ? BRAND_COLORS.blue600 : theme.borderColor,
+                              backgroundColor: picked ? 'rgba(37, 99, 235, 0.12)' : theme.bg,
+                            }}
+                          >
+                            <Text style={{ color: picked ? BRAND_COLORS.blue600 : theme.textPrimary, fontWeight: '700' }}>
+                              {name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   ) : (
-                    <TouchableOpacity onPress={sendAgentCode} disabled={agentBusy} style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk, opacity: agentBusy ? 0.6 : 1 }]}>
-                      <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Sending…' : 'Send code'}</Text>
-                    </TouchableOpacity>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 8 }}>
+                      First time? Type your name — the store can have up to 2 agents.
+                    </Text>
                   )}
+                  <TextInput
+                    value={agentName}
+                    onChangeText={setAgentName}
+                    placeholder="Tap a saved name or type yours"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                  />
+
+                  <Text style={[styles.agentFieldLabel, { color: theme.textSecondary }]}>6-DIGIT CODE</Text>
+                  <TextInput
+                    value={agentOtp}
+                    onChangeText={setAgentOtp}
+                    placeholder={agentCodeSent ? 'From store email' : 'Send code first'}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.agentInput, { color: theme.textPrimary, borderColor: theme.borderColor, backgroundColor: theme.bg }]}
+                  />
+
+                  <TouchableOpacity
+                    onPress={sendAgentCode}
+                    disabled={agentBusy || !agentEmail.trim()}
+                    style={[styles.primaryButton, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.borderColor, marginBottom: 10, opacity: agentBusy ? 0.6 : 1 }]}
+                  >
+                    <Text style={{ color: theme.textPrimary, fontWeight: '800' }}>
+                      {agentBusy && !agentCodeSent ? 'Sending…' : agentCodeSent ? 'Resend code' : 'Send code to store email'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={verifyAgent}
+                    disabled={agentBusy || agentOtp.length < 6 || !agentName.trim() || !agentEmail.trim()}
+                    style={[styles.primaryButton, { backgroundColor: BRAND_COLORS.navyInk, opacity: agentBusy ? 0.6 : 1 }]}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '800' }}>{agentBusy ? 'Signing in…' : 'Enter store'}</Text>
+                  </TouchableOpacity>
 
                   <TouchableOpacity onPress={() => setShowAgentLogin(false)} style={{ marginTop: 14, alignItems: 'center', paddingVertical: 6 }}>
                     <Text style={{ color: theme.textSecondary, fontWeight: '600' }}>Close</Text>

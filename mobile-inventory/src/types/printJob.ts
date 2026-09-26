@@ -19,7 +19,9 @@ export interface PrintJobEvent {
 
 export interface PrintJob {
   id: string;
-  saleId: string;
+  saleId?: string | null;
+  jobType?: 'receipt' | 'kot';
+  kotOrderId?: string | null;
   requestedById: string;
   requestedByName: string;
   targetAgentId?: string | null;
@@ -37,18 +39,20 @@ export interface PrintJob {
   completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  sale: {
+  sale?: {
     id: string;
     invoiceNumber: string;
     grandTotal: number;
     createdAt: string;
     customer?: { name: string } | null;
-  };
+  } | null;
   events?: PrintJobEvent[];
 }
 
 export interface CreatePrintJobPayload {
-  saleId: string;
+  saleId?: string;
+  kotOrderId?: string;
+  jobType?: 'receipt' | 'kot';
   targetAgentId?: string;
   targetLocationId?: string;
   paperWidth?: '58mm' | '80mm';

@@ -102,6 +102,9 @@ const STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS "PrintJob_targetAgentId_status_idx" ON "PrintJob"("targetAgentId", "status")',
   'CREATE INDEX IF NOT EXISTS "PrintJob_targetLocationId_status_idx" ON "PrintJob"("targetLocationId", "status")',
   'CREATE INDEX IF NOT EXISTS "PrintJob_saleId_idx" ON "PrintJob"("saleId")',
+  'ALTER TABLE "PrintJob" ADD COLUMN IF NOT EXISTS "jobType" TEXT NOT NULL DEFAULT \'receipt\'',
+  'ALTER TABLE "PrintJob" ADD COLUMN IF NOT EXISTS "kotOrderId" TEXT',
+  'ALTER TABLE "PrintJob" ALTER COLUMN "saleId" DROP NOT NULL',
 
   // Remote Printing — status-transition audit trail.
   `CREATE TABLE IF NOT EXISTS "PrintJobEvent" (

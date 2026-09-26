@@ -341,15 +341,17 @@ export function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  onPress={() => handleNavigate('/(auth)/access-selection')}
-                  style={[styles.switchRoleBtn, { borderColor: theme.borderColor, backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF' }]}
-                  activeOpacity={0.7}
-                >
-                  <Sparkles size={13} color={BRAND_COLORS.blue600} />
-                  <Text style={styles.switchRoleText}>Switch Workstation / Role</Text>
-                  <ChevronRight size={13} color={theme.textSecondary} />
-                </TouchableOpacity>
+                {!isAgent ? (
+                  <TouchableOpacity
+                    onPress={() => handleNavigate('/(auth)/access-selection')}
+                    style={[styles.switchRoleBtn, { borderColor: theme.borderColor, backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF' }]}
+                    activeOpacity={0.7}
+                  >
+                    <Sparkles size={13} color={BRAND_COLORS.blue600} />
+                    <Text style={styles.switchRoleText}>Switch Workstation / Role</Text>
+                    <ChevronRight size={13} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               {navGroups.map((group, gIdx) => (

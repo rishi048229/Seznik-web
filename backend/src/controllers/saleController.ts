@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { getOwnerUserId } from '../utils/getOwnerUserId';
 import { userTracksStock } from '../utils/stockTracking';
 import { handleApiError } from '../utils/apiErrorHandler';
+import { assertCanCreateSale } from '../utils/dailyUsageLimits';
 
 export const getSales = async (req: Request, res: Response) => {
   try {
@@ -47,6 +48,7 @@ export const getSaleById = async (req: Request, res: Response) => {
 export const createSale = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);
+    await assertCanCreateSale(userId);
     const body = req.body || {};
 
     const items = Array.isArray(body.items) ? body.items : [];

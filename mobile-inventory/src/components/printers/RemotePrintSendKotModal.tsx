@@ -3,31 +3,33 @@ import { Alert } from 'react-native';
 import { RemotePrintTargetPicker } from './RemotePrintTargetPicker';
 import { usePrintJobsAdmin } from '@/hooks/usePrintJobs';
 import { PrintJob } from '@/types/printJob';
-import { Sale } from '@/types/sale';
+import { KOTOrder } from '@/types/kot';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { useRemotePrintPaperWidth } from '@/utils/remotePrintPaperWidth';
 
-interface RemotePrintSendModalProps {
+interface RemotePrintSendKotModalProps {
   visible: boolean;
   onClose: () => void;
-  sale: Sale | null;
-  /** Fires with the created job so the caller can open its live status screen. */
+  order: KOTOrder | null;
   onSent?: (job: PrintJob) => void;
 }
 
-/** Sends an already-made sale's receipt to a teammate's phone to print. They get a notification,
- *  accept it, and it prints on whichever printer is connected there — or they're walked through
- *  connecting one first. */
-export const RemotePrintSendModal: React.FC<RemotePrintSendModalProps> = ({ visible, onClose, sale, onSent }) => {
+/** Sends a kitchen KOT ticket to a teammate's phone to print on their connected printer. */
+export const RemotePrintSendKotModal: React.FC<RemotePrintSendKotModalProps> = ({
+  visible,
+  onClose,
+  order,
+  onSent,
+}) => {
   const { sendJob, isSending } = usePrintJobsAdmin();
   const paperWidth = useRemotePrintPaperWidth();
 
   const handleSubmit = async (agentId: string) => {
-    if (!sale) return;
+    if (!order) return;
     try {
       const job = await sendJob({
-        saleId: sale.id,
-        jobType: 'receipt',
+        kotOrderId: order.id,
+        jobType: 'kot',
         targetAgentId: agentId,
         paperWidth,
       });
@@ -38,13 +40,15 @@ export const RemotePrintSendModal: React.FC<RemotePrintSendModalProps> = ({ visi
     }
   };
 
+  const label = order ? `KOT #${String(order.orderNumber).padStart(4, '0')}` : undefined;
+
   return (
     <RemotePrintTargetPicker
       visible={visible}
       onClose={onClose}
-      title="Send to Print Remotely"
-      subtitle={sale ? `Invoice ${sale.invoiceNumber} · ₹${sale.grandTotal.toFixed(2)}` : undefined}
-      submitLabel="Send Receipt"
+      title="Send KOT to Print Remotely"
+      subtitle={label ? `${label} · ${order?.table?.name || order?.partyLabel || 'Kitchen ticket'}` : undefined}
+      submitLabel="Send KOT"
       isSubmitting={isSending}
       onSubmit={handleSubmit}
     />

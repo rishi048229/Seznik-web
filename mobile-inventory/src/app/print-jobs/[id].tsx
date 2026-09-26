@@ -18,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import { usePrintJob } from '@/hooks/usePrintJobs';
 import { salesApi } from '@/api/sales';
+import { kotOrdersApi } from '@/api/kotOrders';
 import { PrintJob, PrintJobStatus } from '@/types/printJob';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ScreenBackground } from '@/components/ui/ScreenBackground';
@@ -143,6 +144,43 @@ export default function PrintJobActionScreen() {
     setIsPrinting(true);
     try {
       await updateStatus({ status: 'printing' });
+
+      const isKotJob = job.jobType === 'kot' || Boolean(job.kotOrderId);
+      if (isKotJob && job.kotOrderId) {
+        const order = await kotOrdersApi.getOrderById(job.kotOrderId);
+        const activeItems = (order.items || [])
+          .filter((it) => it.status !== 'voided')
+          .map((it) => ({
+            productName: it.productName,
+            quantity: it.quantity,
+            notes: it.notes || undefined,
+            modifiers: it.modifiers,
+          }));
+        const kotPayload = {
+          storeName: storeProfile.storeName || 'SEZNIK KITCHEN',
+          orderNumber: order.orderNumber,
+          orderType: order.orderType,
+          tableName: order.table?.name,
+          partyLabel: order.partyLabel || undefined,
+          guestCount: order.guestCount || undefined,
+          contactNumber: order.contactNumber || undefined,
+          priority: order.priority,
+          notes: order.notes || undefined,
+          time: new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          copyType: 'KITCHEN COPY' as const,
+          items: activeItems,
+        };
+        const copies = Math.max(1, job.copies || 1);
+        for (let i = 0; i < copies; i += 1) {
+          await ThermalPrinterService.printKotTicket(kotPayload, job.paperWidth);
+        }
+        await updateStatus({ status: 'completed' });
+        return;
+      }
+
+      if (!job.saleId) {
+        throw new Error('This print job has no sale or KOT linked.');
+      }
 
       const sale = await salesApi.getSaleById(job.saleId);
       const items = (sale.items || []).map((it: any) => ({
@@ -403,22 +441,36 @@ export default function PrintJobActionScreen() {
           </View>
 
           <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <View style={styles.cardRow}>
-              <Receipt size={16} color={theme.textSecondary} />
-              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Invoice</Text>
-              <Text style={[styles.cardValue, { color: theme.textPrimary }]}>{job.sale.invoiceNumber}</Text>
-            </View>
-            <View style={styles.cardRow}>
-              <Text style={[styles.cardLabel, { color: theme.textSecondary, marginLeft: 24 }]}>Amount</Text>
-              <Text style={[styles.cardValue, { color: theme.textPrimary }]}>₹{job.sale.grandTotal.toFixed(2)}</Text>
-            </View>
-            {job.sale.customer?.name ? (
+            {job.jobType === 'kot' ? (
               <View style={styles.cardRow}>
-                <User size={16} color={theme.textSecondary} />
-                <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Customer</Text>
-                <Text style={[styles.cardValue, { color: theme.textPrimary }]}>{job.sale.customer.name}</Text>
+                <Receipt size={16} color={theme.textSecondary} />
+                <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Ticket</Text>
+                <Text style={[styles.cardValue, { color: theme.textPrimary }]}>Kitchen KOT</Text>
               </View>
-            ) : null}
+            ) : (
+              <>
+                <View style={styles.cardRow}>
+                  <Receipt size={16} color={theme.textSecondary} />
+                  <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Invoice</Text>
+                  <Text style={[styles.cardValue, { color: theme.textPrimary }]}>
+                    {job.sale?.invoiceNumber || '—'}
+                  </Text>
+                </View>
+                <View style={styles.cardRow}>
+                  <Text style={[styles.cardLabel, { color: theme.textSecondary, marginLeft: 24 }]}>Amount</Text>
+                  <Text style={[styles.cardValue, { color: theme.textPrimary }]}>
+                    ₹{(job.sale?.grandTotal ?? 0).toFixed(2)}
+                  </Text>
+                </View>
+                {job.sale?.customer?.name ? (
+                  <View style={styles.cardRow}>
+                    <User size={16} color={theme.textSecondary} />
+                    <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Customer</Text>
+                    <Text style={[styles.cardValue, { color: theme.textPrimary }]}>{job.sale.customer.name}</Text>
+                  </View>
+                ) : null}
+              </>
+            )}
             <View style={styles.cardRow}>
               <Send size={16} color={theme.textSecondary} />
               <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>{isSender ? 'Sent to' : 'Sent by'}</Text>
@@ -541,7 +593,11 @@ export default function PrintJobActionScreen() {
         visible={reassignVisible}
         onClose={() => setReassignVisible(false)}
         title="Send to Someone Else"
-        subtitle={`Invoice ${job.sale.invoiceNumber} · ₹${job.sale.grandTotal.toFixed(2)}`}
+        subtitle={
+          job.jobType === 'kot'
+            ? 'Kitchen KOT ticket'
+            : `Invoice ${job.sale?.invoiceNumber || '—'} · ₹${(job.sale?.grandTotal ?? 0).toFixed(2)}`
+        }
         submitLabel="Send Again"
         isSubmitting={isReassigning}
         onSubmit={handleReassign}

@@ -11,12 +11,14 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { BRAND_COLORS } from '@/constants/theme';
 import { useQueryClient } from '@tanstack/react-query';
 import { debugFa19Log } from '@/utils/debugFa19Log';
+import { dispatchRemotePrintLocalNotification } from '@/services/notificationService';
 
 /** Polls slowly in the background for the whole session. A push is the primary delivery path, but
  *  it can silently never arrive — notification permission denied, Android Doze, a killed app on
  *  iOS — and a receipt nobody prints is the one failure this feature cannot have. 20s keeps that
  *  safety net cheap. */
 const POLL_MS = 20000;
+const BANNER_AUTO_DISMISS_MS = 10000;
 
 /**
  * Always-mounted watcher that surfaces a print request wherever the agent happens to be in the
@@ -37,6 +39,7 @@ export function IncomingPrintRequestBanner() {
 
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const notifiedJobIdsRef = useRef<Set<string>>(new Set());
   const translateY = useSharedValue(-140);
   const opacity = useSharedValue(0);
 
@@ -64,6 +67,39 @@ export function IncomingPrintRequestBanner() {
       opacity.value = withTiming(0, { duration: 160 });
     }
   }, [visible, translateY, opacity]);
+
+  useEffect(() => {
+    if (!topJob || onPrintJobScreen) return;
+    if (notifiedJobIdsRef.current.has(topJob.id)) return;
+    notifiedJobIdsRef.current.add(topJob.id);
+    const isKot = topJob.jobType === 'kot';
+    const title = isKot ? 'New KOT to print' : 'New receipt to print';
+    const body = isKot
+      ? `${topJob.requestedByName} sent a kitchen ticket — tap to print.`
+      : `${topJob.requestedByName} sent invoice ${topJob.sale?.invoiceNumber || ''} — tap to print.`;
+    void dispatchRemotePrintLocalNotification({
+      printJobId: topJob.id,
+      title,
+      body: body.trim() || 'Tap to accept and print.',
+      jobType: topJob.jobType,
+    });
+  }, [topJob?.id, onPrintJobScreen, topJob]);
+
+  useEffect(() => {
+    if (!topJob || !visible) return;
+    const timer = setTimeout(() => {
+      setDismissedIds((prev) => (prev.includes(topJob.id) ? prev : [...prev, topJob.id]));
+    }, BANNER_AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, [topJob?.id, visible, topJob]);
+
+  useEffect(() => {
+    for (const job of jobs) {
+      if (job.status === 'printing' || job.status === 'completed' || job.status === 'rejected') {
+        setDismissedIds((prev) => (prev.includes(job.id) ? prev : [...prev, job.id]));
+      }
+    }
+  }, [jobs]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -99,13 +135,21 @@ export function IncomingPrintRequestBanner() {
         data: { jobId: topJob.id, needsAccept, priorStatus: topJob.status },
       });
       // #endregion
+      setDismissedIds((prev) => [...prev, topJob.id]);
       router.push(`/print-jobs/${topJob.id}` as any);
     } catch {
+      setDismissedIds((prev) => [...prev, topJob.id]);
       router.push(`/print-jobs/${topJob.id}` as any);
     } finally {
       setAccepting(false);
     }
   };
+
+  const bannerTitle = topJob.jobType === 'kot' ? 'New KOT to print' : 'New receipt to print';
+  const bannerSubtitle =
+    topJob.jobType === 'kot'
+      ? `${topJob.requestedByName} sent a kitchen ticket`
+      : `${topJob.requestedByName} sent invoice ${topJob.sale?.invoiceNumber || '—'}`;
 
   return (
     <Animated.View style={[styles.wrap, { top: topOffset }, animatedStyle]} pointerEvents="box-none">
@@ -119,9 +163,9 @@ export function IncomingPrintRequestBanner() {
             <Printer size={18} color="#FFFFFF" />
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>New receipt to print</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>{bannerTitle}</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-              {topJob.requestedByName} sent invoice {topJob.sale.invoiceNumber}
+              {bannerSubtitle}
             </Text>
           </View>
         </TouchableOpacity>

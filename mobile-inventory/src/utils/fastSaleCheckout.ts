@@ -18,6 +18,7 @@ export function buildReceiptPrintOptions(input: {
   customTemplates: CustomReceiptTemplate[];
   activeCustomTemplateId: string | null;
   enableBillQrCode: boolean;
+  enablePaymentQr?: boolean;
   topMargin: number;
   autoCut: boolean;
   fontSize: 'small' | 'medium' | 'large';
@@ -35,14 +36,20 @@ export function buildReceiptPrintOptions(input: {
   itemWiseGst?: boolean;
   receiptLogoSize?: ReceiptSizeChip;
   receiptQrSize?: ReceiptSizeChip;
+  receiptConfig?: Record<string, unknown> | null;
 }): ReceiptPrintOptions {
   const activeCustomTemplate =
     input.customTemplates.find((t) => t.id === input.activeCustomTemplateId) || null;
+
+  const rc = (input.receiptConfig || {}) as Record<string, unknown>;
+  const flag = (key: string, fallback = true) =>
+    rc[key] !== undefined ? Boolean(rc[key]) : fallback;
 
   return {
     template: getTemplateById(input.activeTemplateId),
     customTemplate: activeCustomTemplate,
     includeBillQr: input.enableBillQrCode,
+    includePaymentQr: input.enablePaymentQr,
     topMargin: input.topMargin,
     autoCut: input.autoCut,
     fontSize: input.fontSize,
@@ -60,6 +67,24 @@ export function buildReceiptPrintOptions(input: {
     itemWiseGst: input.itemWiseGst,
     receiptLogoSize: input.receiptLogoSize,
     receiptQrSize: input.receiptQrSize,
+    showCompanyHeader: flag('showCompanyHeader'),
+    showAddress: flag('showAddress'),
+    showPhone: flag('showPhone'),
+    showGSTIN: flag('showGSTIN'),
+    showCustomerDetails: flag('showCustomerDetails'),
+    showInvoiceNoAndDate: flag('showInvoiceNoAndDate'),
+    showPrintTime: flag('showPrintTime'),
+    showSubtotalDiscount: flag('showSubtotalDiscount'),
+    showTaxBreakdown:
+      (input as { showTaxBreakdown?: boolean }).showTaxBreakdown ?? flag('showTaxBreakdown'),
+    showFooterMessage: flag('showFooterMessage'),
+    showTerms: flag('showTerms'),
+    showBarcode: flag('showBarcode'),
+    showLogoOnReceipt: flag('showLogo'),
+    headerTitle: typeof rc.headerTitle === 'string' ? rc.headerTitle : undefined,
+    termsLine1: typeof rc.termsLine1 === 'string' ? rc.termsLine1 : undefined,
+    termsLine2: typeof rc.termsLine2 === 'string' ? rc.termsLine2 : undefined,
+    termsLine3: typeof rc.termsLine3 === 'string' ? rc.termsLine3 : undefined,
   };
 }
 
@@ -133,6 +158,7 @@ export function buildTestReceiptPrintOptions(input: {
   customTemplates: CustomReceiptTemplate[];
   activeCustomTemplateId: string | null;
   enableBillQrCode: boolean;
+  enablePaymentQr?: boolean;
   topMargin: number;
   autoCut: boolean;
   fontSize: 'small' | 'medium' | 'large';
@@ -158,12 +184,14 @@ export function buildTestReceiptPrintOptions(input: {
     customTemplates: input.customTemplates,
     activeCustomTemplateId: input.activeCustomTemplateId,
     enableBillQrCode: input.enableBillQrCode,
+    enablePaymentQr: input.enablePaymentQr,
     topMargin: input.topMargin,
     autoCut: input.autoCut,
     fontSize: input.fontSize,
     receiptFont: input.receiptFont,
     compactMode: input.compactMode,
     printCopies: input.copies ?? 1,
+    receiptConfig,
     storeName: profile.storeName,
     storeAddress: profile.storeAddress,
     storePhone: profile.storePhone,

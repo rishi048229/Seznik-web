@@ -129,6 +129,7 @@ export default function DashboardScreen() {
       await Promise.allSettled([
         refetch(),
         refetchTrend(),
+        queryClient.invalidateQueries({ queryKey: ['settings'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         refetchCustomers(),
       ]);
@@ -156,6 +157,7 @@ export default function DashboardScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    enablePaymentQr,
     setConnectedPrinterModel,
     preferredPrinterModel,
     setPreferredPrinterModel,
@@ -175,6 +177,7 @@ export default function DashboardScreen() {
       customTemplates: s.customTemplates,
       activeCustomTemplateId: s.activeCustomTemplateId,
       enableBillQrCode: s.enableBillQrCode,
+      enablePaymentQr: s.enablePaymentQr,
       setConnectedPrinterModel: s.setConnectedPrinterModel,
       preferredPrinterModel: s.preferredPrinterModel,
       setPreferredPrinterModel: s.setPreferredPrinterModel,
@@ -481,6 +484,7 @@ export default function DashboardScreen() {
           customTemplates,
           activeCustomTemplateId,
           enableBillQrCode,
+          enablePaymentQr,
           topMargin,
           autoCut,
           fontSize,
@@ -1387,11 +1391,7 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* 7.5 LOW STOCK / REORDER CARD
-                  Replaced a third expense card that repeated the same today/this-month
-                  figures already shown in the Business Spending card above. Reorder is
-                  the thing a shop owner actually acts on daily, and the data was already
-                  being fetched by the dashboard query without ever being displayed. */}
+              {!restaurantMode ? (
               <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: stats.lowStockCount > 0 ? '#F59E0B' : theme.borderColor, marginBottom: 16 }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
@@ -1485,6 +1485,7 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 ) : null}
               </View>
+              ) : null}
 
               <RevenueTrendChart
                 timeframe={timeframe}

@@ -153,6 +153,7 @@ export default function ProductsScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
+  const [foodEditProduct, setFoodEditProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Product Detail View Modal State
@@ -455,6 +456,7 @@ export default function ProductsScreen() {
 
   const handleOpenAddModal = () => {
     if (kotFirst) {
+      setFoodEditProduct(null);
       setShowAddFoodModal(true);
       return;
     }
@@ -483,6 +485,11 @@ export default function ProductsScreen() {
   const handleOpenEditModal = async (p: Product) => {
     setShowDetailModal(false);
     const full = await enrichProductDetails(p);
+    if (kotFirst) {
+      setFoodEditProduct(full);
+      setShowAddFoodModal(true);
+      return;
+    }
     setEditingProduct(full);
     setName(full.name);
     setSellingPrice(String(full.sellingPrice));
@@ -2150,7 +2157,11 @@ export default function ProductsScreen() {
       {/* RESTAURANT FOOD ITEM MODAL */}
       <AddFoodItemModal
         visible={showAddFoodModal}
-        onClose={() => setShowAddFoodModal(false)}
+        productToEdit={foodEditProduct}
+        onClose={() => {
+          setShowAddFoodModal(false);
+          setFoodEditProduct(null);
+        }}
         onItemCreated={() => refetchProducts()}
       />
     </View>

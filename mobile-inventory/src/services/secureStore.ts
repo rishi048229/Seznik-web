@@ -206,6 +206,7 @@ export async function getStoredActiveTemplate(): Promise<string | null> {
 const CUSTOM_RECEIPT_TEMPLATES_KEY = 'seznik_custom_receipt_templates';
 const ACTIVE_CUSTOM_RECEIPT_KEY = 'seznik_active_custom_receipt';
 const ENABLE_BILL_QR_KEY = 'seznik_enable_bill_qr';
+const ENABLE_PAYMENT_QR_KEY = 'seznik_enable_payment_qr';
 
 export async function getStoredCustomReceiptTemplates(): Promise<any[] | null> {
   try {
@@ -290,6 +291,34 @@ export async function setStoredEnableBillQr(enabled: boolean): Promise<void> {
     }
   } catch (error) {
     console.error('Error saving enable bill qr setting:', error);
+  }
+}
+
+export async function getStoredEnablePaymentQr(): Promise<boolean> {
+  try {
+    let raw: string | null = null;
+    if (Platform.OS === 'web') {
+      raw = typeof window !== 'undefined' ? window.localStorage.getItem(ENABLE_PAYMENT_QR_KEY) : null;
+    } else {
+      raw = await SecureStore.getItemAsync(ENABLE_PAYMENT_QR_KEY);
+    }
+    return raw !== null ? raw === 'true' : false;
+  } catch {
+    return false;
+  }
+}
+
+export async function setStoredEnablePaymentQr(enabled: boolean): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(ENABLE_PAYMENT_QR_KEY, enabled ? 'true' : 'false');
+      }
+    } else {
+      await SecureStore.setItemAsync(ENABLE_PAYMENT_QR_KEY, enabled ? 'true' : 'false');
+    }
+  } catch (error) {
+    console.error('Error saving enable payment qr setting:', error);
   }
 }
 

@@ -6,6 +6,7 @@ import { mergePrinterConfig, type PrinterConfigLike } from '../utils/mergePrinte
 import { enrichSettingsWithUserProfile } from '../utils/enrichSettingsProfile';
 import { ensureAdditiveSchema, resetAdditiveSchemaCache } from '../utils/ensureAdditiveSchema';
 import { handleApiError } from '../utils/apiErrorHandler';
+import { validateImagePayloads } from '../utils/mediaPayloadLimits';
 
 const USER_PROFILE_SELECT = {
   businessName: true,
@@ -118,6 +119,8 @@ export const createSettings = async (req: Request, res: Response) => {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
     const data = sanitizeSettingsData(req.body || {});
+    const imageErr = validateImagePayloads(data);
+    if (imageErr) return res.status(400).json({ error: imageErr });
     if (data.printerConfig) {
       data.printerConfig = await resolveMergedPrinterConfig(userId, data.printerConfig);
     }
@@ -157,6 +160,8 @@ export const updateSettings = async (req: Request, res: Response) => {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
     const data = sanitizeSettingsData(req.body || {});
+    const imageErr = validateImagePayloads(data);
+    if (imageErr) return res.status(400).json({ error: imageErr });
     if (data.printerConfig) {
       data.printerConfig = await resolveMergedPrinterConfig(userId, data.printerConfig);
     }
@@ -167,7 +172,14 @@ export const updateSettings = async (req: Request, res: Response) => {
         data.receiptConfig as ReceiptConfigLike
       );
     }
-    
+    if (data.kotConfig && typeof data.kotConfig === 'object') {
+      const current = await prisma.settings.findUnique({ where: { userId } });
+      const prev = (current?.kotConfig && typeof current.kotConfig === 'object'
+        ? current.kotConfig
+        : {}) as Record<string, unknown>;
+      data.kotConfig = { ...prev, ...data.kotConfig };
+    }
+
     const settings = await withSettingsSchema(() =>
       prisma.settings.upsert({
         where: { userId },
@@ -236,6 +248,8 @@ export const updateReceiptConfig = async (req: Request, res: Response) => {
     const rawUserId = (req as any).user.id;
     const userId = await getOwnerUserId(rawUserId);
     const patch = (req.body?.receiptConfig ?? req.body) as ReceiptConfigLike;
+    const imageErr = validateImagePayloads({ receiptConfig: patch });
+    if (imageErr) return res.status(400).json({ error: imageErr });
 
     const current = await prisma.settings.findUnique({ where: { userId } });
     const existing = (current?.receiptConfig ?? {}) as ReceiptConfigLike;

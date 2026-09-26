@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { Utensils, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { useCreateProduct } from '@/hooks/useProducts'
+import { useCreateProduct, useUpdateProduct } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import type { Product } from '@/types/product.types'
 
@@ -12,6 +12,7 @@ interface AddFoodItemModalProps {
   isOpen: boolean
   onClose: () => void
   onItemCreated?: (productId: string) => void
+  editingProduct?: Product | null
 }
 
 type FoodDietaryType = 'veg' | 'non_veg' | 'egg'
@@ -37,9 +38,11 @@ const KITCHEN_STATIONS = [
   'Bakery & Dessert',
 ]
 
-export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated }: AddFoodItemModalProps) => {
-  const { mutateAsync: createProduct, isPending } = useCreateProduct()
+export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated, editingProduct }: AddFoodItemModalProps) => {
+  const { mutateAsync: createProduct, isPending: isCreating } = useCreateProduct()
+  const { mutateAsync: updateProduct, isPending: isUpdating } = useUpdateProduct()
   const { data: categories = [] } = useCategories()
+  const isEdit = Boolean(editingProduct?.id)
 
   const [name, setName] = useState('')
   const [dietaryType, setDietaryType] = useState<FoodDietaryType>('veg')
@@ -50,22 +53,36 @@ export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated }: AddFoodItem
   const [taxRate, setTaxRate] = useState('5')
   const [kitchenStation, setKitchenStation] = useState(KITCHEN_STATIONS[0])
   const [preparationTime, setPreparationTime] = useState('10')
+  const [isAvailable, setIsAvailable] = useState(true)
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (editingProduct) {
+      setName(editingProduct.name || '')
+      setPrice(String(editingProduct.sellingPrice ?? ''))
+      setCostPrice(String(editingProduct.costPrice ?? ''))
+      setTaxRate(String(editingProduct.taxRate ?? 5))
+      setUnitLabel(editingProduct.unit || 'Plate')
+      setIsAvailable(editingProduct.isAvailable !== false && editingProduct.isActive !== false)
+      const cat = categories.find((c) => c.id === editingProduct.categoryId)
+      if (cat?.name) setCategoryName(cat.name)
+    } else {
+      setName('')
+      setPrice('')
+      setCostPrice('')
+      setDietaryType('veg')
+      setCategoryName(FOOD_CATEGORIES[0])
+      setUnitLabel('Plate')
+      setTaxRate('5')
+      setKitchenStation(KITCHEN_STATIONS[0])
+      setPreparationTime('10')
+      setIsAvailable(true)
+    }
+  }, [isOpen, editingProduct, categories])
 
   if (!isOpen) return null
 
-  const resetForm = () => {
-    setName('')
-    setPrice('')
-    setCostPrice('')
-    setDietaryType('veg')
-    setCategoryName(FOOD_CATEGORIES[0])
-    setUnitLabel('Plate')
-    setTaxRate('5')
-    setKitchenStation(KITCHEN_STATIONS[0])
-    setPreparationTime('10')
-  }
-
-  const handleCreate = async () => {
+  const handleSave = async () => {
     const trimmedName = name.trim()
     const sellingPrice = parseFloat(price)
     if (!trimmedName) {
@@ -87,32 +104,40 @@ export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated }: AddFoodItem
     const dietaryLabel =
       dietaryType === 'veg' ? 'Veg' : dietaryType === 'egg' ? 'Egg' : 'Non-veg'
 
+    const payload: Partial<Product> = {
+      name: trimmedName,
+      categoryId,
+      costPrice: parseFloat(costPrice) || 0,
+      sellingPrice,
+      taxRate: parseFloat(taxRate) || 0,
+      priceIncludesGst: true,
+      currentStock: 0,
+      lowStockThreshold: 0,
+      unit: 'piece',
+      isActive: isAvailable,
+      isAvailable,
+      description: `${dietaryLabel} · ${unitLabel} · ${kitchenStation} · Prep ${parseInt(preparationTime, 10) || 10} min`,
+    }
+
     try {
-      const payload: Omit<Product, 'id' | 'sku' | 'createdAt' | 'updatedAt'> = {
-        name: trimmedName,
-        categoryId,
-        costPrice: parseFloat(costPrice) || 0,
-        sellingPrice,
-        taxRate: parseFloat(taxRate) || 0,
-        priceIncludesGst: true,
-        // Prepared on demand — no stock gating in KOT
-        currentStock: 0,
-        lowStockThreshold: 0,
-        unit: 'piece',
-        isActive: true,
-        isAvailable: true,
-        description: `${dietaryLabel} · ${unitLabel} · ${kitchenStation} · Prep ${parseInt(preparationTime, 10) || 10} min`,
+      if (isEdit && editingProduct?.id) {
+        await updateProduct({ productId: editingProduct.id, data: payload })
+        onClose()
+        onItemCreated?.(editingProduct.id)
+        toast.success(`"${trimmedName}" updated on your menu`)
+        return
       }
 
-      const productId = await createProduct(payload)
-      resetForm()
+      const createdId = await createProduct(payload as Omit<Product, 'id' | 'sku' | 'createdAt' | 'updatedAt'>)
       onClose()
-      onItemCreated?.(productId)
+      onItemCreated?.(createdId)
       toast.success(`"${trimmedName}" is live on your menu`)
     } catch (err) {
-      toastError(err, 'Could not create food item')
+      toastError(err, isEdit ? 'Could not update food item' : 'Could not create food item')
     }
   }
+
+  const busy = isCreating || isUpdating
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
@@ -123,7 +148,9 @@ export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated }: AddFoodItem
               <Utensils size={18} />
             </span>
             <div className="min-w-0">
-              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Add Food / Menu Item</h3>
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                {isEdit ? 'Edit menu item' : 'Add food / menu item'}
+              </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 Quick setup for kitchens, cafes & food stalls
               </p>
@@ -168,7 +195,7 @@ export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated }: AddFoodItem
                   className={`py-2 rounded-xl text-xs font-bold border ${
                     dietaryType === opt.id
                       ? opt.active
-                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
                   }`}
                 >
                   {opt.label}
@@ -177,117 +204,63 @@ export const AddFoodItemModal = ({ isOpen, onClose, onItemCreated }: AddFoodItem
             </div>
           </div>
 
-          <div>
-            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Category</p>
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-              {FOOD_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoryName(cat)}
-                  className={`shrink-0 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border ${
-                    categoryName === cat
-                      ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Category</label>
+              <select
+                className="mt-1.5 w-full h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 text-sm"
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
+              >
+                {FOOD_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Serving unit</p>
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-              {FOOD_UNITS.map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => setUnitLabel(u)}
-                  className={`shrink-0 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border ${
-                    unitLabel === u
-                      ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {u}
-                </button>
-              ))}
+            <div>
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Unit</label>
+              <select
+                className="mt-1.5 w-full h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 text-sm"
+                value={unitLabel}
+                onChange={(e) => setUnitLabel(e.target.value)}
+              >
+                {FOOD_UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Selling price *</label>
-              <Input
-                className="mt-1.5 h-10"
-                inputMode="decimal"
-                placeholder="120"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-              />
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Selling price (₹) *</label>
+              <Input className="mt-1.5 h-10" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Cost (optional)</label>
-              <Input
-                className="mt-1.5 h-10"
-                inputMode="decimal"
-                placeholder="0"
-                value={costPrice}
-                onChange={(e) => setCostPrice(e.target.value)}
-              />
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Cost price (₹)</label>
+              <Input className="mt-1.5 h-10" type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">GST %</label>
-              <Input
-                className="mt-1.5 h-10"
-                inputMode="decimal"
-                value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Prep minutes</label>
-              <Input
-                className="mt-1.5 h-10"
-                inputMode="numeric"
-                value={preparationTime}
-                onChange={(e) => setPreparationTime(e.target.value)}
-              />
-            </div>
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5">
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Available on menu</span>
+            <button
+              type="button"
+              onClick={() => setIsAvailable((v) => !v)}
+              className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                isAvailable ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
+              }`}
+            >
+              {isAvailable ? 'Available' : 'Hidden'}
+            </button>
           </div>
 
-          <div>
-            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Kitchen station</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {KITCHEN_STATIONS.map((station) => (
-                <button
-                  key={station}
-                  type="button"
-                  onClick={() => setKitchenStation(station)}
-                  className={`py-2 px-2 rounded-xl text-[11px] font-semibold border text-left ${
-                    kitchenStation === station
-                      ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {station}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="sticky bottom-0 flex gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-          <Button variant="outline" className="flex-1" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button className="flex-1 bg-[#0a0a2e] hover:bg-[#1a1555]" loading={isPending} onClick={() => void handleCreate()}>
-            Add to menu
+          <Button className="w-full" onClick={handleSave} loading={busy} disabled={busy}>
+            {isEdit ? 'Save menu item' : 'Add to menu'}
           </Button>
         </div>
       </div>

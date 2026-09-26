@@ -48,7 +48,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useSettings, setCachedSettings } from '@/hooks/useSettings';
 import { resolveStoreProfile } from '@/hooks/useStoreProfile';
 import { settingsApi, Settings } from '@/api/settings';
-import { persistBusinessLogo, clearPersistedBusinessLogo } from '@/utils/businessLogoStorage';
+import { persistBusinessLogo, clearPersistedBusinessLogo, resolveBusinessLogoUri } from '@/utils/businessLogoStorage';
 import { useTranslation } from '@/store/useLanguageStore';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '@/constants/translations';
 import { BRAND_COLORS } from '@/constants/theme';
@@ -78,10 +78,17 @@ export default function SettingsScreen() {
 
   // Same flag the Printers screen edits, so the payment-QR setting is one value wherever it is
   // shown. setEnableBillQrCode persists it to the backend itself.
-  const { enableBillQrCode, setEnableBillQrCode } = usePrinterStore(
+  const {
+    enableBillQrCode,
+    setEnableBillQrCode,
+    enablePaymentQr,
+    setEnablePaymentQr,
+  } = usePrinterStore(
     useShallow((s) => ({
       enableBillQrCode: s.enableBillQrCode,
       setEnableBillQrCode: s.setEnableBillQrCode,
+      enablePaymentQr: s.enablePaymentQr,
+      setEnablePaymentQr: s.setEnablePaymentQr,
     }))
   );
 
@@ -115,8 +122,12 @@ export default function SettingsScreen() {
         setStoreAddress(profile.storeAddress || '');
       }
       const resolvedLogo = profile.storeLogoUrl || settings?.businessLogoURL || null;
-      if (!userEditedRef.current.logoUri) {
-        setLogoUri(resolvedLogo);
+      if (!userEditedRef.current.logoUri && resolvedLogo) {
+        void resolveBusinessLogoUri(resolvedLogo).then((uri) => {
+          if (uri) setLogoUri(uri);
+        });
+      } else if (!userEditedRef.current.logoUri) {
+        setLogoUri(null);
       }
       const resolvedUpi = profile.upiId || settings?.upiId || '';
       if (!userEditedRef.current.upiId) {
@@ -144,7 +155,14 @@ export default function SettingsScreen() {
         setStoreAddress(profile.storeAddress || '');
       }
       if (!userEditedRef.current.logoUri) {
-        setLogoUri(profile.storeLogoUrl || settings?.businessLogoURL || null);
+        const raw = profile.storeLogoUrl || settings?.businessLogoURL || null;
+        if (raw) {
+          void resolveBusinessLogoUri(raw).then((uri) => {
+            if (uri) setLogoUri(uri);
+          });
+        } else {
+          setLogoUri(null);
+        }
       }
       if (!userEditedRef.current.upiId) {
         setUpiId(profile.upiId || settings?.upiId || '');
@@ -898,11 +916,28 @@ export default function SettingsScreen() {
                       the Printers screen uses, so the two never disagree. */}
                   <View style={[styles.qrToggleRow, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#18181B' : '#F8FAFC' }]}>
                     <View style={{ flex: 1, marginRight: 12 }}>
-                      <Text style={[styles.qrToggleLabel, { color: theme.textPrimary }]}>Print payment QR on bills</Text>
+                      <Text style={[styles.qrToggleLabel, { color: theme.textPrimary }]}>Payment QR (UPI)</Text>
+                      <Text style={[styles.helperText, { color: theme.textSecondary, fontSize: 11 }]}>
+                        {enablePaymentQr
+                          ? 'Printed bills include a UPI QR encoded with the exact amount.'
+                          : 'No payment QR on printed bills.'}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={enablePaymentQr}
+                      onValueChange={setEnablePaymentQr}
+                      trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+
+                  <View style={[styles.qrToggleRow, { borderColor: theme.borderColor, backgroundColor: theme.isDark ? '#18181B' : '#F8FAFC', marginTop: 10 }]}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={[styles.qrToggleLabel, { color: theme.textPrimary }]}>Online bill / PDF QR</Text>
                       <Text style={[styles.helperText, { color: theme.textSecondary, fontSize: 11 }]}>
                         {enableBillQrCode
-                          ? 'Every printed bill carries a scannable UPI QR for its exact amount.'
-                          : 'Bills print without a payment QR.'}
+                          ? 'Customers can scan to view or download the digital receipt.'
+                          : 'No online bill link QR on receipts.'}
                       </Text>
                     </View>
                     <Switch

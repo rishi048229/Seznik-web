@@ -265,6 +265,26 @@ export async function dispatchLocalStockNotification(params: {
   }
 }
 
+/** Surfaces a remote print job outside the app when push delivery is delayed or denied. */
+export async function dispatchRemotePrintLocalNotification(params: {
+  printJobId: string;
+  title: string;
+  body: string;
+  jobType?: 'receipt' | 'kot';
+}): Promise<string | null> {
+  return dispatchSystemNotification({
+    title: params.title,
+    body: params.body,
+    type: 'remote_print_job',
+    channelId: 'remote-print',
+    data: {
+      printJobId: params.printJobId,
+      jobType: params.jobType || 'receipt',
+      screen: `/print-jobs/${params.printJobId}`,
+    },
+  });
+}
+
 /**
  * Dispatches an instant or scheduled system notification.
  */

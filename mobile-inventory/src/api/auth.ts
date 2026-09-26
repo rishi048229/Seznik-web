@@ -27,6 +27,11 @@ export const authApi = {
     });
   },
 
+  lookupAgentNames: async (email: string) => {
+    const q = encodeURIComponent(email.trim());
+    return fetchApi<{ existingAgents?: string[] }>(`/auth/agent/names?email=${q}`, { method: 'GET' });
+  },
+
   requestAgentOtp: async (email: string) => {
     return fetchApi<{ message?: string; existingAgents?: string[] }>('/auth/agent/request-otp', {
       method: 'POST',

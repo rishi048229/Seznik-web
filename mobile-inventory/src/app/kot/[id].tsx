@@ -36,6 +36,7 @@ import {
   FileText,
   RefreshCw,
   UserCheck,
+  Send,
 } from 'lucide-react-native';
 import { useKotOrder, useKotOrders } from '@/hooks/useKotOrders';
 import { kotOrdersApi } from '@/api/kotOrders';
@@ -59,8 +60,11 @@ import { parseGstBilling, gstPrintOptionOverrides } from '@/constants/gstBilling
 import { printInvoiceReceipt } from '@/utils/invoiceActions';
 import { AddFoodItemModal } from '@/components/kot/AddFoodItemModal';
 import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal';
+import { RemotePrintSendKotModal } from '@/components/printers/RemotePrintSendKotModal';
 import { Sale } from '@/types/sale';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
+import { useAuthStore } from '@/store/useAuthStore';
+import { salesApi } from '@/api/sales';
 
 const VOID_REASONS = [
   'Guest cancelled',
@@ -89,6 +93,7 @@ export default function KotOrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, 14);
 
+  const canSendRemotePrint = useAuthStore((s) => s.hasPermission('canSendRemotePrint'));
   const { order, isLoading, isRefetching, isError, refetch } = useKotOrder(id);
   const { updateStatus, editOrder, generateBill, isEditing, isGeneratingBill } = useKotOrders(
     undefined,
@@ -106,6 +111,7 @@ export default function KotOrderDetailScreen() {
     customTemplates,
     activeCustomTemplateId,
     enableBillQrCode,
+    enablePaymentQr,
     topMargin,
     autoCut,
     fontSize,
@@ -118,6 +124,7 @@ export default function KotOrderDetailScreen() {
     customTemplates: s.customTemplates,
     activeCustomTemplateId: s.activeCustomTemplateId,
     enableBillQrCode: s.enableBillQrCode,
+    enablePaymentQr: s.enablePaymentQr,
     topMargin: s.topMargin,
     autoCut: s.autoCut,
     fontSize: s.fontSize,
@@ -154,6 +161,7 @@ export default function KotOrderDetailScreen() {
 
   // Bill just settled here — a remote print job is addressed to this saved sale.
   const [remotePrintSale, setRemotePrintSale] = useState<Sale | null>(null);
+  const [remoteKotVisible, setRemoteKotVisible] = useState(false);
 
   // Settlement / Bill Checkout Modal
   const [showSettleModal, setShowSettleModal] = useState(false);
@@ -203,6 +211,16 @@ export default function KotOrderDetailScreen() {
   };
 
   // Full KOT Kitchen Slip Print / Reprint
+  const handleRemotePrintSettledBill = async () => {
+    if (!order?.sale?.id) return;
+    try {
+      const sale = await salesApi.getSaleById(order.sale.id);
+      setRemotePrintSale(sale);
+    } catch (err: any) {
+      Alert.alert('Could not load bill', sanitizeErrorMessage(err, 'Try again from Sales.'));
+    }
+  };
+
   const handlePrintKitchenSlip = async () => {
     if (!order) return;
     try {
@@ -422,6 +440,7 @@ export default function KotOrderDetailScreen() {
               template,
               customTemplate,
               includeBillQr: enableBillQrCode,
+              includePaymentQr: enablePaymentQr,
               topMargin,
               autoCut,
               fontSize,
@@ -532,6 +551,15 @@ export default function KotOrderDetailScreen() {
                 <Printer size={15} color={BRAND_COLORS.blue600} />
                 <Text style={styles.printSlipBtnText}>Print KOT</Text>
               </TouchableOpacity>
+              {canSendRemotePrint && order.status !== 'cancelled' ? (
+                <TouchableOpacity
+                  onPress={() => setRemoteKotVisible(true)}
+                  style={[styles.printSlipBtn, { backgroundColor: 'rgba(234, 88, 12, 0.12)', borderColor: 'rgba(234, 88, 12, 0.35)' }]}
+                >
+                  <Send size={14} color="#EA580C" />
+                  <Text style={[styles.printSlipBtnText, { color: '#EA580C' }]}>Remote KOT</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
 
@@ -889,11 +917,22 @@ export default function KotOrderDetailScreen() {
               <Text style={styles.settleBtnText}>Generate Bill & Checkout ({formatCurrency(liveSubtotal)})</Text>
             </TouchableOpacity>
           ) : order.sale ? (
-            <View style={[styles.billedBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
-              <CheckCircle2 size={20} color="#10B981" />
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#10B981', marginLeft: 8 }}>
-                Billed on Invoice #{order.sale.invoiceNumber}
-              </Text>
+            <View>
+              <View style={[styles.billedBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+                <CheckCircle2 size={20} color="#10B981" />
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#10B981', marginLeft: 8 }}>
+                  Billed on Invoice #{order.sale.invoiceNumber}
+                </Text>
+              </View>
+              {canSendRemotePrint ? (
+                <TouchableOpacity
+                  onPress={() => void handleRemotePrintSettledBill()}
+                  style={[styles.settleBtn, { backgroundColor: BRAND_COLORS.blue600, marginTop: 10 }]}
+                >
+                  <Send size={16} color="#FFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.settleBtnText}>Send Settled Bill to Agent</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : null}
         </ScrollView>
@@ -1219,6 +1258,16 @@ export default function KotOrderDetailScreen() {
             Alert.alert('Sent to agent', 'They will get a notification to accept and print this bill.', [
               { text: 'OK', onPress: () => router.replace('/kot' as any) },
             ]);
+          }}
+        />
+
+        <RemotePrintSendKotModal
+          visible={remoteKotVisible}
+          order={order}
+          onClose={() => setRemoteKotVisible(false)}
+          onSent={() => {
+            setRemoteKotVisible(false);
+            Alert.alert('KOT sent', 'Your teammate will get a notification to print this ticket.');
           }}
         />
 
