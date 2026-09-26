@@ -32,10 +32,10 @@ export const authApi = {
     return fetchApi<{ existingAgents?: string[] }>(`/auth/agent/names?email=${q}`, { method: 'GET' });
   },
 
-  requestAgentOtp: async (email: string) => {
+  requestAgentOtp: async (email: string, agentDisplayName?: string) => {
     return fetchApi<{ message?: string; existingAgents?: string[] }>('/auth/agent/request-otp', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, agentDisplayName: agentDisplayName?.trim() || undefined }),
     });
   },
 

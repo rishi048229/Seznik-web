@@ -71,6 +71,48 @@ export const sendOtpEmail = async (to: string, otp: string): Promise<void> => {
   });
 };
 
+/** Store owner inbox — agent login OTP (distinct from signup verification). */
+export const sendAgentLoginOtpEmail = async (
+  to: string,
+  otp: string,
+  params: { agentDisplayName: string; storeName?: string }
+): Promise<void> => {
+  const transporter = getTransporter();
+  const user = process.env.SMTP_USER || '';
+  const from = process.env.SMTP_FROM || `"Seznik POS" <${user}>`;
+  const agentName = params.agentDisplayName.trim() || 'An agent';
+  const storeLabel = (params.storeName || 'your store').trim();
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: `${agentName} is requesting agent login — code ${otp}`,
+    text: `${agentName} is asking for a one-time code to sign in to ${storeLabel} on Seznik POS.\n\nCode: ${otp}\n\nThis code expires in 10 minutes. If you did not expect this, ignore this email and check who has access to your store.`,
+    html: `
+      <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111827;">
+        <div style="text-align:center;padding:16px 0;">
+          <div style="display:inline-block;padding:10px 18px;border-radius:12px;background:linear-gradient(135deg,#0a0a2e,#2563eb);color:#ffffff;font-size:18px;font-weight:bold;">
+            SEZNIK POS — AGENT LOGIN
+          </div>
+        </div>
+        <h2 style="text-align:center;margin:16px 0 8px;">Agent sign-in request</h2>
+        <p style="text-align:center;color:#374151;font-size:15px;line-height:1.5;margin:0 0 20px;">
+          <strong>${agentName}</strong> is requesting a login code for <strong>${storeLabel}</strong>.
+          Share this code only if you trust this person to access your store account.
+        </p>
+        <div style="text-align:center;margin:24px 0;">
+          <span style="display:inline-block;padding:14px 28px;border-radius:12px;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;font-size:30px;font-weight:bold;letter-spacing:8px;">
+            ${otp}
+          </span>
+        </div>
+        <p style="text-align:center;color:#6b7280;font-size:13px;">
+          Expires in <strong>10 minutes</strong>. Not you? Ignore this email.
+        </p>
+      </div>
+    `,
+  });
+};
+
 export const sendPasswordResetOtpEmail = async (to: string, otp: string): Promise<void> => {
   const transporter = getTransporter();
   const user = process.env.SMTP_USER;

@@ -162,10 +162,13 @@ export const lookupAgentNames = async (email: string): Promise<{ existingAgents?
   return fetchApi(`/auth/agent/names?email=${q}`, { method: 'GET' })
 }
 
-export const requestAgentOtp = async (email: string): Promise<{ message?: string; existingAgents?: string[] }> => {
+export const requestAgentOtp = async (
+  email: string,
+  agentDisplayName?: string
+): Promise<{ message?: string; existingAgents?: string[] }> => {
   return fetchApi('/auth/agent/request-otp', {
     method: 'POST',
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, agentDisplayName: agentDisplayName?.trim() || undefined }),
   })
 }
 

@@ -57,6 +57,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-notifications",
       "expo-updates",
       "expo-router",
       [

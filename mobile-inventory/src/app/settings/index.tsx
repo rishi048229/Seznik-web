@@ -506,10 +506,14 @@ export default function SettingsScreen() {
                       </Text>
                       <TouchableOpacity
                         style={[styles.secondaryActionBtn, { borderColor: theme.borderColor }]}
-                        onPress={() => {
-                          triggerClosedAppTestPush(3).then((ok) => {
-                            Alert.alert(ok ? 'Scheduled' : 'Failed', ok ? 'Low-stock sample in ~3s (lock screen + in-app).' : 'Could not schedule test.');
-                          });
+                        onPress={async () => {
+                          const ok = await triggerClosedAppTestPush(2);
+                          Alert.alert(
+                            ok ? 'Scheduled' : 'Notifications unavailable',
+                            ok
+                              ? 'Sample alert in ~2s in the notification shade. If nothing appears, allow Notifications for Seznik and install the latest OTA APK with expo-notifications.'
+                              : 'This build may not include the notifications module yet, or permission was denied. Install the newest APK, allow notifications, then try again.'
+                          );
                         }}
                       >
                         <Text style={{ fontWeight: '700', color: BRAND_COLORS.blue600 }}>Test local low-stock alert</Text>

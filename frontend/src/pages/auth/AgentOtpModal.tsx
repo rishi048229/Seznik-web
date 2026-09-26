@@ -30,9 +30,13 @@ export function AgentOtpModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const send = async () => {
     setError('')
+    if (!name.trim()) {
+      setError('Enter your agent name first — the store owner email will say who is requesting the code.')
+      return
+    }
     setLoading(true)
     try {
-      const res = await requestAgentOtp(email.trim())
+      const res = await requestAgentOtp(email.trim(), name.trim())
       setExisting(res.existingAgents || [])
       setCodeSent(true)
     } catch (err: any) {

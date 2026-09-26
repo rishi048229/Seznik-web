@@ -34,6 +34,17 @@ Requires [EAS CLI](https://docs.expo.dev/eas-update/getting-started/) and `eas l
 - Kill and reopen the app twice (first launch may download; second applies).
 - Expo dashboard → project **seznik-app** → Updates.
 
+## Push notifications (not the same as OTA)
+
+- **OTA** = JavaScript/UI updates via Expo Updates.
+- **Push alerts** (low stock, test button, remote print) need:
+  1. **`expo-notifications`** in the APK (plugin in `app.json` — requires a **new native build** after adding it).
+  2. User grants **Notifications** permission (Android 13+: `POST_NOTIFICATIONS`).
+  3. **Login once** so the app registers an Expo push token with the backend.
+  4. **FCM (Firebase)** for reliable remote push on standalone Android: add `google-services.json` via [Expo FCM credentials](https://docs.expo.dev/push-notifications/fcm-credentials/) (EAS Build handles this automatically; local Gradle APKs need FCM configured manually).
+
+**Settings → Alerts → Test local** uses the device notification tray (works without FCM). **Test push** uses Expo’s servers and needs steps 1–4 above.
+
 ## EC2 backend
 
 OTA does **not** deploy the API. Backend deploy: `DEPLOY_AWS.md` or `backend/scripts/ec2-deploy-ubuntu.sh` as user **ubuntu**.

@@ -6387,6 +6387,12 @@ class ThermalPrinterServiceManager {
 
     const effectiveOptions: ReceiptPrintOptions = {
       ...options,
+      includePaymentQr:
+        options.includePaymentQr !== undefined
+          ? options.includePaymentQr
+          : printerState.enablePaymentQr,
+      includeBillQr:
+        options.includeBillQr !== undefined ? options.includeBillQr : printerState.enableBillQrCode,
       template: options.template || this.resolveActiveTemplate(options),
       customTemplate:
         options.customTemplate !== undefined

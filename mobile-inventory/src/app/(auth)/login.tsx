@@ -113,8 +113,13 @@ export default function LoginScreen() {
   const sendAgentCode = async () => {
     setAgentBusy(true);
     setApiError(null);
+    if (!agentName.trim()) {
+      setApiError('Enter your agent name first. The store email will show who is requesting login.');
+      setAgentBusy(false);
+      return;
+    }
     try {
-      const res = await authApi.requestAgentOtp(agentEmail.trim());
+      const res = await authApi.requestAgentOtp(agentEmail.trim(), agentName.trim());
       setAgentNames(res.existingAgents || []);
       setAgentCodeSent(true);
     } catch (err: any) {

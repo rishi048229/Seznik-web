@@ -475,7 +475,15 @@ router.post('/test-push', protect, async (req: any, res: any) => {
       data: msg.data,
       channelId: 'inventory-alerts',
     });
-    return res.json({ success: sent, kind });
+    return res.json({
+      success: sent.success,
+      sentCount: sent.sentCount,
+      kind,
+      hint:
+        sent.sentCount === 0
+          ? 'No Expo push token on file. Open the mobile app, allow notifications, and log in once.'
+          : undefined,
+    });
   } catch (err) {
     console.error('[NotificationRoute] /test-push error:', err);
     return res.status(500).json({ error: 'Failed to send test push' });

@@ -4,7 +4,7 @@ import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
 import { generateUserId, resolveRegistrationPlatform } from '../utils/userId';
-import { sendOtpEmail, sendPasswordResetOtpEmail } from '../services/emailService';
+import { sendOtpEmail, sendPasswordResetOtpEmail, sendAgentLoginOtpEmail } from '../services/emailService';
 import { isValidBusinessType } from '../constants/businessTypes';
 import { syncTrackStockForUser } from '../utils/stockTracking';
 import { isValidUpiVpa } from '../utils/upiVpa';
@@ -1515,7 +1515,11 @@ export const requestAgentOtp = async (req: Request, res: Response) => {
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ error: 'Enter the store email this agent belongs to' });
     }
-    const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true } });
+    const agentDisplayName = String(req.body.agentDisplayName || req.body.displayName || '').trim();
+    const owner = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, businessName: true, displayName: true },
+    });
     if (!owner) {
       return res.status(404).json({ error: 'No store is registered with that email' });
     }
@@ -1528,9 +1532,14 @@ export const requestAgentOtp = async (req: Request, res: Response) => {
       create: { email, codeHash, expiresAt },
       update: { codeHash, expiresAt, attempts: 0, verifiedAt: null },
     });
-    console.log(`\n🔑 [AGENT OTP]: ${otp} for ${email}\n`);
+    const storeName =
+      String(owner.businessName || owner.displayName || '').trim() || email.split('@')[0];
+    console.log(`\n🔑 [AGENT OTP]: ${otp} for ${email} (agent: ${agentDisplayName || 'unknown'})\n`);
     try {
-      await sendOtpEmail(email, otp);
+      await sendAgentLoginOtpEmail(email, otp, {
+        agentDisplayName: agentDisplayName || 'An agent',
+        storeName,
+      });
     } catch (err) {
       console.error('agent OTP email failed', err);
     }
