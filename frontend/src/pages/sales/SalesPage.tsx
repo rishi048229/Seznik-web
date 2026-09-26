@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useSales, useBulkDeleteSales, useUpdateSaleDeliveryStatus, useDeliveryReminders } from '@/hooks/useSales'
 import { useSettings } from '@/hooks/useSettings'
 import { useCustomers } from '@/hooks/useCustomers'
-import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth, Truck, User, Clock, CheckCircle2, AlertCircle, Bell, Send } from 'lucide-react'
+import { Eye, Printer, Trash2, CheckSquare, Square, FileText, Download, Bluetooth, Truck, User, Clock, CheckCircle2, AlertCircle, Bell, Send, ShieldCheck, UserCheck } from 'lucide-react'
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon'
 import { formatINR } from '@/utils/currency'
 import { generateReceiptHTML, generateReceiptEscPos, printReceipt, resolveEffectiveReceiptConfig } from '@/utils/receipt'
@@ -35,6 +35,23 @@ export const SalesPage = () => {
   const { data: customers } = useCustomers()
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all')
   const [orderTypeFilter, setOrderTypeFilter] = useState<'all' | 'walk_in' | 'delivery'>('all')
+  const [creatorFilter, setCreatorFilter] = useState<'all' | 'admin' | 'agent' | 'remote'>('all')
+
+  const creatorStats = useMemo(() => {
+    const list = sales ?? []
+    const sum = (rows: Sale[]) => rows.reduce((a, s) => a + (s.grandTotal || 0), 0)
+    const admin = list.filter(
+      s => (s as Sale & { createdByRole?: string }).createdByRole === 'admin' || (!(s as Sale & { createdByRole?: string }).createdByRole && !s.isRemotePrint)
+    )
+    const agent = list.filter(s => (s as Sale & { createdByRole?: string }).createdByRole === 'agent')
+    const remote = list.filter(s => s.isRemotePrint)
+    return {
+      all: { count: list.length, total: sum(list) },
+      admin: { count: admin.length, total: sum(admin) },
+      agent: { count: agent.length, total: sum(agent) },
+      remote: { count: remote.length, total: sum(remote) },
+    }
+  }, [sales])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [printSaleId, setPrintSaleId] = useState<string | null>(null)
   const [remotePrintSaleId, setRemotePrintSaleId] = useState<string | null>(null)
@@ -189,6 +206,11 @@ export const SalesPage = () => {
     if (orderTypeFilter !== 'all' && (sale.orderType || 'walk_in') !== orderTypeFilter) {
       return false
     }
+
+    const role = (sale as Sale & { createdByRole?: string }).createdByRole
+    if (creatorFilter === 'admin' && !(role === 'admin' || (!role && !sale.isRemotePrint))) return false
+    if (creatorFilter === 'agent' && role !== 'agent') return false
+    if (creatorFilter === 'remote' && !sale.isRemotePrint) return false
 
     if (dateFilter === 'all') return true
     const rawDate = sale.createdAt as unknown as { toDate?: () => Date }
@@ -586,6 +608,44 @@ export const SalesPage = () => {
           </div>
         }
       />
+
+      <div className="mb-4 space-y-2">
+        <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Segregate bills</p>
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          {([
+            { id: 'all' as const, label: 'All Bills', ...creatorStats.all, icon: null, color: 'bg-slate-800' },
+            { id: 'admin' as const, label: 'Admin', ...creatorStats.admin, icon: ShieldCheck, color: 'bg-amber-600' },
+            { id: 'agent' as const, label: 'Agent / Staff', ...creatorStats.agent, icon: UserCheck, color: 'bg-violet-600' },
+            { id: 'remote' as const, label: 'Remote Prints', ...creatorStats.remote, icon: Send, color: 'bg-sky-600' },
+          ]).map(seg => {
+            const active = creatorFilter === seg.id
+            const Icon = seg.icon
+            return (
+              <button
+                key={seg.id}
+                type="button"
+                onClick={() => setCreatorFilter(seg.id)}
+                className={`shrink-0 min-w-[140px] rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
+                  active
+                    ? `${seg.color} border-transparent text-white shadow-sm`
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold">
+                  {Icon ? <Icon size={13} /> : null}
+                  <span>{seg.label}</span>
+                  <span className={`ml-auto rounded-md px-1.5 py-0.5 text-[10px] ${active ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                    {seg.count}
+                  </span>
+                </div>
+                <div className={`text-sm font-black mt-1 ${active ? 'text-white/95' : 'text-blue-600'}`}>
+                  {formatINR(seg.total)}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       <Card className="p-4">
         <DataTable

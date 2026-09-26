@@ -308,111 +308,6 @@ export default function SalesHistoryScreen() {
             </View>
           </View>
 
-          {/* Search Box */}
-          <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Search size={16} color={theme.textSecondary} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder={t('searchCustomerPlaceholder', 'Search invoice number or customer...')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.searchInput, { color: theme.textPrimary }]}
-            />
-            {searchQuery ? (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <X size={16} color={theme.textSecondary} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          {/* Creator Segregation Pills */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-            style={{ flexGrow: 0, marginBottom: 10 }}
-          >
-            {[
-              { id: 'all' as const, label: 'All Bills', count: creatorStats.all.count, total: creatorStats.all.total, icon: null },
-              { id: 'admin' as const, label: 'Admin', count: creatorStats.admin.count, total: creatorStats.admin.total, icon: ShieldCheck, color: '#D97706' },
-              { id: 'agent' as const, label: 'Agent / Staff', count: creatorStats.agent.count, total: creatorStats.agent.total, icon: UserCheck, color: '#7C3AED' },
-              { id: 'remote' as const, label: 'Remote Prints', count: creatorStats.remote.count, total: creatorStats.remote.total, icon: Send, color: '#0284C7' },
-            ].map((seg) => {
-              const active = creatorFilter === seg.id;
-              const Icon = seg.icon;
-              return (
-                <TouchableOpacity
-                  key={seg.id}
-                  onPress={() => setCreatorFilter(seg.id)}
-                  style={[
-                    styles.creatorChip,
-                    {
-                      backgroundColor: active ? (seg.color ? seg.color : BRAND_COLORS.navyInk) : theme.cardBg,
-                      borderColor: active ? (seg.color ? seg.color : BRAND_COLORS.navyInk) : theme.borderColor,
-                    },
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {Icon && <Icon size={12} color={active ? '#FFFFFF' : (seg.color || BRAND_COLORS.blue600)} />}
-                    <Text style={[styles.creatorChipTitle, { color: active ? '#FFFFFF' : theme.textPrimary }]}>
-                      {seg.label}
-                    </Text>
-                    <View style={[styles.countBadge, { backgroundColor: active ? 'rgba(255,255,255,0.25)' : 'rgba(100,116,139,0.15)' }]}>
-                      <Text style={[styles.countBadgeText, { color: active ? '#FFFFFF' : theme.textPrimary }]}>
-                        {seg.count}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.creatorChipTotal, { color: active ? 'rgba(255,255,255,0.9)' : BRAND_COLORS.blue600 }]}>
-                    {formatCurrency(seg.total)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* Filter Pills */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-            style={{ flexGrow: 0, marginBottom: 12 }}
-          >
-            {[
-              { label: t('all', 'All'), value: null },
-              { label: t('cash', 'Cash'), value: 'cash' },
-              { label: t('upi', 'UPI'), value: 'upi' },
-              { label: t('card', 'Card'), value: 'card' },
-              { label: t('credit', 'Credit'), value: 'credit' },
-            ].map((filter) => {
-              const active = selectedPaymentMethod === filter.value;
-              return (
-                <TouchableOpacity
-                  key={filter.label}
-                  onPress={() => setSelectedPaymentMethod(filter.value)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: active ? BRAND_COLORS.blue600 : theme.cardBg,
-                      borderColor: active ? BRAND_COLORS.blue600 : theme.borderColor,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      { color: active ? '#FFFFFF' : theme.textSecondary },
-                    ]}
-                  >
-                    {filter.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* Sales List */}
           {isLoading ? (
             <ScreenLoadingState
               message="Loading sales..."
@@ -428,11 +323,121 @@ export default function SalesHistoryScreen() {
             />
           ) : (
             <FlatList
+              style={{ flex: 1 }}
               data={filteredSales}
               keyExtractor={(item) => item.id}
               refreshing={isRefetching}
               onRefresh={refetch}
               contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              ListHeaderComponent={
+                <>
+                  <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <Search size={16} color={theme.textSecondary} />
+                    <TextInput
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder={t('searchCustomerPlaceholder', 'Search invoice number or customer...')}
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.searchInput, { color: theme.textPrimary }]}
+                    />
+                    {searchQuery ? (
+                      <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <X size={16} color={theme.textSecondary} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  <Text style={[styles.filterSectionLabel, { color: theme.textPrimary }]}>Segregate Bills</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filterRow}
+                    nestedScrollEnabled
+                    style={{ flexGrow: 0, marginBottom: 10 }}
+                  >
+                    {[
+                      { id: 'all' as const, label: 'All Bills', count: creatorStats.all.count, total: creatorStats.all.total, icon: null },
+                      { id: 'admin' as const, label: 'Admin', count: creatorStats.admin.count, total: creatorStats.admin.total, icon: ShieldCheck, color: '#D97706' },
+                      { id: 'agent' as const, label: 'Agent / Staff', count: creatorStats.agent.count, total: creatorStats.agent.total, icon: UserCheck, color: '#7C3AED' },
+                      { id: 'remote' as const, label: 'Remote Prints', count: creatorStats.remote.count, total: creatorStats.remote.total, icon: Send, color: '#0284C7' },
+                    ].map((seg) => {
+                      const active = creatorFilter === seg.id;
+                      const Icon = seg.icon;
+                      return (
+                        <TouchableOpacity
+                          key={seg.id}
+                          onPress={() => setCreatorFilter(seg.id)}
+                          style={[
+                            styles.creatorChip,
+                            {
+                              backgroundColor: active ? (seg.color ? seg.color : BRAND_COLORS.navyInk) : theme.cardBg,
+                              borderColor: active ? (seg.color ? seg.color : BRAND_COLORS.navyInk) : theme.borderColor,
+                            },
+                          ]}
+                          activeOpacity={0.8}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            {Icon && <Icon size={12} color={active ? '#FFFFFF' : (seg.color || BRAND_COLORS.blue600)} />}
+                            <Text style={[styles.creatorChipTitle, { color: active ? '#FFFFFF' : theme.textPrimary }]}>
+                              {seg.label}
+                            </Text>
+                            <View style={[styles.countBadge, { backgroundColor: active ? 'rgba(255,255,255,0.25)' : 'rgba(100,116,139,0.15)' }]}>
+                              <Text style={[styles.countBadgeText, { color: active ? '#FFFFFF' : theme.textPrimary }]}>
+                                {seg.count}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={[styles.creatorChipTotal, { color: active ? 'rgba(255,255,255,0.9)' : BRAND_COLORS.blue600 }]}>
+                            {formatCurrency(seg.total)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filterRow}
+                    nestedScrollEnabled
+                    style={{ flexGrow: 0, marginBottom: 12 }}
+                  >
+                    {[
+                      { label: t('all', 'All'), value: null },
+                      { label: t('cash', 'Cash'), value: 'cash' },
+                      { label: t('upi', 'UPI'), value: 'upi' },
+                      { label: t('card', 'Card'), value: 'card' },
+                      { label: t('credit', 'Credit'), value: 'credit' },
+                    ].map((filter) => {
+                      const active = selectedPaymentMethod === filter.value;
+                      return (
+                        <TouchableOpacity
+                          key={filter.label}
+                          onPress={() => setSelectedPaymentMethod(filter.value)}
+                          style={[
+                            styles.filterChip,
+                            {
+                              backgroundColor: active ? BRAND_COLORS.blue600 : theme.cardBg,
+                              borderColor: active ? BRAND_COLORS.blue600 : theme.borderColor,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.filterChipText,
+                              { color: active ? '#FFFFFF' : theme.textSecondary },
+                            ]}
+                          >
+                            {filter.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              }
               renderItem={({ item }) => (
                 <View
                   style={[styles.saleCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
@@ -726,6 +731,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '900' },
   searchBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
   searchInput: { flex: 1, fontSize: 13, marginLeft: 8 },
+  filterSectionLabel: { fontSize: 12, fontWeight: '800', marginBottom: 8 },
   filterRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
   filterChipText: { fontSize: 11, fontWeight: '800' },

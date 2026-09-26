@@ -20,6 +20,22 @@ pm2 save
 
 Set GitHub Actions secret **`AWS_APP_DIR`** to `/home/ubuntu/inventort-seznik` if the repo is not at that path.
 
+## Critical: never `prisma db push --accept-data-loss` on live RDS
+
+That command **drops columns and tables** to match schema drift. On production it can delete KOT orders, print jobs, settings columns (`upiId`, `businessType`), and more.
+
+**Safe path only:**
+
+```bash
+node scripts/ensure-additive-columns.cjs
+npm run build
+pm2 reload ecosystem.config.js --env production
+```
+
+If you already ran destructive `db push`, **restore the RDS snapshot** from before that run, then deploy with the safe path above.
+
+Run git/PM2 as the **`ubuntu`** user (not `root`) to avoid “dubious ownership” on `/home/ubuntu/Seznik-web`.
+
 ## Deploy after every `dev` push
 
 ```bash

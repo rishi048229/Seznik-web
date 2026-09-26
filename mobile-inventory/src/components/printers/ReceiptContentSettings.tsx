@@ -74,10 +74,12 @@ export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: 
   const router = useRouter();
   const queryClient = useQueryClient();
   const { settings, refetch } = useSettings();
-  const { enablePaymentQr, setEnablePaymentQr, setReceiptFont, receiptFont } = usePrinterStore(
+  const { enablePaymentQr, setEnablePaymentQr, enableBillQrCode, setEnableBillQrCode, setReceiptFont, receiptFont } = usePrinterStore(
     useShallow((s) => ({
       enablePaymentQr: s.enablePaymentQr,
       setEnablePaymentQr: s.setEnablePaymentQr,
+      enableBillQrCode: s.enableBillQrCode,
+      setEnableBillQrCode: s.setEnableBillQrCode,
       setReceiptFont: s.setReceiptFont,
       receiptFont: s.receiptFont,
     }))
@@ -299,6 +301,39 @@ export function ReceiptContentSettings({ onOpenA4Invoice }: { onOpenA4Invoice?: 
           <TouchableOpacity onPress={pickLogo} style={styles.secondaryBtn}>
             <Text style={{ color: BRAND_COLORS.blue600, fontWeight: '700', fontSize: 12 }}>Upload logo</Text>
           </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+        <View style={[styles.toggleRow, { borderTopWidth: 0, marginTop: 0 }]}>
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Payment QR (UPI)</Text>
+            <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Print scannable UPI QR with bill amount when ON</Text>
+          </View>
+          <Switch
+            value={enablePaymentQr}
+            onValueChange={(v) => {
+              patchReceipt({ showPaymentQR: v });
+              setEnablePaymentQr(v).catch(() => {});
+            }}
+            trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
+            thumbColor="#FFF"
+          />
+        </View>
+        <View style={[styles.toggleRow, { borderTopColor: theme.borderColor }]}>
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Online bill / PDF QR</Text>
+            <Text style={[styles.cardSub, { color: theme.textSecondary }]}>Digital receipt link QR — separate from UPI</Text>
+          </View>
+          <Switch
+            value={enableBillQrCode}
+            onValueChange={(v) => {
+              patchReceipt({ enableBillQrCode: v });
+              setEnableBillQrCode(v).catch(() => {});
+            }}
+            trackColor={{ false: theme.borderColor, true: BRAND_COLORS.blue600 }}
+            thumbColor="#FFF"
+          />
         </View>
       </View>
 

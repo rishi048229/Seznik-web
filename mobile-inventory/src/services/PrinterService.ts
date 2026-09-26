@@ -1173,8 +1173,13 @@ class ThermalPrinterServiceManager {
   }
 
   private shouldPrintDigitalBillQr(options: ReceiptPrintOptions = {}): boolean {
+    if (options.includeBillQr === false) return false;
     const { usePrinterStore } = require('../store/usePrinterStore');
-    return options.includeBillQr ?? usePrinterStore.getState().enableBillQrCode;
+    const enabled =
+      options.includeBillQr !== undefined
+        ? options.includeBillQr
+        : usePrinterStore.getState().enableBillQrCode;
+    return Boolean(enabled);
   }
 
   private upiQrHtml(data: PrintSaleData, paperWidth: '58mm' | '80mm' = '58mm', qrSizeChip?: ReceiptSizeChip): string {

@@ -62,7 +62,9 @@ const serializeOwnerAuthUser = (user: {
   businessName: user.businessName,
   businessType: user.businessType ?? null,
   role: user.role === 'agent' ? 'admin' : (user.role || 'admin'),
-  onboardingCompleted: user.onboardingCompleted ?? false,
+  onboardingCompleted:
+    user.onboardingCompleted ??
+    Boolean(user.businessType && String(user.businessName || '').trim()),
   seznikUser: Boolean(user.seznikUser),
   accountType: 'user' as const,
 });

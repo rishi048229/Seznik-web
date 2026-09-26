@@ -508,24 +508,6 @@ export default function InvoicesTabScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Search size={18} color={theme.textSecondary} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder={t('searchInvoicesPlaceholder', 'Search invoice # or customer...')}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.searchInput, { color: theme.textPrimary }]}
-            />
-            {searchQuery ? (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <X size={16} color={theme.textSecondary} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          {renderFilters()}
-
           {isLoading ? (
             <View style={styles.list}>
               <ScreenLoadingState
@@ -552,6 +534,27 @@ export default function InvoicesTabScreen() {
               onRefresh={refetch}
               contentContainerStyle={{ paddingBottom: bottomPad, paddingTop: 4 }}
               showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+              ListHeaderComponent={
+                <>
+                  <View style={[styles.searchBox, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                    <Search size={18} color={theme.textSecondary} />
+                    <TextInput
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder={t('searchInvoicesPlaceholder', 'Search invoice # or customer...')}
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.searchInput, { color: theme.textPrimary }]}
+                    />
+                    {searchQuery ? (
+                      <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <X size={16} color={theme.textSecondary} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  {renderFilters()}
+                </>
+              }
               renderItem={({ item }) => {
                 const isBusy = busySaleId === item.id;
                 return (

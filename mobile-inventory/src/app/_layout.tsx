@@ -174,15 +174,11 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(auth)' && !onAccessSelection;
     const onOnboarding = segments[0] === 'onboarding';
     const isManagedUser = user?.accountType === 'managed' || Boolean((user as any)?.adminId);
-    const needsOnboarding =
-      isAuthenticated &&
-      !isManagedUser &&
-      user?.onboardingCompleted === false;
-    const needsBusinessType =
-      isAuthenticated &&
-      !isManagedUser &&
-      user?.onboardingCompleted !== false &&
-      !user?.businessType;
+    const onboardingDone =
+      user?.onboardingCompleted === true ||
+      Boolean(String(user?.businessName || '').trim() && user?.businessType);
+    const needsOnboarding = isAuthenticated && !isManagedUser && !onboardingDone;
+    const needsBusinessType = isAuthenticated && !isManagedUser && onboardingDone && !user?.businessType;
     const needsSetup = needsOnboarding || needsBusinessType;
 
     if (!isAuthenticated && !inAuthGroup && !onAccessSelection) {

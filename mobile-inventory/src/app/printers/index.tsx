@@ -667,6 +667,13 @@ export default function PrintersScreen() {
           </View>
         ) : null}
 
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
         {/* Printer status card.
             Replaces a full-bleed blue panel with white-on-blue controls: on a
             status surface the colour has to carry meaning, so the card stays
@@ -814,12 +821,12 @@ export default function PrintersScreen() {
           </View>
         </View>
 
-        {/* Tab bar — matches web Printers: Receipts | Builder | Labels | A4 invoice */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 4 }}
-          contentContainerStyle={[styles.webTabBar, { backgroundColor: theme.isDark ? 'rgba(30,41,59,0.6)' : '#F1F5F9', borderColor: theme.borderColor }]}
+        {/* Tab bar — matches web Printers (2×2 grid so nothing overflows on small phones) */}
+        <View
+          style={[
+            styles.webTabBar,
+            { backgroundColor: theme.isDark ? 'rgba(30,41,59,0.6)' : '#F1F5F9', borderColor: theme.borderColor },
+          ]}
         >
           {PRINTER_TABS.map(({ key, label, hint, Icon }) => {
             const selected = activeTab === key;
@@ -831,6 +838,7 @@ export default function PrintersScreen() {
                   styles.webTabBtn,
                   selected && { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
                 ]}
+                activeOpacity={0.85}
               >
                 <Icon size={15} color={selected ? BRAND_COLORS.blue600 : theme.textSecondary} />
                 <Text style={[styles.webTabLabel, { color: selected ? theme.textPrimary : theme.textSecondary }]}>
@@ -842,9 +850,8 @@ export default function PrintersScreen() {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
           {activeTab === 'receiptBuilder' ? (
             <>
               <Text style={[styles.title, { color: theme.textPrimary }]}>Receipt Builder</Text>
@@ -2212,17 +2219,19 @@ const styles = StyleSheet.create({
   testBtnText: { fontSize: 12, fontWeight: '800', flexShrink: 1 },
   webTabBar: {
     flexDirection: 'row',
-    padding: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    padding: 6,
     borderRadius: 16,
     borderWidth: 1,
     marginBottom: 14,
-    gap: 6,
-    paddingHorizontal: 6,
+    gap: 8,
   },
   webTabBtn: {
-    minWidth: 118,
+    width: '48%',
+    maxWidth: '48%',
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'transparent',
@@ -2280,7 +2289,7 @@ const styles = StyleSheet.create({
   templateFullCard: { borderRadius: 20, padding: 16, borderWidth: 1, marginBottom: 4 },
   templateCardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   selectedPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  previewPaperContainer: { alignItems: 'center', marginTop: 4 },
+  previewPaperContainer: { alignItems: 'center', marginTop: 4, width: '100%', overflow: 'hidden' },
   templateSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
