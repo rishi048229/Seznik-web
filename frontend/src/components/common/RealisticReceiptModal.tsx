@@ -17,6 +17,8 @@ import type { Sale, SaleItem } from '@/types/sale.types'
 import type { UserSettings } from '@/types/settings.types'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
+import { computeSaleLineGst } from '@/utils/gstLedger'
+import { getCartLineGstFigures, formatCartLineGstHint } from '@/utils/cartGstDisplay'
 
 export interface EditableReceiptItem {
   id?: string
@@ -26,6 +28,7 @@ export interface EditableReceiptItem {
   unitPrice: number
   discount: number
   taxRate?: number
+  priceIncludesGst?: boolean
   total: number
 }
 
@@ -90,6 +93,16 @@ export const RealisticReceiptModal = ({
       const uPrice = Number(item.sellingPrice ?? item.unitPrice ?? item.price ?? 0)
       const q = Number(item.quantity) || 1
       const d = Number(item.discount || 0)
+      const taxRate = Number(item.taxRate || 0)
+      const priceIncludesGst = Boolean(item.priceIncludesGst)
+      const fig = computeSaleLineGst({
+        productName: item.productName || 'Item',
+        quantity: q,
+        sellingPrice: uPrice,
+        discount: d,
+        taxRate,
+        priceIncludesGst,
+      })
       return {
         id: item.id || `item-${idx}`,
         productId: item.productId,
@@ -97,15 +110,31 @@ export const RealisticReceiptModal = ({
         quantity: q,
         unitPrice: uPrice,
         discount: d,
-        taxRate: Number(item.taxRate || 0),
-        total: Number(item.total ?? Math.max(0, q * uPrice - d)),
+        taxRate,
+        priceIncludesGst,
+        total: Number(item.total ?? fig.taxable + fig.tax),
       }
     })
 
-    const subtotal = mappedItems.reduce((sum, it) => sum + (it.quantity * it.unitPrice - it.discount), 0)
     const discount = Number(sale?.totalDiscount ?? (sale as any)?.discount ?? 0)
-    const tax = Number(sale?.totalTax ?? (sale as any)?.tax ?? 0)
-    const grand = Number(sale?.grandTotal ?? Math.max(0, subtotal - discount + tax))
+    const tax =
+      Number(sale?.totalTax ?? (sale as any)?.tax ?? 0) ||
+      mappedItems.reduce(
+        (sum, it) =>
+          sum +
+          getCartLineGstFigures({
+            productName: it.productName,
+            quantity: it.quantity,
+            sellingPrice: it.unitPrice,
+            discount: it.discount,
+            taxRate: it.taxRate ?? 0,
+            priceIncludesGst: it.priceIncludesGst ?? false,
+          }).tax,
+        0
+      )
+    const grand = Number(
+      sale?.grandTotal ?? Math.max(0, mappedItems.reduce((s, it) => s + it.total, 0) - discount)
+    )
     const paid = Number(sale?.amountPaid ?? grand)
     const changeAmt = Math.max(0, paid - grand)
 
@@ -161,21 +190,29 @@ export const RealisticReceiptModal = ({
 
   // Recalculate totals whenever items or discount changes
   const recalcTotals = (itemsList: EditableReceiptItem[], orderDisc: number) => {
-    const sub = itemsList.reduce((acc, it) => acc + (it.quantity * it.unitPrice - it.discount), 0)
     let taxSum = 0
-    itemsList.forEach(it => {
-      if (it.taxRate && it.taxRate > 0) {
-        const itemNet = it.quantity * it.unitPrice - it.discount
-        taxSum += (itemNet * it.taxRate) / 100
-      }
+    let payableSum = 0
+    const withPayables = itemsList.map(it => {
+      const fig = computeSaleLineGst({
+        productName: it.productName,
+        quantity: it.quantity,
+        sellingPrice: it.unitPrice,
+        discount: it.discount,
+        taxRate: it.taxRate ?? 0,
+        priceIncludesGst: it.priceIncludesGst ?? false,
+      })
+      taxSum += fig.tax
+      const payable = fig.taxable + fig.tax
+      payableSum += payable
+      return { ...it, total: payable }
     })
-    const finalG = Math.max(0, sub - orderDisc + taxSum)
+    const finalG = Math.max(0, payableSum - orderDisc)
     const paid = receipt.paymentMethod === 'credit' ? 0 : (receipt.amountPaid > 0 ? receipt.amountPaid : finalG)
     const chg = Math.max(0, paid - finalG)
 
     setReceipt(prev => ({
       ...prev,
-      items: itemsList,
+      items: withPayables,
       orderDiscount: orderDisc,
       taxAmount: taxSum,
       grandTotal: finalG,
@@ -708,32 +745,56 @@ export const RealisticReceiptModal = ({
 
               {/* Table Column Headers */}
               <div className="flex justify-between text-[10px] font-black border-y border-slate-900 py-1 uppercase tracking-wider text-slate-950">
-                <span className="w-1/2 text-left">ITEM</span>
-                <span className="w-1/6 text-center">QTY</span>
-                <span className="w-1/6 text-right">RATE</span>
-                <span className="w-1/6 text-right">AMT</span>
+                <span className="w-[42%] text-left">ITEM</span>
+                <span className="w-[12%] text-center">QTY</span>
+                <span className="w-[18%] text-right">RATE</span>
+                <span className="w-[12%] text-right">GST</span>
+                <span className="w-[16%] text-right">AMT</span>
               </div>
 
               {/* Items List */}
               <div className="py-2 divide-y divide-dashed divide-slate-200">
-                {receipt.items.map((it, idx) => (
+                {receipt.items.map((it, idx) => {
+                  const fig = getCartLineGstFigures({
+                    productName: it.productName,
+                    quantity: it.quantity,
+                    sellingPrice: it.unitPrice,
+                    discount: it.discount,
+                    taxRate: it.taxRate ?? 0,
+                    priceIncludesGst: it.priceIncludesGst ?? false,
+                  })
+                  const hint = formatCartLineGstHint(fig)
+                  const gstCol =
+                    fig.taxRate > 0 && !fig.priceIncludesGst
+                      ? `${fig.taxRate}%`
+                      : fig.taxRate > 0 && fig.priceIncludesGst
+                        ? 'Incl'
+                        : '—'
+                  return (
                   <div key={it.id || idx} className="py-1 text-[11px] leading-tight">
                     <div className="font-bold text-slate-950">{it.productName}</div>
+                    {hint && (
+                      <div className={`text-[9px] mt-0.5 ${fig.priceIncludesGst ? 'text-slate-500' : 'text-amber-800 font-semibold'}`}>
+                        {hint}
+                      </div>
+                    )}
                     <div className="flex justify-between text-[10px] text-slate-600 mt-0.5 font-mono">
-                      <span className="w-1/2"></span>
-                      <span className="w-1/6 text-center">{it.quantity}</span>
-                      <span className="w-1/6 text-right">{it.unitPrice.toFixed(2)}</span>
-                      <span className="w-1/6 text-right font-bold text-slate-900">{it.total.toFixed(2)}</span>
+                      <span className="w-[42%]"></span>
+                      <span className="w-[12%] text-center">{it.quantity}</span>
+                      <span className="w-[18%] text-right">{it.unitPrice.toFixed(2)}</span>
+                      <span className="w-[12%] text-right">{gstCol}</span>
+                      <span className="w-[16%] text-right font-bold text-slate-900">{it.total.toFixed(2)}</span>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Subtotals & Taxes */}
               <div className="border-t-2 border-dashed border-slate-400 pt-2 space-y-1 text-[11px]">
                 <div className="flex justify-between text-slate-700">
                   <span>SUBTOTAL:</span>
-                  <span>{formatINR(receipt.items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0))}</span>
+                  <span>{formatINR(receipt.items.reduce((s, it) => s + it.total, 0))}</span>
                 </div>
 
                 {receipt.orderDiscount > 0 && (
@@ -745,7 +806,7 @@ export const RealisticReceiptModal = ({
 
                 {receipt.showTaxBreakdown && receipt.taxAmount > 0 && (
                   <div className="flex justify-between text-slate-700">
-                    <span>GST TAX:</span>
+                    <span>GST (in total):</span>
                     <span>{formatINR(receipt.taxAmount)}</span>
                   </div>
                 )}

@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
 import { formatINR, roundCurrency } from '@/utils/currency'
+import { getCartLineGstFigures, formatCartLineGstHint } from '@/utils/cartGstDisplay'
 import { localDateInputValue, saleTimestampFromBillDate } from '@/utils/date'
 import { printCompletedSale } from '@/utils/printCompletedSale'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
@@ -287,6 +288,10 @@ export const POSPage = () => {
 
   const taxAmount = totals.tax
   const finalTotal = totals.subtotal + taxAmount - orderDiscountAmount
+  const shelfListTotal = items.reduce(
+    (s, i) => s + i.sellingPrice * i.quantity - (i.discount || 0),
+    0
+  )
 
   useEffect(() => {
     if (isPaymentOpen) {
@@ -473,16 +478,20 @@ export const POSPage = () => {
       amountPaid: amountPaidNum || finalTotal,
       changeReturned: change,
       isQuickBill: false,
-      items: items.map(item => ({
-        productId: item.productId,
-        productName: item.productName,
-        quantity: item.quantity,
-        sellingPrice: item.sellingPrice,
-        discount: item.discount,
-        taxRate: item.taxRate || 0,
-        taxAmount: ((item.sellingPrice * item.quantity - item.discount) * (item.taxRate || 0)) / 100,
-        total: item.sellingPrice * item.quantity - item.discount,
-      })),
+      items: items.map(item => {
+        const fig = getCartLineGstFigures(item)
+        return {
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          sellingPrice: item.sellingPrice,
+          discount: item.discount,
+          taxRate: item.taxRate || 0,
+          priceIncludesGst: item.priceIncludesGst ?? false,
+          taxAmount: fig.tax,
+          total: fig.payable,
+        }
+      }),
       customerId: selectedCustomer,
     }
     setCurrentSaleForReceipt(tempSale)
@@ -820,6 +829,8 @@ export const POSPage = () => {
               const product = products?.find(p => p.id === item.productId)
               const reserved = cartReserved[item.productId] || 0
               const available = (product?.currentStock || 0) - reserved
+              const lineGst = getCartLineGstFigures(item)
+              const gstHint = formatCartLineGstHint(lineGst)
 
               return (
                 <div key={item.productId} className="group bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700/60 p-3 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
@@ -840,7 +851,14 @@ export const POSPage = () => {
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                         {item.productName}
                       </h4>
-                      <p className="text-xs text-gray-400">{formatINR(item.sellingPrice)} {t('pos.each')}</p>
+                      <p className="text-xs text-gray-400">
+                        {formatINR(item.sellingPrice)} {t('pos.each')}
+                        {gstHint && (
+                          <span className={lineGst.priceIncludesGst ? ' text-gray-500' : ' text-amber-700 dark:text-amber-400 font-medium'}>
+                            {' · '}{gstHint}
+                          </span>
+                        )}
+                      </p>
                     </div>
 
                     {/* Edit + Delete Buttons - Right (always visible so touch devices without hover can reach them) */}
@@ -899,11 +917,11 @@ export const POSPage = () => {
                     <div className="text-right">
                       {item.discount > 0 && (
                         <p className="text-[11px] text-gray-400 line-through leading-tight">
-                          {formatINR(item.sellingPrice * item.quantity)}
+                          {formatINR(lineGst.payable + item.discount)}
                         </p>
                       )}
                       <p className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                        {formatINR(Math.max(0, item.sellingPrice * item.quantity - item.discount))}
+                        {formatINR(lineGst.payable)}
                       </p>
                     </div>
                   </div>
@@ -992,7 +1010,13 @@ export const POSPage = () => {
                   </svg>
                 </div>
               </div>
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 min-w-[7.5rem]">
+                {taxAmount > 0 && Math.abs(shelfListTotal + taxAmount - orderDiscountAmount - finalTotal) < 0.05 && (
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+                    List {formatINR(shelfListTotal)}
+                    <span className="text-amber-700 dark:text-amber-400"> +GST {formatINR(taxAmount)}</span>
+                  </p>
+                )}
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
                 <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
               </div>
@@ -1059,7 +1083,14 @@ export const POSPage = () => {
             </span>
           </label>
           {/* Total Display */}
-          <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+          <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-1">
+            {taxAmount > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                List {formatINR(shelfListTotal)}
+                <span className="text-amber-700 dark:text-amber-400 font-semibold"> + GST {formatINR(taxAmount)}</span>
+                {orderDiscountAmount > 0 && <> · Disc −{formatINR(orderDiscountAmount)}</>}
+              </p>
+            )}
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.totalAmount')}</p>
             <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-2">{formatINR(finalTotal)}</p>
           </div>
