@@ -101,7 +101,7 @@ describe('Receipt Engine & Acceptance Criteria', () => {
   })
 
   it('shows GST % on line only for excl.-GST items; incl.-GST lines leave GST column blank', () => {
-    const saleStub = { items: [] } as Sale
+    const saleStub = { ...dummySale, items: [] }
     expect(formatReceiptLineGstPercent({ taxRate: 5, priceIncludesGst: false } as Sale['items'][0], 'TAX INVOICE', saleStub)).toBe('5%')
     expect(formatReceiptLineGstPercent({ taxRate: 18, priceIncludesGst: true } as Sale['items'][0], 'TAX INVOICE', saleStub)).toBe('')
     expect(formatReceiptLineGstPercent({ taxRate: 0, priceIncludesGst: false } as Sale['items'][0], 'TAX INVOICE', saleStub)).toBe('')
@@ -261,7 +261,7 @@ describe('Receipt Engine & Acceptance Criteria', () => {
   // Criterion 11: Payable = taxable + tax; shelf subtotal − discount = payable (before paise round)
   it('Criterion 11: Sub Total - Discount equals taxable + CGST + SGST and matches billed grand total', () => {
     const totals = calculateReceiptTotals(dummySale, '27ABCDE1234F1Z5', true)
-    const netShelf = totals.subTotal - totals.totalDiscount
+    const netShelf = totals.subTotal - totals.orderDiscount
     const taxInclTotal = totals.taxableAmount + totals.cgstTotal + totals.sgstTotal
     expect(Math.abs(netShelf - taxInclTotal)).toBeLessThanOrEqual(0.02)
     expect(Math.abs(totals.rawGrandTotal - taxInclTotal)).toBeLessThanOrEqual(0.02)
