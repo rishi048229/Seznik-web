@@ -1,6 +1,7 @@
 import type { Sale, SaleItem } from '@/types/sale.types'
 import type { ReceiptConfig } from '@/types/settings.types'
 import { composeReceiptDateLabel } from './date'
+import { computeSaleLineGst, roundMoney } from './gstLedger'
 
 export interface CompileReceiptParams {
   sale: Sale
@@ -180,14 +181,29 @@ export function wrapProse(text: string, totalCols: number, alignCenter = false):
  * Per-line GST column on thermal receipts: show % only when the line is priced excl. GST
  * (tax added on top). Incl. GST lines leave the column blank — tax is in the rate/amount.
  */
+/** Legacy sales may omit per-line flags; match POS product default (excl.) when any line is explicit. */
+export function resolveItemPriceIncludesGst(
+  item: Pick<SaleItem, 'priceIncludesGst'>,
+  sale: Sale,
+  explicitLegacyDefault?: boolean
+): boolean {
+  if (typeof item.priceIncludesGst === 'boolean') return item.priceIncludesGst
+  const items = sale.items ?? []
+  const anyExplicit = items.some(i => typeof i.priceIncludesGst === 'boolean')
+  if (anyExplicit) return explicitLegacyDefault ?? false
+  return explicitLegacyDefault ?? true
+}
+
 export function formatReceiptLineGstPercent(
-  item: Pick<SaleItem, 'taxRate' | 'priceIncludesGst'>,
-  docTitle: string
+  item: SaleItem,
+  docTitle: string,
+  sale: Sale,
+  legacyDefaultIncludesGst?: boolean
 ): string {
   if (docTitle !== 'TAX INVOICE') return ''
   const rate = item.taxRate ?? 0
   if (rate <= 0) return ''
-  if (item.priceIncludesGst) return ''
+  if (resolveItemPriceIncludesGst(item, sale, legacyDefaultIncludesGst)) return ''
   const rounded = Math.round(rate * 100) / 100
   return `${rounded}%`
 }
@@ -227,7 +243,7 @@ export interface ReceiptTotalsResult {
 export function calculateReceiptTotals(
   sale: Sale,
   gstin?: string | null,
-  pricesIncludeGst = true
+  legacyDefaultIncludesGst?: boolean
 ): ReceiptTotalsResult {
   const items = sale.items ?? []
   const docTitle = getDocumentTitle(gstin, items)
@@ -243,81 +259,77 @@ export function calculateReceiptTotals(
     itemDiscounts += (item.discount || 0)
   })
 
-  const subTotal = sale.subtotal || rawSubTotal
-  const totalDiscount = sale.totalDiscount || itemDiscounts
+  // Shelf / line total as printed on item rows (not POS taxable base stored in sale.subtotal)
+  const subTotal = rawSubTotal
+  const totalDiscount = sale.totalDiscount ?? itemDiscounts
   const orderDiscount = Math.max(0, totalDiscount - itemDiscounts)
 
-  // Group items by taxRate (accounting for both item discounts and proportional order discount)
-  const groupMap = new Map<number, number>() // rate -> sum of line net amounts
-
-  items.forEach(item => {
-    const rate = isTaxInvoice ? (item.taxRate || 0) : 0
-    const lineNetBeforeOrderDisc = item.sellingPrice * item.quantity - (item.discount || 0)
-    const lineOrderDisc = rawSubTotal > 0 ? (lineNetBeforeOrderDisc / rawSubTotal) * orderDiscount : 0
-    const lineNet = lineNetBeforeOrderDisc - lineOrderDisc
-    groupMap.set(rate, (groupMap.get(rate) || 0) + lineNet)
-  })
-
-  const taxGroups: GstTaxGroup[] = []
+  const groupMap = new Map<number, { taxable: number; tax: number; cgst: number; sgst: number }>()
   let taxableSum = 0
   let totalTaxSum = 0
   let cgstSum = 0
   let sgstSum = 0
+  let payableSum = 0
 
-  if (isTaxInvoice) {
-    Array.from(groupMap.entries())
-      .sort((a, b) => a[0] - b[0])
-      .forEach(([rate, groupAmt]) => {
-        let taxable = 0
-        let tax = 0
+  items.forEach(item => {
+    const lineNetBeforeOrderDisc = item.sellingPrice * item.quantity - (item.discount || 0)
+    const lineOrderDisc =
+      rawSubTotal > 0 ? (lineNetBeforeOrderDisc / rawSubTotal) * orderDiscount : 0
+    const effectiveDiscount = (item.discount || 0) + lineOrderDisc
 
-        if (rate === 0) {
-          taxable = groupAmt
-          tax = 0
-        } else if (pricesIncludeGst) {
-          taxable = groupAmt / (1 + rate / 100)
-          tax = groupAmt - taxable
-        } else {
-          taxable = groupAmt
-          tax = groupAmt * (rate / 100)
-        }
+    const gst = computeSaleLineGst({
+      ...item,
+      discount: effectiveDiscount,
+      priceIncludesGst: resolveItemPriceIncludesGst(item, sale, legacyDefaultIncludesGst),
+    })
 
-        taxable = Number(taxable.toFixed(2))
-        tax = Number(tax.toFixed(2))
+    payableSum = roundMoney(payableSum + gst.taxable + gst.tax)
 
-        // Split tax evenly into CGST and SGST
-        let sgst = Number((tax / 2).toFixed(2))
-        let cgst = Number((tax - sgst).toFixed(2)) // Put any odd 1 paisa rounding on CGST
+    if (!isTaxInvoice) return
 
-        if (rate > 0) {
-          taxGroups.push({
-            taxRate: rate,
-            taxableAmount: taxable,
-            totalTax: tax,
-            cgst,
-            sgst
-          })
-        }
+    taxableSum = roundMoney(taxableSum + gst.taxable)
+    totalTaxSum = roundMoney(totalTaxSum + gst.tax)
 
-        taxableSum += taxable
-        totalTaxSum += tax
-        cgstSum += cgst
-        sgstSum += sgst
-      })
-  }
+    if (gst.rate <= 0) return
+
+    const sgst = roundMoney(gst.tax / 2)
+    const cgst = roundMoney(gst.tax - sgst)
+    cgstSum = roundMoney(cgstSum + cgst)
+    sgstSum = roundMoney(sgstSum + sgst)
+
+    const bucket = groupMap.get(gst.rate) ?? { taxable: 0, tax: 0, cgst: 0, sgst: 0 }
+    bucket.taxable = roundMoney(bucket.taxable + gst.taxable)
+    bucket.tax = roundMoney(bucket.tax + gst.tax)
+    bucket.cgst = roundMoney(bucket.cgst + cgst)
+    bucket.sgst = roundMoney(bucket.sgst + sgst)
+    groupMap.set(gst.rate, bucket)
+  })
+
+  const taxGroups: GstTaxGroup[] = Array.from(groupMap.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([rate, g]) => ({
+      taxRate: rate,
+      taxableAmount: g.taxable,
+      totalTax: g.tax,
+      cgst: g.cgst,
+      sgst: g.sgst,
+    }))
 
   const netPayableBeforeTax = subTotal - totalDiscount
-  const taxableAmount = isTaxInvoice ? Number(taxableSum.toFixed(2)) : netPayableBeforeTax
-  const totalTax = isTaxInvoice ? Number(totalTaxSum.toFixed(2)) : 0
-  const cgstTotal = isTaxInvoice ? Number(cgstSum.toFixed(2)) : 0
-  const sgstTotal = isTaxInvoice ? Number(sgstSum.toFixed(2)) : 0
+  const taxableAmount = isTaxInvoice ? taxableSum : netPayableBeforeTax
+  const totalTax = isTaxInvoice ? totalTaxSum : 0
+  const cgstTotal = isTaxInvoice ? cgstSum : 0
+  const sgstTotal = isTaxInvoice ? sgstSum : 0
 
-  const rawGrandTotal = pricesIncludeGst
-    ? netPayableBeforeTax
-    : (netPayableBeforeTax + totalTax)
+  const computedGrand = payableSum
+  const storedGrand = Number(sale.grandTotal)
+  const rawGrandTotal =
+    Number.isFinite(storedGrand) && storedGrand > 0
+      ? storedGrand
+      : computedGrand
 
   const finalGrandTotal = Math.round(rawGrandTotal)
-  const roundOff = Number((finalGrandTotal - rawGrandTotal).toFixed(2))
+  const roundOff = roundMoney(finalGrandTotal - rawGrandTotal)
 
   return {
     docTitle,
@@ -353,7 +365,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     dateLabel,
     paperSize = '58mm',
     widthDots,
-    pricesIncludeGst = true,
+    pricesIncludeGst,
     cashierName,
     isDuplicate = false,
   } = params
@@ -382,7 +394,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const companyGst = receiptConfig?.gstin || businessGSTIN || ''
   const footerText = receiptConfig?.footerMessage || 'Thank You! Visit Again'
 
-  const totals = calculateReceiptTotals(sale, companyGst, pricesIncludeGst)
+  const totals = calculateReceiptTotals(sale, companyGst, pricesIncludeGst ?? undefined)
 
   // ── 1. HEADER ──
   if (showCompanyHeader) {
@@ -442,7 +454,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstStr = formatReceiptLineGstPercent(item, totals.docTitle)
+      const gstStr = formatReceiptLineGstPercent(item, totals.docTitle, sale, pricesIncludeGst)
 
       const nameWidth = 22
       const fullName = `${index + 1} ${item.productName}`
@@ -473,7 +485,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstStr = formatReceiptLineGstPercent(item, totals.docTitle)
+      const gstStr = formatReceiptLineGstPercent(item, totals.docTitle, sale, pricesIncludeGst)
 
       const fullName = `${index + 1} ${item.productName}`
       const nameLines = wrapProse(fullName, COLS, false)
