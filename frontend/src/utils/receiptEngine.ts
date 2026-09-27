@@ -176,6 +176,22 @@ export function wrapProse(text: string, totalCols: number, alignCenter = false):
 // 2. Document Title & Tax Calculation Engine
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Per-line GST column on thermal receipts: show % only when the line is priced excl. GST
+ * (tax added on top). Incl. GST lines leave the column blank — tax is in the rate/amount.
+ */
+export function formatReceiptLineGstPercent(
+  item: Pick<SaleItem, 'taxRate' | 'priceIncludesGst'>,
+  docTitle: string
+): string {
+  if (docTitle !== 'TAX INVOICE') return ''
+  const rate = item.taxRate ?? 0
+  if (rate <= 0) return ''
+  if (item.priceIncludesGst) return ''
+  const rounded = Math.round(rate * 100) / 100
+  return `${rounded}%`
+}
+
 export function getDocumentTitle(gstin?: string | null, items: { taxRate?: number | null }[] = []): string {
   const cleanGstin = gstin?.trim()
   if (!cleanGstin) return 'BILL'
@@ -426,9 +442,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstStr = (totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0)
-        ? `${Math.round(item.taxRate * 100) / 100}%`
-        : ''
+      const gstStr = formatReceiptLineGstPercent(item, totals.docTitle)
 
       const nameWidth = 22
       const fullName = `${index + 1} ${item.productName}`
@@ -459,9 +473,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
 
     items.forEach((item, index) => {
       const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
-      const gstStr = (totals.docTitle === 'TAX INVOICE' && item.taxRate && item.taxRate > 0)
-        ? `${Math.round(item.taxRate * 100) / 100}%`
-        : ''
+      const gstStr = formatReceiptLineGstPercent(item, totals.docTitle)
 
       const fullName = `${index + 1} ${item.productName}`
       const nameLines = wrapProse(fullName, COLS, false)

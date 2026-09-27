@@ -3,6 +3,7 @@ import {
   compileReceiptTextLines,
   calculateReceiptTotals,
   getDocumentTitle,
+  formatReceiptLineGstPercent,
   formatIndianNumber,
   numberToIndianWords,
   getCols,
@@ -94,6 +95,52 @@ describe('Receipt Engine & Acceptance Criteria', () => {
     expect(lines.some(l => l.includes('TAX INVOICE'))).toBe(false)
     expect(lines.some(l => l.includes('Taxable Value'))).toBe(false)
     expect(lines.some(l => l.includes('GST SUMMARY'))).toBe(false)
+  })
+
+  it('shows GST % on line only for excl.-GST items; incl.-GST lines leave GST column blank', () => {
+    expect(formatReceiptLineGstPercent({ taxRate: 5, priceIncludesGst: false }, 'TAX INVOICE')).toBe('5%')
+    expect(formatReceiptLineGstPercent({ taxRate: 18, priceIncludesGst: true }, 'TAX INVOICE')).toBe('')
+    expect(formatReceiptLineGstPercent({ taxRate: 0, priceIncludesGst: false }, 'TAX INVOICE')).toBe('')
+
+    const mixedSale: Sale = {
+      ...dummySale,
+      items: [
+        {
+          productId: 'ex',
+          productName: 'Excl Widget',
+          quantity: 1,
+          sellingPrice: 100,
+          discount: 0,
+          taxRate: 5,
+          priceIncludesGst: false,
+          taxAmount: 5,
+          total: 105,
+        },
+        {
+          productId: 'in',
+          productName: 'Incl Widget',
+          quantity: 1,
+          sellingPrice: 118,
+          discount: 0,
+          taxRate: 18,
+          priceIncludesGst: true,
+          taxAmount: 18,
+          total: 118,
+        },
+      ],
+    }
+    const lines = compileReceiptTextLines({
+      sale: mixedSale,
+      businessGSTIN: '27ABCDE1234F1Z5',
+      paperSize: '58mm',
+    })
+    const exclDetail = lines.find(l => l.includes('100.00') && l.includes('5%'))
+    const inclDetail = lines.find(l => l.includes('118.00') && l.includes('18%'))
+    expect(exclDetail).toBeDefined()
+    expect(inclDetail).toBeUndefined()
+    const inclLine = lines.find(l => l.includes('118.00'))
+    expect(inclLine).toBeDefined()
+    expect(inclLine).not.toMatch(/\d+%/)
   })
 
   // Criterion 3: Mixed 0% and 5% items -> Zero-rated rows have empty GST field

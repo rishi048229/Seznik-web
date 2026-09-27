@@ -298,7 +298,9 @@ export const generateA4InvoiceHTML = ({
       ${cfg.showUnit ? `<td style="padding:8px;font-size:11px;text-align:center;color:#64748b;">${esc(unit)}</td>` : ''}
       ${cfg.showBatchExpiry ? `<td style="padding:8px;font-size:10px;text-align:center;">${esc(expiry || '—')}</td>` : ''}
       <td style="padding:8px;font-size:12px;text-align:right;">${item.sellingPrice.toFixed(2)}</td>
-      ${showTax ? `<td style="padding:8px;font-size:11px;text-align:center;">${formatRate(rate)}%</td>
+      ${showTax ? `<td style="padding:8px;font-size:11px;text-align:center;">${
+          item.priceIncludesGst ? '—' : `${formatRate(rate)}%`
+        }</td>
         <td style="padding:8px;font-size:11px;text-align:right;">${taxAmt.toFixed(2)}</td>` : ''}
       <td style="padding:8px;font-size:12px;text-align:right;font-weight:700;">${(showTax ? (line - (item.discount || 0)) : amount).toFixed(2)}</td>
     </tr>`
