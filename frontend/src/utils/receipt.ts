@@ -220,7 +220,7 @@ export const generateReceiptHTML = ({
     customerPhone: customerPhone || customer?.phone,
     dateLabel,
     paperSize: paperSizeKey,
-    pricesIncludeGst: true,
+    pricesIncludeGst: undefined,
   })
 
   const rawLinesHtml = textLines.map(l => l.replace(/ /g, '&nbsp;')).join('<br/>')
@@ -402,7 +402,7 @@ export const generateReceiptEscPos = async ({
     customerPhone,
     dateLabel,
     paperSize,
-    pricesIncludeGst: true,
+    pricesIncludeGst: undefined,
   })
 
   const b = new EscPosBuilder()

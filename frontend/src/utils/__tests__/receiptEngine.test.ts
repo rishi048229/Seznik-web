@@ -24,6 +24,7 @@ const dummySale: Sale = {
       sellingPrice: 10.00,
       discount: 0,
       taxRate: 5,
+      priceIncludesGst: true,
       taxAmount: 0.95,
       total: 20.00
     },
@@ -34,6 +35,7 @@ const dummySale: Sale = {
       sellingPrice: 265.00,
       discount: 0,
       taxRate: 12,
+      priceIncludesGst: true,
       taxAmount: 28.39,
       total: 265.00
     },
@@ -44,6 +46,7 @@ const dummySale: Sale = {
       sellingPrice: 30.00,
       discount: 0,
       taxRate: 0,
+      priceIncludesGst: true,
       taxAmount: 0,
       total: 60.00
     }
@@ -98,9 +101,10 @@ describe('Receipt Engine & Acceptance Criteria', () => {
   })
 
   it('shows GST % on line only for excl.-GST items; incl.-GST lines leave GST column blank', () => {
-    expect(formatReceiptLineGstPercent({ taxRate: 5, priceIncludesGst: false }, 'TAX INVOICE')).toBe('5%')
-    expect(formatReceiptLineGstPercent({ taxRate: 18, priceIncludesGst: true }, 'TAX INVOICE')).toBe('')
-    expect(formatReceiptLineGstPercent({ taxRate: 0, priceIncludesGst: false }, 'TAX INVOICE')).toBe('')
+    const saleStub = { items: [] } as Sale
+    expect(formatReceiptLineGstPercent({ taxRate: 5, priceIncludesGst: false } as Sale['items'][0], 'TAX INVOICE', saleStub)).toBe('5%')
+    expect(formatReceiptLineGstPercent({ taxRate: 18, priceIncludesGst: true } as Sale['items'][0], 'TAX INVOICE', saleStub)).toBe('')
+    expect(formatReceiptLineGstPercent({ taxRate: 0, priceIncludesGst: false } as Sale['items'][0], 'TAX INVOICE', saleStub)).toBe('')
 
     const mixedSale: Sale = {
       ...dummySale,
@@ -254,12 +258,86 @@ describe('Receipt Engine & Acceptance Criteria', () => {
     expect(lines48.every(l => l.length === 48)).toBe(true)
   })
 
-  // Criterion 11: Sub Total - Discount = Taxable Value + CGST + SGST + Round Off
-  it('Criterion 11: Sub Total - Discount equals Taxable Value + CGST + SGST + Round Off to the paisa', () => {
+  // Criterion 11: Payable = taxable + tax; shelf subtotal − discount = payable (before paise round)
+  it('Criterion 11: Sub Total - Discount equals taxable + CGST + SGST and matches billed grand total', () => {
     const totals = calculateReceiptTotals(dummySale, '27ABCDE1234F1Z5', true)
-    const netPaid = totals.subTotal - totals.totalDiscount
-    const rightSide = totals.taxableAmount + totals.cgstTotal + totals.sgstTotal + totals.roundOff
-    expect(Math.abs(netPaid - rightSide)).toBeLessThanOrEqual(0.02)
+    const netShelf = totals.subTotal - totals.totalDiscount
+    const taxInclTotal = totals.taxableAmount + totals.cgstTotal + totals.sgstTotal
+    expect(Math.abs(netShelf - taxInclTotal)).toBeLessThanOrEqual(0.02)
+    expect(Math.abs(totals.rawGrandTotal - taxInclTotal)).toBeLessThanOrEqual(0.02)
+    expect(totals.finalGrandTotal).toBe(Math.round(totals.rawGrandTotal))
+  })
+
+  it('grand total includes GST on excl. lines and matches sale.grandTotal (incl. + excl. mix)', () => {
+    const mixedSale: Sale = {
+      ...dummySale,
+      items: [
+        {
+          productId: 'a',
+          productName: 'Hot Air Brush',
+          quantity: 1,
+          sellingPrice: 1,
+          discount: 0,
+          taxRate: 0,
+          priceIncludesGst: true,
+          taxAmount: 0,
+          total: 1,
+        },
+        {
+          productId: 'b',
+          productName: 'Atta 250gm',
+          quantity: 1,
+          sellingPrice: 1104.97,
+          discount: 0,
+          taxRate: 28,
+          priceIncludesGst: true,
+          taxAmount: 241.71,
+          total: 1104.97,
+        },
+      ],
+      subtotal: 864.26,
+      totalDiscount: 0,
+      totalTax: 241.71,
+      grandTotal: 1105.97,
+    }
+    const totals = calculateReceiptTotals(mixedSale, '27ABCDE1234F1Z5')
+    expect(totals.finalGrandTotal).toBe(1106)
+    expect(totals.rawGrandTotal).toBe(1105.97)
+    expect(totals.subTotal).toBeCloseTo(1105.97, 2)
+
+    const lines = compileReceiptTextLines({
+      sale: mixedSale,
+      businessGSTIN: '27ABCDE1234F1Z5',
+      paperSize: '58mm',
+    })
+    const grandLine = lines.find(l => l.includes('GRAND TOTAL'))
+    expect(grandLine).toContain('1,106.00')
+  })
+
+  it('adds GST on top for exclusive lines in grand total', () => {
+    const exclSale: Sale = {
+      ...dummySale,
+      items: [
+        {
+          productId: 'x',
+          productName: 'Excl Item',
+          quantity: 1,
+          sellingPrice: 100,
+          discount: 0,
+          taxRate: 5,
+          priceIncludesGst: false,
+          taxAmount: 5,
+          total: 105,
+        },
+      ],
+      subtotal: 100,
+      totalDiscount: 0,
+      totalTax: 5,
+      grandTotal: 105,
+    }
+    const totals = calculateReceiptTotals(exclSale, '27ABCDE1234F1Z5')
+    expect(totals.rawGrandTotal).toBe(105)
+    expect(totals.finalGrandTotal).toBe(105)
   })
 
   // Criterion 12: 50-item bill handles without truncation or overrun
