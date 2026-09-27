@@ -238,10 +238,21 @@ export interface GstTaxGroup {
   sgst: number
 }
 
+export interface ReceiptLineBreakdown {
+  /** Customer pays this on the line before bill-level discount. */
+  payableBeforeOrderDisc: number
+  taxable: number
+  tax: number
+  taxRate: number
+  priceIncludesGst: boolean
+}
+
 export interface ReceiptTotalsResult {
   docTitle: string
+  /** Sum of line payables (incl. GST on excl.-priced lines) before order discount. */
   subTotal: number
   totalDiscount: number
+  orderDiscount: number
   taxableAmount: number
   totalTax: number
   cgstTotal: number
@@ -250,6 +261,7 @@ export interface ReceiptTotalsResult {
   finalGrandTotal: number
   roundOff: number
   taxGroups: GstTaxGroup[]
+  lineBreakdowns: ReceiptLineBreakdown[]
   totalQty: number
   itemCount: number
 }
@@ -273,28 +285,45 @@ export function calculateReceiptTotals(
     itemDiscounts += (item.discount || 0)
   })
 
-  // Shelf / line total as printed on item rows (not POS taxable base stored in sale.subtotal)
-  const subTotal = rawSubTotal
   const totalDiscount = sale.totalDiscount ?? itemDiscounts
   const orderDiscount = Math.max(0, totalDiscount - itemDiscounts)
 
   const groupMap = new Map<number, { taxable: number; tax: number; cgst: number; sgst: number }>()
+  const lineBreakdowns: ReceiptLineBreakdown[] = []
   let taxableSum = 0
   let totalTaxSum = 0
   let cgstSum = 0
   let sgstSum = 0
   let payableSum = 0
+  let subTotalPayable = 0
 
   items.forEach(item => {
+    const includesGst = resolveItemPriceIncludesGst(item, sale, legacyDefaultIncludesGst)
     const lineNetBeforeOrderDisc = item.sellingPrice * item.quantity - (item.discount || 0)
     const lineOrderDisc =
       rawSubTotal > 0 ? (lineNetBeforeOrderDisc / rawSubTotal) * orderDiscount : 0
     const effectiveDiscount = (item.discount || 0) + lineOrderDisc
 
+    const gstBeforeOrder = computeSaleLineGst({
+      ...item,
+      discount: item.discount || 0,
+      priceIncludesGst: includesGst,
+    })
+    const payableBeforeOrderDisc = roundMoney(gstBeforeOrder.taxable + gstBeforeOrder.tax)
+    subTotalPayable = roundMoney(subTotalPayable + payableBeforeOrderDisc)
+
     const gst = computeSaleLineGst({
       ...item,
       discount: effectiveDiscount,
-      priceIncludesGst: resolveItemPriceIncludesGst(item, sale, legacyDefaultIncludesGst),
+      priceIncludesGst: includesGst,
+    })
+
+    lineBreakdowns.push({
+      payableBeforeOrderDisc,
+      taxable: gst.taxable,
+      tax: gst.tax,
+      taxRate: gst.rate,
+      priceIncludesGst: includesGst,
     })
 
     payableSum = roundMoney(payableSum + gst.taxable + gst.tax)
@@ -329,7 +358,8 @@ export function calculateReceiptTotals(
       sgst: g.sgst,
     }))
 
-  const netPayableBeforeTax = subTotal - totalDiscount
+  const subTotal = subTotalPayable
+  const netPayableBeforeTax = subTotal - orderDiscount
   const taxableAmount = isTaxInvoice ? taxableSum : netPayableBeforeTax
   const totalTax = isTaxInvoice ? totalTaxSum : 0
   const cgstTotal = isTaxInvoice ? cgstSum : 0
@@ -349,6 +379,7 @@ export function calculateReceiptTotals(
     docTitle,
     subTotal,
     totalDiscount,
+    orderDiscount,
     taxableAmount,
     totalTax,
     cgstTotal,
@@ -357,9 +388,19 @@ export function calculateReceiptTotals(
     finalGrandTotal,
     roundOff,
     taxGroups,
+    lineBreakdowns,
     totalQty,
     itemCount: items.length
   }
+}
+
+/** Short thermal hint under a line item (incl. vs excl. GST). */
+export function formatLineGstBreakdownHint(line: ReceiptLineBreakdown): string {
+  if (line.taxRate <= 0 || line.tax <= 0) return ''
+  if (line.priceIncludesGst) {
+    return `Incl.GST ${formatIndianNumber(line.tax)} (Base ${formatIndianNumber(line.taxable)})`
+  }
+  return `Base ${formatIndianNumber(line.taxable)} +GST ${formatIndianNumber(line.tax)}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -467,7 +508,8 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     lines.push(divider('-', COLS))
 
     items.forEach((item, index) => {
-      const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
+      const lineFig = totals.lineBreakdowns[index]
+      const linePayable = lineFig?.payableBeforeOrderDisc ?? (item.sellingPrice * item.quantity - (item.discount || 0))
       const gstStr = formatReceiptLineGstPercent(item, totals.docTitle, sale, pricesIncludeGst)
 
       const nameWidth = 22
@@ -479,7 +521,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
         { text: item.quantity.toString(), width: 5, align: 'R' },
         { text: gstStr, width: 5, align: 'R' },
         { text: formatIndianNumber(item.sellingPrice), width: 8, align: 'R' },
-        { text: formatIndianNumber(lineAmt), width: 8, align: 'R' },
+        { text: formatIndianNumber(linePayable), width: 8, align: 'R' },
       ], COLS))
 
       let remainingName = fullName.slice(nameWidth)
@@ -491,6 +533,10 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
           { text: '', width: 26, align: 'L' }
         ], COLS))
       }
+      if (showTaxBreakdown && lineFig) {
+        const hint = formatLineGstBreakdownHint(lineFig)
+        if (hint) lines.push(...wrapProse(`  ${hint}`, COLS, false))
+      }
     })
   } else {
     // 32-Column Two-Line Layout
@@ -498,7 +544,8 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     lines.push(divider('-', COLS))
 
     items.forEach((item, index) => {
-      const lineAmt = item.sellingPrice * item.quantity - (item.discount || 0)
+      const lineFig = totals.lineBreakdowns[index]
+      const linePayable = lineFig?.payableBeforeOrderDisc ?? (item.sellingPrice * item.quantity - (item.discount || 0))
       const gstStr = formatReceiptLineGstPercent(item, totals.docTitle, sale, pricesIncludeGst)
 
       const fullName = `${index + 1} ${item.productName}`
@@ -510,8 +557,12 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
         { text: '  ', width: 2, align: 'L' },
         { text: qtyRateStr, width: 16, align: 'L' },
         { text: gstStr, width: 4, align: 'R' },
-        { text: formatIndianNumber(lineAmt), width: 10, align: 'R' },
+        { text: formatIndianNumber(linePayable), width: 10, align: 'R' },
       ], COLS))
+      if (showTaxBreakdown && lineFig) {
+        const hint = formatLineGstBreakdownHint(lineFig)
+        if (hint) lines.push(...wrapProse(`  ${hint}`, COLS, false))
+      }
     })
   }
 
@@ -520,7 +571,9 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   // ── 4. TOTALS BLOCK ──
   if (showSubtotalDiscount) {
     lines.push(row('Sub Total', formatIndianNumber(totals.subTotal), COLS))
-    if (totals.totalDiscount > 0) {
+    if (totals.orderDiscount > 0) {
+      lines.push(row('Discount', `-${formatIndianNumber(totals.orderDiscount)}`, COLS))
+    } else if (totals.totalDiscount > 0) {
       lines.push(row('Discount', `-${formatIndianNumber(totals.totalDiscount)}`, COLS))
     }
     lines.push(divider('-', COLS))
@@ -530,6 +583,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
     lines.push(row('Taxable Value', formatIndianNumber(totals.taxableAmount), COLS))
     lines.push(row('  CGST', formatIndianNumber(totals.cgstTotal), COLS))
     lines.push(row('  SGST', formatIndianNumber(totals.sgstTotal), COLS))
+    lines.push(row('Total GST', formatIndianNumber(totals.totalTax), COLS))
     lines.push(divider('-', COLS))
   }
 
