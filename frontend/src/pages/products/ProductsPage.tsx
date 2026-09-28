@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { ProductDetailModal, formatDisplayUnit } from './components/ProductDetailModal'
-import { AiDocumentUploadModal } from './components/AiDocumentUploadModal'
+import { BulkProductUploadModal } from './components/BulkProductUploadModal'
 import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
 import { ExportModal, type ExportFormat } from '@/components/common/ExportModal'
 import {
@@ -233,7 +233,7 @@ export const ProductsPage = () => {
   const [stockFilter, setStockFilter] = useState('')
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
-  const [showAiModal, setShowAiModal] = useState(false)
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
   const [showConsecutiveModal, setShowConsecutiveModal] = useState(false)
   const [consecutiveProducts, setConsecutiveProducts] = useState<Product[]>([])
   const [showExportModal, setShowExportModal] = useState(false)
@@ -809,8 +809,8 @@ export const ProductsPage = () => {
       pulse: true,
       icon: <Upload size={16} />,
       label: 'Bulk upload',
-      hint: 'SEZ AI document import',
-      onClick: () => setShowAiModal(true),
+      hint: 'Excel / CSV spreadsheet import',
+      onClick: () => setShowBulkUploadModal(true),
     },
     {
       key: 'labels',
@@ -2157,9 +2157,9 @@ export const ProductsPage = () => {
         onPrintLabel={handlePrintLabel}
       />
 
-      <AiDocumentUploadModal
-        isOpen={showAiModal}
-        onClose={() => setShowAiModal(false)}
+      <BulkProductUploadModal
+        isOpen={showBulkUploadModal}
+        onClose={() => setShowBulkUploadModal(false)}
       />
 
       <ConsecutiveLabelModal

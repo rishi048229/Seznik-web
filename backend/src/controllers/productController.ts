@@ -2,6 +2,11 @@ import { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import prisma from '../config/db';
 import { getTenantUserId } from '../utils/ownerUser';
+import {
+  assertCanCreateProducts,
+  BULK_PRODUCT_IMPORT_MAX,
+} from '../utils/dailyUsageLimits';
+import { validateImagePayloads } from '../utils/mediaPayloadLimits';
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
@@ -19,6 +24,7 @@ export const getProducts = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
   try {
     const userId = getTenantUserId(req);
+    await assertCanCreateProducts(userId, 1);
     const { imageUrl, sku, categoryId, ...rest } = req.body;
 
     // Map frontend `imageUrl` → Prisma column `imageURL`
@@ -48,7 +54,11 @@ export const createProduct = async (req: Request, res: Response) => {
       data: { ...rest, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
     });
     res.status(201).json(product);
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as { statusCode?: number; message?: string };
+    if (err?.statusCode === 429 || err?.statusCode === 400) {
+      return res.status(err.statusCode).json({ error: err.message || 'Product limit reached' });
+    }
     console.error('createProduct error:', error);
     res.status(500).json({ error: 'Failed to create product' });
   }
@@ -854,67 +864,237 @@ RULES:
 
 export const bulkImportProducts = async (req: Request, res: Response) => {
   try {
-    const rawUserId = getTenantUserId(req);
-    const { products: items } = req.body;
+    const userId = getTenantUserId(req);
+    const imageErr = validateImagePayloads(req.body || {});
+    if (imageErr) return res.status(400).json({ error: imageErr });
+    const items = Array.isArray(req.body.products)
+      ? req.body.products
+      : (Array.isArray(req.body.items)
+        ? req.body.items
+        : (Array.isArray(req.body) ? req.body : []));
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'No items provided for bulk import.' });
     }
 
-    // 1. Get or create categories
-    const categoryNames = Array.from(new Set(items.map((i: any) => String(i.categoryName || 'General').trim())));
-    const existingCategories = await prisma.category.findMany({
-      where: { userId: rawUserId }
+    const validItems = items.filter((i: any) => {
+      if (i.importAction === 'skip' || i.action === 'skip') return false;
+      const name = String(i.name || '').trim();
+      return name.length > 0;
     });
-    
-    const categoryMap = new Map<string, string>();
-    existingCategories.forEach(c => categoryMap.set(c.name.toLowerCase(), c.id));
 
-    for (const catName of categoryNames) {
-      const lower = catName.toLowerCase();
-      if (!categoryMap.has(lower)) {
-        const newCat = await prisma.category.create({
-          data: { name: catName, userId: rawUserId, isActive: true }
-        });
-        categoryMap.set(lower, newCat.id);
+    if (validItems.length === 0) {
+      return res.status(400).json({ error: 'No valid products to import.' });
+    }
+
+    if (validItems.length > BULK_PRODUCT_IMPORT_MAX) {
+      return res.status(400).json({
+        error: `Bulk import is limited to ${BULK_PRODUCT_IMPORT_MAX} products per upload. Split your file and try again.`,
+      });
+    }
+
+    const existingProducts = await prisma.product.findMany({
+      where: { userId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        barcode: true,
+        currentStock: true,
+        sellingPrice: true,
+        costPrice: true,
+        categoryId: true,
+      },
+    });
+
+    const existingBarcodeMap = new Map<string, (typeof existingProducts)[0]>();
+    const existingNameMap = new Map<string, (typeof existingProducts)[0]>();
+    for (const p of existingProducts) {
+      if (p.barcode) {
+        existingBarcodeMap.set(p.barcode.toLowerCase().trim(), p);
+      }
+      if (p.name) {
+        existingNameMap.set(p.name.toLowerCase().trim(), p);
       }
     }
 
-    // 2. Prepare product rows
-    const createData = items.map((item: any, idx: number) => {
-      const catId = categoryMap.get(String(item.categoryName || 'General').toLowerCase().trim())!;
-      const sku = item.sku || `SKU-AI-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
-      const barcode = item.barcode || `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    const countNewCreates = (items: any[]) =>
+      items.filter((item) => {
+        const rawBarcode = item.barcode ? String(item.barcode).trim().toLowerCase() : '';
+        const rawName = String(item.name || '').trim().toLowerCase();
+        const matched =
+          (item.matchedProductId ? existingProducts.find((p) => p.id === item.matchedProductId) : null) ||
+          (rawBarcode ? existingBarcodeMap.get(rawBarcode) : null) ||
+          (rawName ? existingNameMap.get(rawName) : null);
+        const forceUpdate =
+          matched &&
+          (item.importAction === 'update_stock' || item.action === 'update_stock' || !item.importAction);
+        return !forceUpdate;
+      }).length;
 
-      return {
-        name: String(item.name).trim(),
-        sku,
-        barcode,
-        barcodeType: item.barcodeType || 'CODE128',
-        categoryId: catId,
-        costPrice: Number(item.costPrice) || 0,
-        sellingPrice: Number(item.sellingPrice) || 0,
-        taxRate: Number(item.taxRate) || 0,
-        priceIncludesGst: Boolean(item.priceIncludesGst),
-        currentStock: Number(item.currentStock) || 0,
-        lowStockThreshold: Number(item.lowStockThreshold) || 5,
-        unit: String(item.unit || 'piece').toLowerCase().trim(),
-        isActive: true,
-        userId: rawUserId
-      };
-    });
+    await assertCanCreateProducts(userId, countNewCreates(validItems));
 
-    const result = await prisma.product.createMany({
-      data: createData,
-      skipDuplicates: true
+    const categoryNames = Array.from(
+      new Set(validItems.map((i: any) => String(i.categoryName || 'General').trim()))
+    );
+    const existingCategories = await prisma.category.findMany({
+      where: { userId },
     });
+    const categoryMap = new Map<string, string>();
+    existingCategories.forEach((c) => categoryMap.set(c.name.toLowerCase(), c.id));
+
+    for (const catName of categoryNames) {
+      const lower = catName.toLowerCase();
+      if (!categoryMap.has(lower) && catName.length > 0) {
+        try {
+          const newCat = await prisma.category.create({
+            data: { name: catName, userId, isActive: true },
+          });
+          categoryMap.set(lower, newCat.id);
+        } catch {
+          const found = await prisma.category.findFirst({
+            where: { userId, name: { equals: catName, mode: 'insensitive' } },
+          });
+          if (found) categoryMap.set(lower, found.id);
+        }
+      }
+    }
+
+    let defaultCatId = existingCategories[0]?.id;
+    if (!defaultCatId) {
+      const generalCat = await prisma.category.findFirst({ where: { userId } }) ||
+        await prisma.category.create({ data: { name: 'General', userId, isActive: true } });
+      defaultCatId = generalCat.id;
+    }
+
+    let updatedCount = 0;
+    let createdCount = 0;
+    const updatedProductList: unknown[] = [];
+    const createdProductList: unknown[] = [];
+
+    const usedBarcodes = new Set<string>(
+      existingProducts.map((p) => (p.barcode ? p.barcode.toLowerCase().trim() : '')).filter(Boolean)
+    );
+
+    for (let idx = 0; idx < validItems.length; idx++) {
+      const item = validItems[idx];
+      const rawBarcode = item.barcode ? String(item.barcode).trim() : '';
+      const rawName = String(item.name || '').trim();
+      const lowerBarcode = rawBarcode.toLowerCase();
+      const lowerName = rawName.toLowerCase();
+
+      const matched =
+        (item.matchedProductId ? existingProducts.find((p) => p.id === item.matchedProductId) : null) ||
+        (lowerBarcode ? existingBarcodeMap.get(lowerBarcode) : null) ||
+        (lowerName ? existingNameMap.get(lowerName) : null);
+
+      const shouldUpdate =
+        matched &&
+        (item.importAction === 'update_stock' || item.action === 'update_stock' || !item.importAction);
+
+      if (shouldUpdate && matched) {
+        const qtyToAdd = Number(item.currentStock) || Number(item.quantity) || 0;
+        const sellPrice = Number(item.sellingPrice) || 0;
+        const costPrice = Number(item.costPrice) || 0;
+
+        try {
+          const updated = await prisma.product.update({
+            where: { id: matched.id },
+            data: {
+              ...(qtyToAdd > 0 ? { currentStock: { increment: qtyToAdd } } : {}),
+              ...(sellPrice > 0 ? { sellingPrice: sellPrice } : {}),
+              ...(costPrice > 0 ? { costPrice } : {}),
+            },
+            include: { category: true },
+          });
+
+          if (qtyToAdd > 0) {
+            await prisma.stockHistory.create({
+              data: {
+                productId: matched.id,
+                change: qtyToAdd,
+                reason: `Spreadsheet Import - Restock (+${qtyToAdd})`,
+                userId,
+              },
+            });
+          }
+
+          updatedProductList.push(updated);
+          updatedCount++;
+        } catch (stockErr) {
+          console.warn(`Could not update existing product ${matched.id}:`, stockErr);
+        }
+      } else {
+        const catName = String(item.categoryName || 'General').trim();
+        const catId = categoryMap.get(catName.toLowerCase()) || defaultCatId;
+        const sku = item.sku || `SKU-IMP-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
+
+        let finalBarcode = rawBarcode;
+        if (!finalBarcode || usedBarcodes.has(finalBarcode.toLowerCase())) {
+          let genB = '';
+          do {
+            genB = `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+          } while (usedBarcodes.has(genB.toLowerCase()));
+          finalBarcode = genB;
+        }
+        usedBarcodes.add(finalBarcode.toLowerCase());
+
+        const initialStock = Number(item.currentStock) || 0;
+
+        try {
+          const newProd = await prisma.product.create({
+            data: {
+              name: rawName,
+              sku,
+              barcode: finalBarcode,
+              barcodeType: item.barcodeType || 'CODE128',
+              categoryId: catId,
+              costPrice: Number(item.costPrice) || 0,
+              sellingPrice: Number(item.sellingPrice) || 0,
+              taxRate: Number(item.taxRate) || 0,
+              priceIncludesGst: Boolean(item.priceIncludesGst),
+              currentStock: initialStock,
+              lowStockThreshold: Number(item.lowStockThreshold) || 5,
+              unit: String(item.unit || 'piece').toLowerCase().trim(),
+              isActive: true,
+              userId,
+            },
+            include: { category: true },
+          });
+
+          if (initialStock > 0) {
+            await prisma.stockHistory.create({
+              data: {
+                productId: newProd.id,
+                change: initialStock,
+                reason: 'Initial Stock (Spreadsheet Import)',
+                userId,
+              },
+            });
+          }
+
+          existingBarcodeMap.set(finalBarcode.toLowerCase(), newProd);
+          existingNameMap.set(rawName.toLowerCase(), newProd);
+
+          createdProductList.push(newProd);
+          createdCount++;
+        } catch (createErr) {
+          console.error(`Failed to create product "${rawName}":`, createErr);
+        }
+      }
+    }
 
     res.json({
       success: true,
-      count: result.count,
-      products: createData
+      count: updatedCount + createdCount,
+      updatedCount,
+      createdCount,
+      products: [...updatedProductList, ...createdProductList],
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as { statusCode?: number; message?: string };
+    if (err?.statusCode === 429 || err?.statusCode === 400) {
+      return res.status(err.statusCode).json({ error: err.message || 'Import limit reached' });
+    }
     console.error('bulkImportProducts error:', error);
     res.status(500).json({ error: 'Failed to bulk import products' });
   }

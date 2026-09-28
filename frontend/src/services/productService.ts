@@ -94,6 +94,11 @@ export interface AiExtractedProduct {
   unit: string
   priceIncludesGst: boolean
   selected: boolean
+  isAlreadyListed?: boolean
+  matchedProductId?: string | null
+  matchedProductName?: string | null
+  currentCatalogStock?: number | null
+  importAction?: 'update_stock' | 'create_new'
 }
 
 export const extractProductsFromAiDocument = async (
