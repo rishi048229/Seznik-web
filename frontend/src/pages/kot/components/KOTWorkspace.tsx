@@ -20,6 +20,7 @@ import {
   useKotOrder,
   useKotOrders,
   useSendKotToKitchen,
+  useUpdateKotOrderItem,
 } from '@/hooks/useKotOrders'
 import { getChildCategories } from '@/utils/categoryTree'
 import { resolveEffectiveReceiptConfig } from '@/utils/receipt'
@@ -95,6 +96,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const { data: runningOrders = [] } = useKotOrders({ status: 'running', refetchInterval: 8000 })
   const { mutateAsync: createOrder, isPending: isCreating } = useCreateKotOrder()
   const { mutateAsync: addItems, isPending: isAdding } = useAddKotItems()
+  const { mutateAsync: updateKotItem } = useUpdateKotOrderItem()
   const { mutateAsync: sendKitchen, isPending: isSending } = useSendKotToKitchen()
   const { mutateAsync: assignTable, isPending: isAssigning } = useAssignKotTable()
   const { mutateAsync: cancelOrder, isPending: isCancelling } = useCancelKotOrder()
@@ -238,6 +240,55 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     items: toPayloadItems(items),
   })
 
+  const mergeDraftIntoPending = (draft: KOTDraftItem) => {
+    setPendingItems((prev) => {
+      const match = prev.find(
+        (it) =>
+          it.productId === draft.productId &&
+          (it.notes || '') === (draft.notes || '') &&
+          it.modifiers.join('|') === draft.modifiers.join('|')
+      )
+      if (!match) return [...prev, draft]
+      return prev.map((it) =>
+        it.tempId === match.tempId ? { ...it, quantity: it.quantity + draft.quantity } : it
+      )
+    })
+  }
+
+  const tryBumpMenuProduct = (product: Product): boolean => {
+    const simplePending = pendingItems.find(
+      (it) => it.productId === product.id && !it.notes && it.modifiers.length === 0
+    )
+    if (simplePending) {
+      setPendingItems((prev) =>
+        prev.map((it) =>
+          it.tempId === simplePending.tempId ? { ...it, quantity: it.quantity + 1 } : it
+        )
+      )
+      setMobileTab('ticket')
+      return true
+    }
+
+    if (orderId) {
+      const simpleServer = unprintedServerItems.find(
+        (it) =>
+          it.productId === product.id &&
+          !it.notes &&
+          (it.modifiers?.length ?? 0) === 0
+      )
+      if (simpleServer) {
+        void updateKotItem({
+          orderId,
+          itemId: simpleServer.id,
+          quantity: simpleServer.quantity + 1,
+        }).catch((err) => toastError(err, 'Could not update quantity'))
+        setMobileTab('ticket')
+        return true
+      }
+    }
+    return false
+  }
+
   const confirmAddItem = async () => {
     if (!pickedProduct) return
     const draft: KOTDraftItem = {
@@ -256,28 +307,16 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     setItemNotes('')
     setItemMods([])
     setMobileTab('ticket')
+    mergeDraftIntoPending(draft)
+  }
 
-    if (!orderId) {
-      try {
-        const created = await createOrder(startOrderPayload([draft]))
-        setOrderId(created.id)
-        toast.success('Order started')
-      } catch (err) {
-        toastError(err, 'Could not start the order')
-      }
-      return
+  const handleUnprintedQty = async (itemId: string, qty: number) => {
+    if (!orderId) return
+    try {
+      await updateKotItem({ orderId, itemId, quantity: qty })
+    } catch (err) {
+      toastError(err, 'Could not update item')
     }
-
-    setPendingItems((prev) => {
-      const match = prev.find(
-        (it) =>
-          it.productId === draft.productId &&
-          (it.notes || '') === (draft.notes || '') &&
-          it.modifiers.join('|') === draft.modifiers.join('|')
-      )
-      if (!match) return [...prev, draft]
-      return prev.map((it) => (it.tempId === match.tempId ? { ...it, quantity: it.quantity + 1 } : it))
-    })
   }
 
   const persistPending = async (currentOrderId: string) => {
@@ -574,6 +613,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               onCategoryChange={setCategoryId}
               stockFor={stockFor}
               onPick={(p) => {
+                if (tryBumpMenuProduct(p)) return
                 setPickedProduct(p)
                 setItemNotes('')
                 setItemMods([])
@@ -614,6 +654,17 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
                 setPendingItems((prev) => prev.map((it) => (it.tempId === tempId ? { ...it, quantity: qty } : it)))
               }}
               onRemovePending={(tempId) => setPendingItems((prev) => prev.filter((it) => it.tempId !== tempId))}
+              onUnprintedQty={(itemId, qty) => void handleUnprintedQty(itemId, qty)}
+              onRemoveUnprinted={(itemId) => void handleUnprintedQty(itemId, 0)}
+              onBumpPendingLine={(tempId) => {
+                setPendingItems((prev) =>
+                  prev.map((it) => (it.tempId === tempId ? { ...it, quantity: it.quantity + 1 } : it))
+                )
+              }}
+              onBumpUnprintedLine={(itemId) => {
+                const it = unprintedServerItems.find((row) => row.id === itemId)
+                if (it) void handleUnprintedQty(itemId, it.quantity + 1)
+              }}
               subtotal={totals.subtotal}
               tax={totals.tax}
               grandTotal={totals.grandTotal}

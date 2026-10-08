@@ -22,6 +22,10 @@ interface OrderTicketPanelProps {
   pendingItems: KOTDraftItem[]
   onPendingQty: (tempId: string, qty: number) => void
   onRemovePending: (tempId: string) => void
+  onUnprintedQty: (itemId: string, qty: number) => void
+  onRemoveUnprinted: (itemId: string) => void
+  onBumpPendingLine: (tempId: string) => void
+  onBumpUnprintedLine: (itemId: string) => void
   subtotal: number
   tax: number
   grandTotal: number
@@ -43,6 +47,10 @@ export const OrderTicketPanel = ({
   pendingItems,
   onPendingQty,
   onRemovePending,
+  onUnprintedQty,
+  onRemoveUnprinted,
+  onBumpPendingLine,
+  onBumpUnprintedLine,
   subtotal,
   tax,
   grandTotal,
@@ -163,14 +171,35 @@ export const OrderTicketPanel = ({
                   key={it.id}
                   className="rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/40 px-3 py-2"
                 >
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {it.quantity} × {it.productName}
-                  </p>
-                  {it.modifiers?.length > 0 && (
-                    <p className="text-[11px] italic text-gray-600 dark:text-gray-400">* {it.modifiers.join(', ')}</p>
-                  )}
-                  {it.notes && <p className="text-[11px] italic text-red-600 dark:text-red-400">{it.notes}</p>}
-                  <p className="text-xs font-semibold mt-1">{formatINR(it.unitPrice * it.quantity)}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onBumpUnprintedLine(it.id)}
+                      className="min-w-0 flex-1 text-left rounded-md -m-1 p-1 active:bg-amber-100/80 dark:active:bg-amber-900/30"
+                      title="Tap to add one more"
+                    >
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{it.productName}</p>
+                      {it.modifiers?.length > 0 && (
+                        <p className="text-[11px] italic text-gray-600 dark:text-gray-400">* {it.modifiers.join(', ')}</p>
+                      )}
+                      {it.notes && <p className="text-[11px] italic text-red-600 dark:text-red-400">{it.notes}</p>}
+                    </button>
+                    <button type="button" onClick={() => onRemoveUnprinted(it.id)} className="text-red-400 hover:text-red-600 shrink-0">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 px-1">
+                      <button type="button" onClick={() => onUnprintedQty(it.id, it.quantity - 1)} className="w-7 h-7 flex items-center justify-center">
+                        <Minus size={12} />
+                      </button>
+                      <span className="w-6 text-center text-sm font-bold">{it.quantity}</span>
+                      <button type="button" onClick={() => onUnprintedQty(it.id, it.quantity + 1)} className="w-7 h-7 flex items-center justify-center">
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                    <span className="text-xs font-semibold">{formatINR(it.unitPrice * it.quantity)}</span>
+                  </div>
                 </li>
               ))}
               {pendingItems.map((it) => (
@@ -179,14 +208,19 @@ export const OrderTicketPanel = ({
                   className="rounded-lg border border-sky-300 dark:border-sky-600 bg-sky-50 dark:bg-sky-950/40 px-3 py-2"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => onBumpPendingLine(it.tempId)}
+                      className="min-w-0 flex-1 text-left rounded-md -m-1 p-1 active:bg-sky-100/80 dark:active:bg-sky-900/30"
+                      title="Tap to add one more"
+                    >
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{it.productName}</p>
                       {it.modifiers.length > 0 && (
                         <p className="text-[11px] italic text-gray-600 dark:text-gray-400">* {it.modifiers.join(', ')}</p>
                       )}
                       {it.notes && <p className="text-[11px] italic text-red-600 dark:text-red-400">{it.notes}</p>}
-                    </div>
-                    <button type="button" onClick={() => onRemovePending(it.tempId)} className="text-red-400 hover:text-red-600">
+                    </button>
+                    <button type="button" onClick={() => onRemovePending(it.tempId)} className="text-red-400 hover:text-red-600 shrink-0">
                       <Trash2 size={14} />
                     </button>
                   </div>

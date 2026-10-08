@@ -4,6 +4,7 @@ import {
   getOrderById,
   createOrder,
   addItemsToOrder,
+  updateKotOrderItem,
   sendToKitchen,
   updateOrderStatus,
   generateBill,
@@ -22,6 +23,7 @@ router.get('/', getOrders);
 router.get('/:id', getOrderById);
 router.post('/', createOrder);
 router.post('/:id/items', addItemsToOrder);
+router.patch('/:id/items/:itemId', updateKotOrderItem);
 router.post('/:id/send-to-kitchen', sendToKitchen);
 router.patch('/:id/status', updateOrderStatus);
 router.post('/:id/bill', generateBill);
