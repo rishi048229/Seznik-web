@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { COMPLETED_SALE_WHERE } from '../utils/completedSales';
 import { getTenantUserId } from '../utils/ownerUser';
+import { buildProductCostMaps, saleCogs } from '../utils/saleCogs';
 
 const parseDate = (d: any, defaultDate: Date) => {
   if (!d || d === 'undefined' || d === 'null') return defaultDate;
@@ -104,16 +105,22 @@ export const getPLReport = async (req: Request, res: Response) => {
     const userId = getTenantUserId(req);
     const { start, end } = req.query;
 
-    const sales = await prisma.sale.findMany({
-      where: {
-        userId,
-        ...COMPLETED_SALE_WHERE,
-        createdAt: {
-          gte: parseDate(start, new Date(0)),
-          lte: parseRangeEnd(end, new Date())
+    const [sales, products] = await Promise.all([
+      prisma.sale.findMany({
+        where: {
+          userId,
+          ...COMPLETED_SALE_WHERE,
+          createdAt: {
+            gte: parseDate(start, new Date(0)),
+            lte: parseRangeEnd(end, new Date())
+          }
         }
-      }
-    });
+      }),
+      prisma.product.findMany({
+        where: { userId },
+        select: { id: true, name: true, costPrice: true },
+      }),
+    ]);
 
     const expenses: any[] = await prisma.$queryRaw`
       SELECT * FROM "Expense" 
@@ -122,9 +129,13 @@ export const getPLReport = async (req: Request, res: Response) => {
         AND "expenseDate" <= ${parseRangeEnd(end, new Date())}
     `;
 
+    const { byId, byName } = buildProductCostMaps(products);
     const totalRevenue = sales.reduce((sum, d) => sum + d.grandTotal, 0);
     const totalExpenses = expenses.reduce((sum, d) => sum + d.amount, 0);
-    const totalCost = totalRevenue * 0.6; // Simplified
+    const totalCost = sales.reduce(
+      (sum, sale) => sum + saleCogs(sale.items, byId, byName),
+      0
+    );
 
     res.json({
       totalRevenue,
@@ -181,9 +192,11 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
       }
     });
 
-    const products = await prisma.product.findMany({ where: { userId } });
-    const productCosts = new Map<string, number>();
-    products.forEach(p => productCosts.set(p.id, p.costPrice));
+    const products = await prisma.product.findMany({
+      where: { userId },
+      select: { id: true, name: true, costPrice: true },
+    });
+    const { byId, byName } = buildProductCostMaps(products);
 
     const dayMap = new Map<string, { revenue: number; count: number; profit: number }>();
     sales.forEach(sale => {
@@ -191,17 +204,8 @@ export const getRevenueTrend = async (req: Request, res: Response) => {
       const existing = dayMap.get(key) ?? { revenue: 0, count: 0, profit: 0 };
       existing.revenue += sale.grandTotal;
       existing.count += 1;
-
-      let totalCost = 0;
-      const items: any = sale.items;
-      if (items && Array.isArray(items)) {
-        items.forEach(item => {
-          if (item.productId) {
-            totalCost += (productCosts.get(item.productId) ?? 0) * item.quantity;
-          }
-        });
-      }
-      existing.profit += sale.grandTotal - sale.totalTax - totalCost;
+      const totalCost = saleCogs(sale.items, byId, byName);
+      existing.profit += sale.grandTotal - totalCost;
       dayMap.set(key, existing);
     });
 
@@ -302,10 +306,12 @@ export const getProfitBreakdown = async (req: Request, res: Response) => {
 
     const [sales, products] = await Promise.all([
       prisma.sale.findMany({ where: { userId, ...COMPLETED_SALE_WHERE } }),
-      prisma.product.findMany({ where: { userId } }),
+      prisma.product.findMany({
+        where: { userId },
+        select: { id: true, name: true, costPrice: true },
+      }),
     ]);
-    const productCosts = new Map<string, number>();
-    products.forEach(p => productCosts.set(p.id, p.costPrice));
+    const { byId, byName } = buildProductCostMaps(products);
 
     let revenue = 0;
     let tax = 0;
@@ -313,17 +319,10 @@ export const getProfitBreakdown = async (req: Request, res: Response) => {
     sales.forEach(sale => {
       revenue += sale.grandTotal;
       tax += sale.totalTax;
-      const items: any = sale.items;
-      if (Array.isArray(items)) {
-        items.forEach(item => {
-          if (item.productId) {
-            cost += (productCosts.get(item.productId) ?? 0) * item.quantity;
-          }
-        });
-      }
+      cost += saleCogs(sale.items, byId, byName);
     });
 
-    const profit = revenue - tax - cost;
+    const profit = revenue - cost;
     const marginPercent = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
 
     res.json({ revenue, tax, cost, profit, marginPercent });

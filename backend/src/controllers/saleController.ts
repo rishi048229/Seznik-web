@@ -44,6 +44,28 @@ export const createSale = async (req: Request, res: Response) => {
     // Parse custom bill date if provided, otherwise default to now
     const saleDate = data.createdAt ? new Date(data.createdAt) : new Date();
 
+    if (data.items && Array.isArray(data.items)) {
+      const catalog = await prisma.product.findMany({
+        where: { userId },
+        select: { id: true, name: true, costPrice: true },
+      });
+      const byId = new Map(catalog.map((p) => [p.id, p.costPrice]));
+      const byName = new Map(
+        catalog.map((p) => [p.name.trim().toLowerCase(), p.costPrice] as const)
+      );
+      data.items = data.items.map((item: any) => {
+        if (item.costPrice != null && Number(item.costPrice) >= 0) return item;
+        let unit = 0;
+        if (item.productId && byId.has(item.productId)) {
+          unit = byId.get(item.productId) ?? 0;
+        } else {
+          const name = String(item.productName || '').trim().toLowerCase();
+          if (name && byName.has(name)) unit = byName.get(name) ?? 0;
+        }
+        return { ...item, costPrice: unit };
+      });
+    }
+
     // Use a transaction for creating sale, updating stock, and updating customer credit
     const result = await prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({

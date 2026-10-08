@@ -38,7 +38,7 @@ export const ProfitLossPage = () => {
       ['', ''],
       ['Description', 'Amount'],
       ['Total Revenue', report.totalRevenue],
-      ['Total Cost (estimated)', report.totalCost],
+      ['Cost of Goods Sold', report.totalCost],
       ['Gross Profit', report.totalRevenue - report.totalCost],
       ['Total Expenses', report.totalExpenses],
       ['Net Profit', report.netProfit],

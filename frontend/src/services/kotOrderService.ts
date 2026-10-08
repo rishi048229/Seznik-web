@@ -50,8 +50,8 @@ export const updateKotOrderItemQuantity = async (
   itemId: string,
   quantity: number
 ): Promise<KOTOrder> => {
-  return await fetchApi(`/kot-orders/${orderId}/items/${itemId}`, {
-    method: 'PATCH',
+  return await fetchApi(`/kot-orders/${orderId}/items/${itemId}/quantity`, {
+    method: 'POST',
     body: JSON.stringify({ quantity }),
   })
 }
