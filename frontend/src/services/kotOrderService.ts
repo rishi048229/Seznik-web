@@ -53,6 +53,17 @@ export const editOrder = async (id: string, data: EditKOTOrderPayload): Promise<
   })
 }
 
+export const updateKotOrderItemQuantity = async (
+  orderId: string,
+  itemId: string,
+  quantity: number
+): Promise<KOTOrder> => {
+  return await fetchApi(`/kot-orders/${orderId}/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ quantity }),
+  })
+}
+
 export const sendToKitchen = async (
   id: string,
   data?: { waiterName?: string; locationId?: string | null }

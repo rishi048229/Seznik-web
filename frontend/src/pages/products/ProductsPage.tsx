@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/Badge'
 import { BarcodeStockUpdateModal } from './components/BarcodeStockUpdateModal'
 import { ProductDetailModal, formatDisplayUnit } from './components/ProductDetailModal'
 import { BulkProductUploadModal } from './components/BulkProductUploadModal'
-import { AddFoodItemModal } from '@/pages/kot/components/AddFoodItemModal'
 import { ConsecutiveLabelModal } from './components/ConsecutiveLabelModal'
 import { ExportModal, type ExportFormat } from '@/components/common/ExportModal'
 import {
@@ -28,7 +27,6 @@ import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { AutoTranslatedText } from '@/components/common/AutoTranslatedText'
-import { toastError } from '@/utils/userMessage'
 import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Wand2, X, Bluetooth, Keyboard, Upload } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
@@ -36,11 +34,7 @@ import { buildCategoryOptions } from '@/utils/categoryTree'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { useAuth } from '@/contexts/AuthContext'
-import { isKotFirstNav, isProductAvailable, usesStockTracking } from '@/utils/businessFeatures'
 import { useSettings } from '@/hooks/useSettings'
-import { useLocations, useProductLocationStock, useUpsertProductLocationStock, useLocationStock } from '@/hooks/useLocations'
-import { LocationSelector } from '@/components/common/LocationSelector'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
   generateLabelEscPos,
@@ -53,27 +47,17 @@ import {
   type LabelData
 } from '@/utils/labelPrint'
 import type { LabelElement } from '@/types/settings.types'
+import {
+  LABEL_SIZE_PRESETS,
+  RECEIPT_LABEL_GAP_MM,
+  snapLabelPreset,
+} from '@/utils/labelSizes'
 import { drawBarcodeToCanvas, drawQrCodeToCanvas, downloadCanvasAsPng, downloadBarcodePng, encodeCode128B } from '@/utils/barcodeGenerator'
 import { trackUserAction } from '@/utils/analytics'
 import { GST_SLAB_OPTIONS, UNIT_OPTIONS, type UnitType } from '@/utils/productOptions'
 import { isExpiringSoon, isExpired, daysUntilExpiry, formatExpiryMessage } from '@/utils/expiry'
 
-export interface LabelSizePreset {
-  id: string
-  label: string
-  width: number
-  height: number
-  description: string
-}
-
-export const LABEL_SIZE_PRESETS: LabelSizePreset[] = [
-  { id: '50x30', label: '50 × 30 mm', width: 50, height: 30, description: 'Standard' },
-  { id: '50x25', label: '50 × 25 mm', width: 50, height: 25, description: 'Compact' },
-  { id: '40x30', label: '40 × 30 mm', width: 40, height: 30, description: 'Small' },
-  { id: '40x20', label: '40 × 20 mm', width: 40, height: 20, description: 'Mini' },
-  { id: '60x40', label: '60 × 40 mm', width: 60, height: 40, description: 'Large' },
-  { id: 'custom', label: 'Custom', width: 50, height: 30, description: 'Manual' },
-]
+export { LABEL_SIZE_PRESETS } from '@/utils/labelSizes'
 
 type BarcodeType = 'CODE128' | 'EAN13' | 'QR'
 
@@ -91,7 +75,6 @@ interface ProductFormState {
   lowStockThreshold: string
   unit: UnitType
   imageURL: string
-  isAvailable: boolean
   // Optional details — never required, purely informational when filled in.
   brand: string
   description: string
@@ -129,12 +112,11 @@ const defaultForm: ProductFormState = {
   costPrice: '',
   sellingPrice: '',
   taxRate: '0',
-  priceIncludesGst: true,
+  priceIncludesGst: false,
   currentStock: '0',
   lowStockThreshold: '10',
   unit: 'piece',
   imageURL: '',
-  isAvailable: true,
   brand: '',
   description: '',
   expiryDate: '',
@@ -142,13 +124,95 @@ const defaultForm: ProductFormState = {
 
 const PAGE_SIZE = 8
 
+function ProductActionTile({
+  icon,
+  label,
+  hint,
+  onClick,
+  tone = 'slate',
+  dataTour,
+  pulse,
+  compact,
+}: {
+  icon: ReactNode
+  label: string
+  hint: string
+  onClick: () => void
+  tone?: 'slate' | 'blue' | 'purple' | 'emerald' | 'amber' | 'rose'
+  dataTour?: string
+  pulse?: boolean
+  compact?: boolean
+}) {
+  const tones = {
+    slate: {
+      tile: 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:border-gray-500',
+      icon: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-200 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900',
+      hint: 'text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300',
+    },
+    blue: {
+      tile: 'border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/30 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40',
+      icon: 'bg-blue-100 text-blue-600 dark:bg-blue-900/60 dark:text-blue-300 group-hover:bg-blue-600 group-hover:text-white',
+      hint: 'text-blue-600/70 group-hover:text-blue-700 dark:text-blue-400',
+    },
+    purple: {
+      tile: 'border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-950/30 hover:border-purple-500 hover:bg-purple-100 dark:hover:bg-purple-900/40',
+      icon: 'bg-purple-100 text-purple-600 dark:bg-purple-900/60 dark:text-purple-300 group-hover:bg-purple-600 group-hover:text-white',
+      hint: 'text-purple-600/70 group-hover:text-purple-700 dark:text-purple-400',
+    },
+    emerald: {
+      tile: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 hover:border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40',
+      icon: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white',
+      hint: 'text-emerald-600/70 group-hover:text-emerald-700 dark:text-emerald-400',
+    },
+    amber: {
+      tile: 'border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30 hover:border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+      icon: 'bg-amber-100 text-amber-600 dark:bg-amber-900/60 dark:text-amber-300 group-hover:bg-amber-600 group-hover:text-white',
+      hint: 'text-amber-600/70 group-hover:text-amber-700 dark:text-amber-400',
+    },
+    rose: {
+      tile: 'border-rose-200 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/30 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/40',
+      icon: 'bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-300 group-hover:bg-rose-600 group-hover:text-white',
+      hint: 'text-rose-600/70 group-hover:text-rose-700 dark:text-rose-400',
+    },
+  }[tone]
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        data-tour={dataTour}
+        onClick={onClick}
+        className={`group inline-flex items-center gap-1.5 shrink-0 h-9 px-2.5 rounded-full border text-xs font-semibold transition-colors ${tones.tile}`}
+      >
+        <span className={`w-6 h-6 rounded-lg flex items-center justify-center ${tones.icon} ${pulse ? 'animate-pulse' : ''}`}>
+          {icon}
+        </span>
+        <span className="whitespace-nowrap text-gray-900 dark:text-gray-100">{label}</span>
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      data-tour={dataTour}
+      onClick={onClick}
+      className={`group flex items-center gap-3 min-w-0 w-full text-left rounded-2xl border px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tones.tile}`}
+    >
+      <span className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200 ${tones.icon} ${pulse ? 'animate-pulse' : ''}`}>
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{label}</span>
+        <span className={`block text-[11px] truncate ${tones.hint}`}>{hint}</span>
+      </span>
+    </button>
+  )
+}
+
 export const ProductsPage = () => {
   const { t } = useLanguage()
-  const { userProfile } = useAuth()
-  const kotFirst = isKotFirstNav(userProfile?.businessType)
-  const { data: settings } = useSettings()
-  const trackStock = usesStockTracking(userProfile?.businessType, settings?.trackStock)
-  const { data: products, isLoading, isError: productsError, error: productsErrorDetail, refetch: refetchProducts } = useProducts()
+  const { data: products, isLoading } = useProducts()
 
   const { data: categories } = useCategories()
   const { data: suppliers } = useSuppliers()
@@ -170,39 +234,16 @@ export const ProductsPage = () => {
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [showManualBarcodeModal, setShowManualBarcodeModal] = useState(false)
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
-  const [foodModalOpen, setFoodModalOpen] = useState(false)
-  const [foodEditProduct, setFoodEditProduct] = useState<Product | null>(null)
   const [showConsecutiveModal, setShowConsecutiveModal] = useState(false)
   const [consecutiveProducts, setConsecutiveProducts] = useState<Product[]>([])
   const [showExportModal, setShowExportModal] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [manualQty, setManualQty] = useState('1')
-  const locationFeatureEnabled = settings?.locationConfig?.enabled ?? false
-  const { data: allLocations = [] } = useLocations()
-  const activeLocations = allLocations.filter(l => l.isActive)
-  const { data: productLocationStock = [] } = useProductLocationStock(locationFeatureEnabled ? editId : null)
-  const { mutate: upsertLocationStock } = useUpsertProductLocationStock()
+  const { data: settings } = useSettings()
 
-  // Store switcher — lets the owner browse/manage this catalog scoped to one
-  // store at a time (same shared selection as POS/Scan-to-Bill, via
-  // LocationSelector's localStorage key, so picking a store anywhere in the
-  // app stays consistent). Products can carry different stock/price per
-  // store, or be entirely absent from one — "browseStoreId" is null when the
-  // feature is off or no store is picked, which falls back to every
-  // product's flat currentStock/sellingPrice exactly as before.
-  const [browseStoreId, setBrowseStoreId] = useState<string | null>(null)
-  const [showOnlyThisStore, setShowOnlyThisStore] = useState(false)
-  const { data: browseStoreStock = [] } = useLocationStock(browseStoreId)
-  const browseStoreStockMap = new Map(browseStoreStock.map(r => [r.productId, r]))
-  const browseStoreName = allLocations.find(l => l.id === browseStoreId)?.name ?? ''
-
-  const getBrowseStock = (product: { id: string; currentStock: number }): number =>
-    browseStoreId ? (browseStoreStockMap.get(product.id)?.stock ?? 0) : product.currentStock
-  const getBrowsePrice = (product: { id: string; sellingPrice: number }): number =>
-    browseStoreId ? (browseStoreStockMap.get(product.id)?.priceOverride ?? product.sellingPrice) : product.sellingPrice
-  const isCarriedAtBrowseStore = (product: { id: string }): boolean =>
-    !browseStoreId || browseStoreStockMap.has(product.id)
-  const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, disconnect: disconnectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
+  const getBrowseStock = (product: { currentStock: number }): number => product.currentStock
+  const getBrowsePrice = (product: { sellingPrice: number }): number => product.sellingPrice
+  const { status: bleStatus, deviceName: bleDeviceName, connect: connectBlePrinter, isSupported: isBleSupported, print: sendBleData } = useBlePrinter()
   const isBleConnected = bleStatus === 'connected'
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [labelProduct, setLabelProduct] = useState<Product | null>(null)
@@ -232,14 +273,14 @@ export const ProductsPage = () => {
     const q = search.trim().toLowerCase()
     if (!q) return []
     return (products ?? [])
-      .filter((p: Product) => (trackStock ? p.isActive !== false : true) && (
+      .filter((p: Product) => p.isActive !== false && (
         p.name.toLowerCase().includes(q) ||
         p.sku?.toLowerCase().includes(q) ||
         p.barcode?.toLowerCase().includes(q) ||
         (p.brand && p.brand.toLowerCase().includes(q))
       ))
       .slice(0, 6)
-  }, [products, search, trackStock])
+  }, [products, search])
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -276,7 +317,7 @@ export const ProductsPage = () => {
         setInlineCategoryName('')
         setShowInlineCategory(false)
       },
-      onError: (err) => toastError(err, 'Failed to create category'),
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
     })
   }
 
@@ -290,13 +331,12 @@ export const ProductsPage = () => {
         setInlineSupplierPhone('')
         setShowInlineSupplier(false)
       },
-      onError: (err) => toastError(err, 'Failed to create supplier'),
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create supplier'),
     })
   }
 
   // F3 keyboard shortcut to open barcode stock update modal
   useEffect(() => {
-    if (!trackStock) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F3') {
         e.preventDefault()
@@ -305,7 +345,7 @@ export const ProductsPage = () => {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [trackStock])
+  }, [])
 
   // Category quick filter bar horizontal scroll logic
   const categoryScrollRef = useRef<HTMLDivElement>(null)
@@ -338,30 +378,18 @@ export const ProductsPage = () => {
   }
 
   const activeProducts = products?.filter(p => p.isActive !== false) ?? []
-  // Restaurants manage availability via isAvailable — include unavailable items so
-  // filtering and toggles work. Soft-deleted (isActive===false) stay in the list
-  // for legacy rows until migrated. Stock-tracked businesses keep active-only.
-  const catalogProducts = trackStock ? activeProducts : (products ?? [])
-  const filtered = catalogProducts.filter(p => {
+  const filtered = activeProducts.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !categoryFilter || p.categoryId === categoryFilter
     const stockHere = getBrowseStock(p)
-    const matchesStock = trackStock
-      ? (!stockFilter ||
-          (stockFilter === 'in-stock' && stockHere > p.lowStockThreshold) ||
-          (stockFilter === 'low-stock' && stockHere > 0 && stockHere <= p.lowStockThreshold) ||
-          (stockFilter === 'out-of-stock' && stockHere <= 0))
-      : (!stockFilter ||
-          (stockFilter === 'available' && isProductAvailable(p)) ||
-          (stockFilter === 'unavailable' && !isProductAvailable(p)))
-    const matchesStoreScope = !browseStoreId || !showOnlyThisStore || isCarriedAtBrowseStore(p)
-    return matchesSearch && matchesCategory && matchesStock && matchesStoreScope
+    const matchesStock = !stockFilter ||
+      (stockFilter === 'in-stock' && stockHere > p.lowStockThreshold) ||
+      (stockFilter === 'low-stock' && stockHere > 0 && stockHere <= p.lowStockThreshold) ||
+      (stockFilter === 'out-of-stock' && stockHere <= 0)
+    return matchesSearch && matchesCategory && matchesStock
   })
-  const unavailableProducts = trackStock
-    ? []
-    : (products ?? []).filter(p => !isProductAvailable(p))
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -417,11 +445,6 @@ export const ProductsPage = () => {
   }
 
   const openCreate = () => {
-    if (!trackStock) {
-      setFoodEditProduct(null)
-      setFoodModalOpen(true)
-      return
-    }
     resetForm()
     setIsFormOpen(true)
   }
@@ -433,14 +456,10 @@ export const ProductsPage = () => {
 
     const savedW = settings?.printerConfig?.labelWidth || 50
     const savedH = settings?.printerConfig?.labelHeight || 30
-    const matched = LABEL_SIZE_PRESETS.find(p => p.id !== 'custom' && p.width === savedW && p.height === savedH)
-    if (matched) {
-      setSelectedLabelSizeId(matched.id)
-    } else {
-      setSelectedLabelSizeId('custom')
-    }
-    setLabelWidth(savedW)
-    setLabelHeight(savedH)
+    const matched = snapLabelPreset(savedW, savedH)
+    setSelectedLabelSizeId(matched.id)
+    setLabelWidth(matched.width)
+    setLabelHeight(matched.height)
     setSelectedLayoutPresetId(settings?.printerConfig?.labelTemplate ? 'custom_settings' : 'standard')
     setIsLabelModalOpen(true)
   }
@@ -448,7 +467,7 @@ export const ProductsPage = () => {
   const handleSelectSizePreset = (presetId: string) => {
     setSelectedLabelSizeId(presetId)
     const preset = LABEL_SIZE_PRESETS.find(p => p.id === presetId)
-    if (preset && preset.id !== 'custom') {
+    if (preset) {
       setLabelWidth(preset.width)
       setLabelHeight(preset.height)
     }
@@ -489,7 +508,7 @@ export const ProductsPage = () => {
             settings?.printerConfig?.labelOffsetY || 0,
             undefined,
             settings?.printerConfig?.labelDirection ?? 0,
-            settings?.printerConfig?.labelBarcodeOffsetX ?? 0
+            settings?.printerConfig?.labelBarcodeOffsetX ?? 0,
           )
         : generateLabelEscPos(template, labelFormat, data)
 
@@ -526,8 +545,6 @@ export const ProductsPage = () => {
 
     const widthMm = labelWidth
     const heightMm = labelHeight
-    const offX = settings?.printerConfig?.labelOffsetX || 0
-    const offY = settings?.printerConfig?.labelOffsetY || 0
 
     const renderElementsHtml = template.map((el: LabelElement) => {
       const align = el.align || 'center'
@@ -583,9 +600,9 @@ export const ProductsPage = () => {
         <style>
           @page { size: auto; margin: 0; }
           body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; text-align: center; }
-          .grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+          .grid { display: flex; flex-direction: column; align-items: center; gap: ${RECEIPT_LABEL_GAP_MM}mm; }
           .sticker { width: ${widthMm}mm; height: ${heightMm}mm; border: 1px dashed #ccc; box-sizing: border-box; page-break-inside: avoid; overflow: hidden; position: relative; }
-          .sticker-content { width: 100%; height: 100%; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; transform: translate(${offX}mm, ${offY}mm); }
+          .sticker-content { width: 100%; height: 100%; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: stretch; }
         </style>
       </head>
       <body>
@@ -624,11 +641,6 @@ export const ProductsPage = () => {
   }
 
   const openEdit = (row: Product) => {
-    if (!trackStock) {
-      setFoodEditProduct(row)
-      setFoodModalOpen(true)
-      return
-    }
     setForm({
       name: row.name,
       categoryId: row.categoryId,
@@ -643,7 +655,6 @@ export const ProductsPage = () => {
       lowStockThreshold: String(row.lowStockThreshold),
       unit: row.unit,
       imageURL: row.imageURL ?? '',
-      isAvailable: row.isAvailable !== false && row.isActive !== false,
       brand: row.brand ?? '',
       description: row.description ?? '',
       expiryDate: row.expiryDate ? new Date(row.expiryDate).toISOString().slice(0, 10) : '',
@@ -661,14 +672,6 @@ export const ProductsPage = () => {
       toast.error('Please enter a barcode or use Auto-Generate')
       return
     }
-    if (!form.costPrice.trim() || isNaN(parseFloat(form.costPrice))) {
-      toast.error('Please enter a valid cost price')
-      return
-    }
-    if (!form.sellingPrice.trim() || isNaN(parseFloat(form.sellingPrice))) {
-      toast.error('Please enter a valid selling price')
-      return
-    }
 
     const taxRate = parseFloat(form.taxRate) || 0
     const enteredPrice = parseFloat(form.sellingPrice) || 0
@@ -683,15 +686,11 @@ export const ProductsPage = () => {
       sellingPrice: enteredPrice,
       taxRate,
       priceIncludesGst: form.priceIncludesGst,
-      currentStock: form.currentStock !== '' && !isNaN(parseInt(form.currentStock))
-        ? (parseInt(form.currentStock) || 0)
-        : (editId ? (products?.find(p => p.id === editId)?.currentStock ?? 0) : 0),
-      lowStockThreshold: trackStock ? (parseInt(form.lowStockThreshold) || 10) : 0,
+      currentStock: parseInt(form.currentStock) || 0,
+      lowStockThreshold: parseInt(form.lowStockThreshold) || 10,
       unit: form.unit,
       imageURL: form.imageURL || '',
-      ...(trackStock
-        ? { isActive: true }
-        : { isAvailable: form.isAvailable, isActive: true }),
+      isActive: true,
       // Optional details — sent as null (not omitted) when cleared, so
       // editing a product to remove a brand/description/expiry actually
       // clears it server-side instead of leaving the old value in place.
@@ -777,170 +776,134 @@ export const ProductsPage = () => {
   const pageTutorial = usePageTutorial('products')
   const categoryOptions = buildCategoryOptions(categories)
 
+  const productHeaderActions = [
+    {
+      key: 'add',
+      dataTour: 'add-product-btn',
+      tone: 'blue' as const,
+      icon: <Plus size={16} />,
+      label: t('products.addProduct'),
+      hint: 'Create a new item',
+      onClick: openCreate,
+    },
+    {
+      key: 'scan',
+      dataTour: 'scan-stock-btn',
+      tone: 'amber' as const,
+      icon: <Barcode size={16} />,
+      label: 'Scan to add',
+      hint: 'Restock by barcode',
+      onClick: () => setShowBarcodeModal(true),
+    },
+    {
+      key: 'manual',
+      tone: 'slate' as const,
+      icon: <Keyboard size={16} />,
+      label: 'Manual stock',
+      hint: 'Type barcode + qty',
+      onClick: () => setShowManualBarcodeModal(true),
+    },
+    {
+      key: 'bulk',
+      tone: 'purple' as const,
+      pulse: true,
+      icon: <Upload size={16} />,
+      label: 'Bulk upload',
+      hint: 'Excel / CSV spreadsheet import',
+      onClick: () => setShowBulkUploadModal(true),
+    },
+    {
+      key: 'labels',
+      tone: 'blue' as const,
+      icon: <Tag size={16} />,
+      label: selectedIds.size > 0 ? `Labels (${selectedIds.size})` : 'Print labels',
+      hint: 'Consecutive billing labels',
+      onClick: () => {
+        const targetProds = selectedIds.size > 0
+          ? activeProducts.filter(p => selectedIds.has(p.id))
+          : activeProducts
+        setConsecutiveProducts(targetProds)
+        setShowConsecutiveModal(true)
+      },
+    },
+    {
+      key: 'export',
+      tone: 'emerald' as const,
+      icon: <Download size={16} />,
+      label: selectedIds.size > 0 ? `Export (${selectedIds.size})` : 'Export',
+      hint: 'Excel, print or image',
+      onClick: () => setShowExportModal(true),
+    },
+    ...(isBleSupported ? [{
+      key: 'printer',
+      tone: (bleStatus === 'connected' ? 'emerald' : 'slate') as 'emerald' | 'slate',
+      pulse: bleStatus === 'connecting',
+      icon: <Bluetooth size={16} />,
+      label: bleStatus === 'connected' ? (bleDeviceName || 'Printer on') : bleStatus === 'connecting' ? 'Connecting…' : 'Label printer',
+      hint: bleStatus === 'connected' ? 'Ready to print labels' : 'Tap to connect Bluetooth',
+      onClick: () => {
+        if (bleStatus !== 'connected') connectBlePrinter()
+      },
+    }] : []),
+    ...(selectedIds.size > 0 ? [{
+      key: 'delete',
+      tone: 'rose' as const,
+      icon: <Trash2 size={16} />,
+      label: `Delete (${selectedIds.size})`,
+      hint: isBulkDeleting ? 'Deleting…' : 'Remove selected items',
+      onClick: handleBulkDelete,
+    }] : []),
+  ]
+
   return (
-    <div className="p-3 sm:p-6 max-w-full overflow-x-hidden pb-32 sm:pb-6">
+    <div className="p-1 sm:p-2 max-w-full min-w-0 pb-32 sm:pb-6">
       <div data-tour="products-header">
         <PageHeader
-          title={kotFirst ? t('page.menu') : t('page.products')}
+          title={t('page.products')}
           onWatchTutorial={pageTutorial.openTutorial}
         />
 
-        <div className="flex flex-wrap gap-2.5 mb-5">
-          <button
-            type="button"
-            data-tour="add-product-btn"
-            onClick={openCreate}
-            className="flex items-center gap-3 min-w-[158px] rounded-2xl border border-blue-100 bg-white dark:bg-dark-card dark:border-blue-900/40 px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
-          >
-            <span className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-              <Plus size={20} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-bold text-slate-800 dark:text-gray-100">Add Product</span>
-              <span className="block text-[11px] text-slate-500 dark:text-gray-400 truncate">Create a new item</span>
-            </span>
-          </button>
+        <div className="flex sm:hidden items-center gap-2 overflow-x-auto no-scrollbar mb-4 pb-1 min-w-0">
+          {productHeaderActions.map(action => (
+            <ProductActionTile
+              key={action.key}
+              compact
+              dataTour={action.dataTour}
+              tone={action.tone}
+              pulse={action.pulse}
+              icon={action.icon}
+              label={action.label}
+              hint={action.hint}
+              onClick={action.onClick}
+            />
+          ))}
+        </div>
 
-          {trackStock && (
-            <>
-              <button
-                type="button"
-                data-tour="scan-stock-btn"
-                onClick={() => setShowBarcodeModal(true)}
-                className="flex items-center gap-3 min-w-[158px] rounded-2xl border border-amber-100 bg-amber-50/80 dark:bg-amber-950/20 dark:border-amber-900/40 px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
-              >
-                <span className="w-10 h-10 rounded-xl bg-amber-400 text-white flex items-center justify-center shrink-0 shadow-sm">
-                  <Barcode size={20} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold text-slate-800 dark:text-gray-100">Scan to add</span>
-                  <span className="block text-[11px] text-slate-500 dark:text-gray-400 truncate">Restock by barcode</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowManualBarcodeModal(true)}
-                className="flex items-center gap-3 min-w-[158px] rounded-2xl border border-slate-200 bg-white dark:bg-dark-card dark:border-dark-border px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
-              >
-                <span className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-dark-elevated text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-                  <Keyboard size={20} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold text-slate-800 dark:text-gray-100">Manual stock</span>
-                  <span className="block text-[11px] text-slate-500 dark:text-gray-400 truncate">Type barcode + qty</span>
-                </span>
-              </button>
-            </>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowBulkUploadModal(true)}
-            className="flex items-center gap-3 min-w-[158px] rounded-2xl border border-violet-100 bg-violet-50/80 dark:bg-violet-950/20 dark:border-violet-900/40 px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
-          >
-            <span className="w-10 h-10 rounded-xl bg-violet-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-              <Upload size={20} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-bold text-slate-800 dark:text-gray-100">Bulk upload</span>
-              <span className="block text-[11px] text-slate-500 dark:text-gray-400 truncate">SEZ AI document</span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const targetProds = selectedIds.size > 0
-                ? activeProducts.filter(p => selectedIds.has(p.id))
-                : activeProducts
-              setConsecutiveProducts(targetProds)
-              setShowConsecutiveModal(true)
-            }}
-            className="flex items-center gap-3 min-w-[158px] rounded-2xl border border-sky-100 bg-sky-50/80 dark:bg-sky-950/20 dark:border-sky-900/40 px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
-          >
-            <span className="w-10 h-10 rounded-xl bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-              <Tag size={20} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-bold text-slate-800 dark:text-gray-100">Print labels</span>
-              <span className="block text-[11px] text-slate-500 dark:text-gray-400 truncate">
-                {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Consecutive bills'}
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-3 min-w-[158px] rounded-2xl border border-emerald-100 bg-emerald-50/80 dark:bg-emerald-950/20 dark:border-emerald-900/40 px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
-          >
-            <span className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-              <Download size={20} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-bold text-slate-800 dark:text-gray-100">Export</span>
-              <span className="block text-[11px] text-slate-500 dark:text-gray-400 truncate">
-                {selectedIds.size > 0 ? `Excel (${selectedIds.size})` : 'Excel, print or image'}
-              </span>
-            </span>
-          </button>
-
-          {isBleSupported && (
-            <button
-              type="button"
-              onClick={bleStatus === 'connected' ? disconnectBlePrinter : connectBlePrinter}
-              className={`flex items-center gap-3 min-w-[158px] rounded-2xl border px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all ${
-                bleStatus === 'connected'
-                  ? 'border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/20 dark:border-emerald-900/40'
-                  : 'border-slate-200 bg-white dark:bg-dark-card dark:border-dark-border'
-              }`}
-            >
-              <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                bleStatus === 'connected' ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-dark-elevated text-slate-600 dark:text-slate-300'
-              }`}>
-                <Bluetooth size={20} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-slate-800 dark:text-gray-100">Label printer</span>
-                <span className="block text-[11px] text-slate-500 dark:text-gray-400 truncate">
-                  {bleStatus === 'connected'
-                    ? bleDeviceName || 'Connected'
-                    : bleStatus === 'connecting'
-                    ? 'Connecting…'
-                    : 'Tap to connect'}
-                </span>
-              </span>
-            </button>
-          )}
-
-          {selectedIds.size > 0 && (
-            <button
-              type="button"
-              onClick={handleBulkDelete}
-              disabled={isBulkDeleting}
-              className="flex items-center gap-3 min-w-[158px] rounded-2xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-left shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all dark:bg-red-950/20 dark:border-red-900/40"
-            >
-              <span className="w-10 h-10 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0">
-                <Trash2 size={20} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-red-700 dark:text-red-300">Delete selected</span>
-                <span className="block text-[11px] text-red-500 dark:text-red-400 truncate">{selectedIds.size} products</span>
-              </span>
-            </button>
-          )}
+        <div className="hidden sm:grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-2 sm:gap-2.5 mb-5">
+          {productHeaderActions.map(action => (
+            <ProductActionTile
+              key={action.key}
+              dataTour={action.dataTour}
+              tone={action.tone}
+              pulse={action.pulse}
+              icon={action.icon}
+              label={action.label}
+              hint={action.hint}
+              onClick={action.onClick}
+            />
+          ))}
         </div>
       </div>
 
       {/* Toolbar */}
       <div data-tour="products-search" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 max-w-full overflow-hidden">
         <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 shrink-0 no-scrollbar">
-          <div data-tour="view-mode-toggle" className="flex bg-gray-100 dark:bg-dark-card rounded-full p-1 shrink-0">
+          <div data-tour="view-mode-toggle" className="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1 shrink-0">
             <button
               onClick={() => setViewMode('list')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-dark-elevated shadow-sm text-blue-600'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
@@ -951,7 +914,7 @@ export const ProductsPage = () => {
               onClick={() => setViewMode('grid')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                 viewMode === 'grid'
-                  ? 'bg-white dark:bg-dark-elevated shadow-sm text-blue-600'
+                  ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600'
                   : 'text-gray-500'
               }`}
             >
@@ -963,7 +926,7 @@ export const ProductsPage = () => {
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-xl appearance-none cursor-pointer bg-white dark:bg-dark-card dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-dark-border-strong"
+              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
               <option value="">All Categories</option>
               {categoryOptions.map(c => (
@@ -980,22 +943,12 @@ export const ProductsPage = () => {
             <select
               value={stockFilter}
               onChange={e => setStockFilter(e.target.value)}
-              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-dark-border-strong rounded-xl appearance-none cursor-pointer bg-white dark:bg-dark-card dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-dark-border-strong"
+              className="px-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
             >
-              {trackStock ? (
-                <>
-                  <option value="">All Statuses</option>
-                  <option value="in-stock">{t('pos.inStock')}</option>
-                  <option value="low-stock">{t('pos.lowStock')}</option>
-                  <option value="out-of-stock">{t('pos.outOfStock')}</option>
-                </>
-              ) : (
-                <>
-                  <option value="">All</option>
-                  <option value="available">Available</option>
-                  <option value="unavailable">Not available</option>
-                </>
-              )}
+              <option value="">All Statuses</option>
+              <option value="in-stock">{t('pos.inStock')}</option>
+              <option value="low-stock">{t('pos.lowStock')}</option>
+              <option value="out-of-stock">{t('pos.outOfStock')}</option>
             </select>
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1020,8 +973,8 @@ export const ProductsPage = () => {
             className="pl-9 w-full text-xs h-9"
           />
           {showSearchSuggestions && search.trim().length > 0 && searchSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-dark-card rounded-xl shadow-xl border border-gray-200 dark:border-dark-border py-1.5 z-50 overflow-hidden">
-              <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-dark-border">
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50 overflow-hidden">
+              <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
                 Matching Products ({searchSuggestions.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
@@ -1038,7 +991,7 @@ export const ProductsPage = () => {
                         setShowSearchSuggestions(false)
                         setCurrentPage(1)
                       }}
-                      className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-dark-border/50 last:border-none"
+                      className="w-full px-3 py-2 text-left flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border-b border-gray-50 dark:border-gray-800/50 last:border-none"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{p.name}</p>
@@ -1048,15 +1001,9 @@ export const ProductsPage = () => {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs font-bold text-blue-600 dark:text-white">{formatINR(price)}</span>
-                        <span className={`block text-[10px] ${
-                          trackStock
-                            ? (stock <= 0 ? 'text-red-500 font-semibold' : 'text-gray-400')
-                            : (!isProductAvailable(p) ? 'text-red-500 font-semibold' : 'text-emerald-600')
-                        }`}>
-                          {trackStock
-                            ? (stock <= 0 ? 'Out of Stock' : `${stock} in stock`)
-                            : (!isProductAvailable(p) ? 'Not available' : 'Available')}
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{formatINR(price)}</span>
+                        <span className={`block text-[10px] ${stock <= 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                          {stock <= 0 ? 'Out of Stock' : `${stock} in stock`}
                         </span>
                       </div>
                     </button>
@@ -1068,33 +1015,13 @@ export const ProductsPage = () => {
         </div>
       </div>
 
-      {/* Store switcher — browse/manage this catalog scoped to one store at a
-          time. Only rendered when multi-store inventory is enabled and at
-          least one active store exists. */}
-      {locationFeatureEnabled && activeLocations.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <LocationSelector onChange={setBrowseStoreId} />
-          {browseStoreId && (
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showOnlyThisStore}
-                onChange={e => setShowOnlyThisStore(e.target.checked)}
-                className="rounded"
-              />
-              Only show products carried at {browseStoreName}
-            </label>
-          )}
-        </div>
-      )}
-
       {/* Category Quick Filter Pills (Fully Horizontal Scrollable on Mobile, Tablet & Desktop) */}
       <div className="relative mb-4 group min-w-0">
         {canScrollLeft && (
           <button
             type="button"
             onClick={() => scrollCategories('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-dark-card/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong transition-all -ml-2"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -ml-2"
             aria-label="Scroll Left"
           >
             <ChevronLeft size={15} />
@@ -1112,8 +1039,8 @@ export const ProductsPage = () => {
             onClick={() => setCategoryFilter('')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
               !categoryFilter
-                ? 'bg-[#0a0a2e] text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
-                : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
+                ? 'bg-[#0a0a2e] text-white shadow-xs ring-2 ring-blue-500/20'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             All Categories ({activeProducts.length})
@@ -1127,8 +1054,8 @@ export const ProductsPage = () => {
                 onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
                   categoryFilter === c.value
-                    ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs ring-2 ring-blue-500/20'
-                    : 'bg-gray-100 dark:bg-dark-card text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-elevated'
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500/20'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
                 {c.label} ({count})
@@ -1141,7 +1068,7 @@ export const ProductsPage = () => {
           <button
             type="button"
             onClick={() => scrollCategories('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-dark-card/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong transition-all -mr-2"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white/95 dark:bg-gray-800/95 shadow-md rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 transition-all -mr-2"
             aria-label="Scroll Right"
           >
             <ChevronRight size={15} />
@@ -1154,17 +1081,17 @@ export const ProductsPage = () => {
         {/* Product List - Left */}
         <div data-tour="products-table" className="xl:col-span-3">
           <Card className="overflow-hidden">
-            <div className="p-6 border-b border-gray-100 dark:border-dark-border">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Inventory Catalog</h3>
             </div>
 
             {isLoading ? (
               <div className="p-4"><TableSkeleton rows={6} columns={7} /></div>
-            ) : productsError ? null : viewMode === 'list' ? (
+            ) : viewMode === 'list' ? (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
-                    <thead className="bg-gray-50 dark:bg-dark-card">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
                       <tr className="text-xs font-bold uppercase tracking-wider text-gray-500">
                         <th className="px-4 py-4 w-10">
                           <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -1176,23 +1103,23 @@ export const ProductsPage = () => {
                         <th className="px-6 py-4">Product Detail</th>
                         <th className="px-6 py-4">SKU / Barcode</th>
                         <th className="px-6 py-4">{t('common.category')}</th>
-                        <th className="px-6 py-4">{trackStock ? t('products.stockLevel') : 'Availability'}</th>
-                        <th className="px-6 py-4 text-center">Selling Price</th>
+                        <th className="px-6 py-4">{t('products.stockLevel')}</th>
+                        <th className="px-6 py-4">Price</th>
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {paginated.map(product => {
                         const storeStock = getBrowseStock(product)
                         const storePrice = getBrowsePrice(product)
+                        const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3)) * 100, 100)
                         const isLowStock = storeStock > 0 && storeStock <= product.lowStockThreshold
                         const isOutOfStock = storeStock <= 0
-                        const available = isProductAvailable(product)
                         return (
                           <tr
                             key={product.id}
                             onClick={() => openDetail(product)}
-                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-dark-card/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:blue-900/10' : ''} ${!trackStock && !available ? 'opacity-70' : ''}`}
+                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-gray-800/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
                           >
                             <td className="px-4 py-4 w-10" onClick={(e) => e.stopPropagation()}>
                               <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -1203,7 +1130,7 @@ export const ProductsPage = () => {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-dark-elevated overflow-hidden flex-shrink-0">
+                                <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
                                   {product.imageURL ? (
                                     <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                                   ) : (
@@ -1249,57 +1176,37 @@ export const ProductsPage = () => {
                               </Badge>
                             </td>
                             <td className="px-6 py-4">
-                              {trackStock ? (
-                                <div className="flex flex-col gap-1 items-start">
-                                  <span className={`text-sm font-semibold ${
-                                    isOutOfStock ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'
-                                  }`}>
-                                    {isOutOfStock ? '0 Units' : `${storeStock} Units`}
-                                  </span>
-                                  {isOutOfStock ? (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                                      Out of Stock
-                                    </span>
-                                  ) : isLowStock ? (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                      Low Stock
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                      In Stock
-                                    </span>
-                                  )}
-                                  {browseStoreId && (
-                                    <span className="text-[10px] text-gray-400">at {browseStoreName}</span>
-                                  )}
+                              <div className="flex flex-col gap-1">
+                                <span className={`text-sm font-semibold ${
+                                  isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
+                                }`}>
+                                  {storeStock} Units
+                                </span>
+                                <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
+                                    }`}
+                                    style={{ width: `${stockPercent}%` }}
+                                  />
                                 </div>
-                              ) : (
-                                <Badge variant={available ? 'success' : 'danger'}>
-                                  {available ? 'Available' : 'Not available'}
-                                </Badge>
-                              )}
+                              </div>
                             </td>
-                            <td className="px-6 py-4 text-center">
+                            <td className="px-6 py-4">
                               <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
-                              {browseStoreId && storePrice !== product.sellingPrice && (
-                                <p className="text-[10px] text-gray-400 line-through">{formatINR(product.sellingPrice)}</p>
-                              )}
                             </td>
                             <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
                                   title="Print label"
-                                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-elevated rounded-full transition-colors"
+                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                                 >
                                   <Tag size={16} className="text-gray-400" />
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); openEdit(product) }}
-                                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-elevated rounded-full transition-colors"
+                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                                 >
                                   <MoreHorizontal size={18} className="text-gray-400" />
                                 </button>
@@ -1314,7 +1221,7 @@ export const ProductsPage = () => {
 
                 {/* Pagination */}
                 {filtered.length > 0 && (
-                  <div className="p-4 bg-gray-50 dark:bg-dark-card border-t border-gray-100 dark:border-dark-border flex items-center justify-between">
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <span className="text-xs text-gray-500">
                       Showing {paginated.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0} to {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} products
                     </span>
@@ -1322,7 +1229,7 @@ export const ProductsPage = () => {
                       <button
                         disabled={currentPage === 1}
                         onClick={() => setCurrentPage(p => p - 1)}
-                        className="p-2 rounded-lg border border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:bg-gray-50 disabled:opacity-50"
+                        className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <ChevronLeft size={16} />
                       </button>
@@ -1332,8 +1239,8 @@ export const ProductsPage = () => {
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold ${
                             currentPage === page
-                              ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                              : 'bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border-strong text-gray-600 dark:text-gray-300'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
                           }`}
                         >
                           {page}
@@ -1342,7 +1249,7 @@ export const ProductsPage = () => {
                       <button
                         disabled={currentPage >= totalPages}
                         onClick={() => setCurrentPage(p => p + 1)}
-                        className="p-2 rounded-lg border border-gray-200 dark:border-dark-border-strong bg-white dark:bg-dark-elevated hover:bg-gray-50 disabled:opacity-50"
+                        className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <ChevronRight size={16} />
                       </button>
@@ -1357,7 +1264,7 @@ export const ProductsPage = () => {
                   {paginated.map(product => (
                     <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openDetail(product)}>
                       <div>
-                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-dark-elevated mb-2 sm:mb-3 overflow-hidden relative group">
+                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden relative group">
                           {product.imageURL ? (
                             <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
@@ -1369,7 +1276,7 @@ export const ProductsPage = () => {
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
                             title="Print Label"
-                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 dark:bg-dark-card/90 text-gray-700 dark:text-gray-200 hover:text-blue-600 shadow-md transition-all active:scale-95"
+                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 hover:text-blue-600 shadow-md transition-all active:scale-95"
                           >
                             <Tag size={14} />
                           </button>
@@ -1379,19 +1286,13 @@ export const ProductsPage = () => {
                           {product.name}
                         </p>
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-dark-border">
-                        {trackStock ? (
-                          <Badge variant={
-                            getBrowseStock(product) <= 0 ? 'danger' :
-                            getBrowseStock(product) <= product.lowStockThreshold ? 'warning' : 'success'
-                          }>
-                            {getBrowseStock(product) <= 0 ? 'Out of Stock' : `${getBrowseStock(product)} left`}
-                          </Badge>
-                        ) : (
-                          <Badge variant={isProductAvailable(product) ? 'success' : 'danger'}>
-                            {isProductAvailable(product) ? 'Available' : 'Not available'}
-                          </Badge>
-                        )}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <Badge variant={
+                          getBrowseStock(product) <= 0 ? 'danger' :
+                          getBrowseStock(product) <= product.lowStockThreshold ? 'warning' : 'success'
+                        }>
+                          {getBrowseStock(product) <= 0 ? 'Out of Stock' : `${getBrowseStock(product)} left`}
+                        </Badge>
                         <span className="text-sm sm:text-base font-bold text-blue-600">{formatINR(getBrowsePrice(product))}</span>
                       </div>
                     </Card>
@@ -1400,24 +1301,7 @@ export const ProductsPage = () => {
               </div>
             )}
 
-            {!isLoading && productsError && (
-              <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400 gap-3">
-                <Package size={48} className="mb-1 opacity-30" />
-                <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                  Couldn’t load products
-                </p>
-                <p className="text-xs max-w-sm text-center">
-                  {productsErrorDetail instanceof Error
-                    ? productsErrorDetail.message
-                    : 'Something went wrong fetching your catalog.'}
-                </p>
-                <Button variant="outline" size="sm" onClick={() => refetchProducts()}>
-                  Try again
-                </Button>
-              </div>
-            )}
-
-            {!isLoading && !productsError && filtered.length === 0 && (
+            {!isLoading && filtered.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <Package size={48} className="mb-4 opacity-30" />
                 <p className="text-sm">{search ? 'No products match your search' : 'No products yet. Add your first product!'}</p>
@@ -1456,74 +1340,46 @@ export const ProductsPage = () => {
             </div>
           </Card>
 
-          {/* Stock Alerts / Unavailable items */}
-          {trackStock ? (
-            <Card className="p-6">
-              <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
-                <AlertTriangle size={18} className="text-red-500" />
-                {t('products.stockAlerts')}
-              </h4>
-              <div className="space-y-3">
-                {lowStockProducts.slice(0, 3).map(product => (
-                  <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
-                      <p className="text-[10px] text-amber-600 font-medium">Low: {product.currentStock} left</p>
-                    </div>
-                    <button
-                      onClick={() => openEdit(product)}
-                      className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
-                    >
-                      Restock
-                    </button>
+          {/* Stock Alerts */}
+          <Card className="p-6">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
+              <AlertTriangle size={18} className="text-red-500" />
+              {t('products.stockAlerts')}
+            </h4>
+            <div className="space-y-3">
+              {lowStockProducts.slice(0, 3).map(product => (
+                <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
+                    <p className="text-[10px] text-amber-600 font-medium">Low: {product.currentStock} left</p>
                   </div>
-                ))}
-                {outOfStockProducts.slice(0, 2).map(product => (
-                  <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
-                      <p className="text-[10px] text-red-600 font-medium">Critical: Out of stock</p>
-                    </div>
-                    <button
-                      onClick={() => openEdit(product)}
-                      className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
-                    >
-                      Restock
-                    </button>
+                  <button
+                    onClick={() => openEdit(product)}
+                    className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                  >
+                    Restock
+                  </button>
+                </div>
+              ))}
+              {outOfStockProducts.slice(0, 2).map(product => (
+                <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
+                    <p className="text-[10px] text-red-600 font-medium">Critical: Out of stock</p>
                   </div>
-                ))}
-                {lowStockProducts.length === 0 && outOfStockProducts.length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-4">All stock levels healthy</p>
-                )}
-              </div>
-            </Card>
-          ) : (
-            <Card className="p-6">
-              <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm flex items-center gap-2 mb-4">
-                <AlertTriangle size={18} className="text-red-500" />
-                Not available
-              </h4>
-              <div className="space-y-3">
-                {unavailableProducts.slice(0, 5).map(product => (
-                  <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{product.name}</p>
-                      <p className="text-[10px] text-red-600 font-medium">Not available</p>
-                    </div>
-                    <button
-                      onClick={() => openEdit(product)}
-                      className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                ))}
-                {unavailableProducts.length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-4">All menu items available</p>
-                )}
-              </div>
-            </Card>
-          )}
+                  <button
+                    onClick={() => openEdit(product)}
+                    className="text-blue-600 text-[10px] font-bold uppercase tracking-wider hover:underline"
+                  >
+                    Restock
+                  </button>
+                </div>
+              ))}
+              {lowStockProducts.length === 0 && outOfStockProducts.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-4">All stock levels healthy</p>
+              )}
+            </div>
+          </Card>
 
           {/* Expiring Soon */}
           {expiringProducts.length > 0 && (
@@ -1577,7 +1433,7 @@ export const ProductsPage = () => {
                       <span className="text-gray-600 dark:text-gray-300">{getCategoryName(catId)}</span>
                       <span className="text-gray-900 dark:text-gray-100">{percent}%</span>
                     </div>
-                    <div className="w-full h-1.5 bg-gray-100 dark:bg-dark-elevated rounded-full">
+                    <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
                       <div className="h-full bg-blue-500 rounded-full" style={{ width: `${percent}%` }} />
                     </div>
                   </div>
@@ -1602,7 +1458,7 @@ export const ProductsPage = () => {
             <Button
               onClick={handleSave}
               loading={isCreating || isUpdating}
-              disabled={!form.name.trim() || !form.categoryId || !form.costPrice.trim() || !form.sellingPrice.trim()}
+              disabled={!form.name.trim() || !form.categoryId}
               className="w-full sm:w-auto"
             >
               {editId ? t('action.update') : t('action.create')}
@@ -1618,9 +1474,7 @@ export const ProductsPage = () => {
               value={form.imageURL}
               onChange={url => setForm(prev => ({ ...prev, imageURL: url }))}
               previewSize="md"
-              maxSizeMB={1}
             />
-            <p className="text-[11px] text-gray-400 -mt-2">Product photos must be 1 MB or less (JPG/PNG).</p>
           </div>
 
           <div>
@@ -1646,42 +1500,26 @@ export const ProductsPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowInlineCategory(v => !v)}
-                  className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                  className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
                 >
                   {showInlineCategory ? <X size={11} /> : <Plus size={11} />}
                   {showInlineCategory ? t('action.close') : t('products.newCategory')}
                 </button>
               </div>
-              {!showInlineCategory ? (
-                <Select
-                  options={[
-                    ...categoryOptions,
-                    { value: '__new__', label: '+ Add New Category...' },
-                  ]}
-                  placeholder={t('products.selectCategory')}
-                  value={form.categoryId}
-                  onChange={e => {
-                    if (e.target.value === '__new__') {
-                      setShowInlineCategory(true)
-                    } else {
-                      setForm(prev => ({ ...prev, categoryId: e.target.value }))
-                    }
-                  }}
-                />
-              ) : (
-                <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 flex gap-2 items-center">
+              <Select
+                options={categoryOptions}
+                placeholder={t('products.selectCategory')}
+                value={form.categoryId}
+                onChange={e => setForm(prev => ({ ...prev, categoryId: e.target.value }))}
+              />
+              {showInlineCategory && (
+                <div className="mt-2 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 flex gap-2">
                   <Input
-                    autoFocus
                     value={inlineCategoryName}
                     onChange={e => setInlineCategoryName(e.target.value)}
-                    placeholder="Type new category name..."
-                    className="h-9 text-sm flex-1 bg-white dark:bg-dark-card"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleInlineCreateCategory()
-                      }
-                    }}
+                    placeholder="New category name"
+                    className="h-9 text-sm"
+                    onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateCategory() }}
                   />
                   <Button
                     size="sm"
@@ -1690,18 +1528,7 @@ export const ProductsPage = () => {
                     disabled={!inlineCategoryName.trim()}
                     className="flex-shrink-0"
                   >
-                    Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setShowInlineCategory(false)
-                      setInlineCategoryName('')
-                    }}
-                    className="flex-shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                  >
-                    <X size={14} />
+                    Add
                   </Button>
                 </div>
               )}
@@ -1715,7 +1542,7 @@ export const ProductsPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowInlineSupplier(v => !v)}
-                  className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                  className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
                 >
                   {showInlineSupplier ? <X size={11} /> : <Plus size={11} />}
                   {showInlineSupplier ? t('action.close') : t('products.newSupplier')}
@@ -1766,28 +1593,30 @@ export const ProductsPage = () => {
               {t('products.barcode')} *
               <FieldInfo textKey="tip.product.barcode" />
             </label>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Input
                 value={form.barcode}
                 onChange={e => setForm(prev => ({ ...prev, barcode: e.target.value }))}
-                placeholder="Scan or type barcode"
-                className="flex-1 min-w-0"
+                placeholder="Scan, type, or auto-generate"
+                className="flex-1"
               />
-              <Select
-                options={BARCODE_TYPE_OPTIONS}
-                value={form.barcodeType}
-                onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
-                className="w-full sm:w-32 flex-shrink-0"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setForm(prev => ({ ...prev, barcode: generateBarcodeValue(prev.barcodeType) }))}
-                leftIcon={<Wand2 size={14} />}
-                className="w-full sm:w-auto flex-shrink-0 whitespace-nowrap px-3 text-xs"
-              >
-                {t('products.autoGenerate')}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
+                <Select
+                  options={BARCODE_TYPE_OPTIONS}
+                  value={form.barcodeType}
+                  onChange={e => setForm(prev => ({ ...prev, barcodeType: e.target.value as BarcodeType }))}
+                  className="w-full sm:w-32"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setForm(prev => ({ ...prev, barcode: generateBarcodeValue(prev.barcodeType) }))}
+                  leftIcon={<Wand2 size={14} />}
+                  className="w-full sm:w-auto flex-shrink-0"
+                >
+                  {t('products.autoGenerate')}
+                </Button>
+              </div>
             </div>
             <p className="text-[11px] text-gray-400 mt-1">
               {t('products.barcodeHelp')}
@@ -1797,7 +1626,7 @@ export const ProductsPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('products.costPrice')} *
+                {t('products.costPrice')}
                 <FieldInfo textKey="tip.product.costPrice" />
               </label>
               <Input
@@ -1814,26 +1643,18 @@ export const ProductsPage = () => {
                   {t('products.sellingPrice')} *
                   <FieldInfo textKey="tip.product.sellingPrice" />
                 </label>
-                <div className="flex items-center gap-1 bg-gray-200 dark:bg-dark-border/80 border border-gray-300 dark:border-dark-border-strong rounded-lg p-0.5 shadow-inner">
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: false }))}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
-                      !form.priceIncludesGst
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                    }`}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${!form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
                     {t('products.exclGst')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, priceIncludesGst: true }))}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
-                      form.priceIncludesGst
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                    }`}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${form.priceIncludesGst ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}
                   >
                     {t('products.inclGst')}
                   </button>
@@ -1853,10 +1674,10 @@ export const ProductsPage = () => {
                 if (form.priceIncludesGst) {
                   const base = price / (1 + rate / 100)
                   const gst = price - base
-                  return <p className="text-[11px] text-gray-400 mt-1">Taxable ₹{base.toFixed(2)} + GST ₹{gst.toFixed(2)} = ₹{price.toFixed(2)} (MRP)</p>
+                  return <p className="text-[11px] text-gray-400 mt-1">Base ₹{base.toFixed(2)} + GST ₹{gst.toFixed(2)} = ₹{price.toFixed(2)}</p>
                 } else {
                   const gst = price * rate / 100
-                  return <p className="text-[11px] text-gray-400 mt-1">Taxable ₹{price.toFixed(2)} + GST ₹{gst.toFixed(2)} → Customer pays ₹{(price + gst).toFixed(2)}</p>
+                  return <p className="text-[11px] text-gray-400 mt-1">Base ₹{price.toFixed(2)} + GST ₹{gst.toFixed(2)} = ₹{(price + gst).toFixed(2)} incl.</p>
                 }
               })()}
             </div>
@@ -1896,64 +1717,32 @@ export const ProductsPage = () => {
             </div>
           </div>
 
-          {trackStock ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('products.currentStock')}
-                  <FieldInfo textKey="tip.product.currentStock" />
-                </label>
-                <Input
-                  type="number"
-                  value={form.currentStock}
-                  onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('products.lowStockThreshold')}
-                  <FieldInfo textKey="tip.product.lowStockThreshold" />
-                </label>
-                <Input
-                  type="number"
-                  value={form.lowStockThreshold}
-                  onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
-                  placeholder="10"
-                />
-              </div>
-            </div>
-          ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Availability
+                {t('products.currentStock')}
+                <FieldInfo textKey="tip.product.currentStock" />
               </label>
-              <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-elevated rounded-lg p-0.5 w-fit">
-                <button
-                  type="button"
-                  onClick={() => setForm(prev => ({ ...prev, isAvailable: true }))}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    form.isAvailable
-                      ? 'bg-white dark:bg-dark-hover text-emerald-700 dark:text-emerald-300 shadow-sm'
-                      : 'text-gray-500'
-                  }`}
-                >
-                  Available
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm(prev => ({ ...prev, isAvailable: false }))}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    !form.isAvailable
-                      ? 'bg-white dark:bg-dark-hover text-red-600 dark:text-red-400 shadow-sm'
-                      : 'text-gray-500'
-                  }`}
-                >
-                  Not available
-                </button>
-              </div>
+              <Input
+                type="number"
+                value={form.currentStock}
+                onChange={e => setForm(prev => ({ ...prev, currentStock: e.target.value }))}
+                placeholder="0"
+              />
             </div>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('products.lowStockThreshold')}
+                <FieldInfo textKey="tip.product.lowStockThreshold" />
+              </label>
+              <Input
+                type="number"
+                value={form.lowStockThreshold}
+                onChange={e => setForm(prev => ({ ...prev, lowStockThreshold: e.target.value }))}
+                placeholder="10"
+              />
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1967,57 +1756,8 @@ export const ProductsPage = () => {
             />
           </div>
 
-          {/* Stock by Location — only shown when multi-location inventory is enabled */}
-          {trackStock && locationFeatureEnabled && activeLocations.length > 0 && (
-            <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
-                {t('locations.stockAtLocation') || 'Stock by Location'}
-              </p>
-              {!editId ? (
-                <p className="text-xs text-gray-400 italic">
-                  Save this product first, then come back to set its stock per location.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {activeLocations.map(loc => {
-                    const row = productLocationStock.find(r => r.locationId === loc.id)
-                    return (
-                      <div key={loc.id} className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 w-28 truncate shrink-0">
-                          {loc.name}
-                        </span>
-                        <input
-                          type="number"
-                          defaultValue={row?.stock ?? 0}
-                          onBlur={e => upsertLocationStock({
-                            productId: editId,
-                            locationId: loc.id,
-                            data: { stock: Number(e.target.value) || 0 },
-                          })}
-                          placeholder="Stock"
-                          className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated"
-                        />
-                        <input
-                          type="number"
-                          defaultValue={row?.priceOverride ?? ''}
-                          onBlur={e => upsertLocationStock({
-                            productId: editId,
-                            locationId: loc.id,
-                            data: { priceOverride: e.target.value === '' ? null : Number(e.target.value) },
-                          })}
-                          placeholder={`Price (default ${form.sellingPrice || '0'})`}
-                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border-strong rounded-lg bg-white dark:bg-dark-elevated"
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Additional Details — entirely optional, never validated as required */}
-          <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
+          <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3">
               {t('products.additionalDetails')} <span className="font-normal">({t('common.optional')})</span>
             </p>
@@ -2054,7 +1794,7 @@ export const ProductsPage = () => {
                   onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder={t('products.descriptionPlaceholder')}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-strong rounded-xl bg-white dark:bg-dark-elevated text-sm resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm resize-none"
                 />
               </div>
             </div>
@@ -2100,7 +1840,7 @@ export const ProductsPage = () => {
             />
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <Button
               variant="primary"
               onClick={handleManualBarcodeUpdate}
@@ -2183,7 +1923,7 @@ export const ProductsPage = () => {
             {/* Product Summary Header */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-blue-50/70 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/60">
               <div>
-                <p className="text-xs text-blue-600 dark:text-white font-semibold uppercase tracking-wider">Product</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">Product</p>
                 <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mt-0.5">{labelProduct.name}</h3>
                 <p className="text-xs text-gray-500 font-mono mt-0.5">SKU: {labelProduct.sku} | Price: {formatINR(labelProduct.sellingPrice)}</p>
               </div>
@@ -2200,11 +1940,11 @@ export const ProductsPage = () => {
                   <Tag size={13} className="text-blue-500" />
                   Label Sticker Size
                 </label>
-                <span className="text-xs font-semibold text-blue-600 dark:text-white bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
                   {labelWidth}mm × {labelHeight}mm
                 </span>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {LABEL_SIZE_PRESETS.map(p => {
                   const isSelected = selectedLabelSizeId === p.id
                   return (
@@ -2214,8 +1954,8 @@ export const ProductsPage = () => {
                       onClick={() => handleSelectSizePreset(p.id)}
                       className={`p-2 rounded-xl border text-center transition-all ${
                         isSelected
-                          ? 'bg-blue-600 text-white dark:bg-zinc-100 dark:text-zinc-900 border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
-                          : 'bg-white dark:bg-dark-card/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/30 ring-2 ring-blue-400/40'
+                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
                       }`}
                     >
                       <div className="text-xs font-bold">{p.label}</div>
@@ -2224,38 +1964,6 @@ export const ProductsPage = () => {
                   )
                 })}
               </div>
-
-              {/* Custom Size Inputs (Shown when Custom is selected) */}
-              {selectedLabelSizeId === 'custom' && (
-                <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/50 mt-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                      Width (mm)
-                    </label>
-                    <Input
-                      type="number"
-                      min="20"
-                      max="110"
-                      value={String(labelWidth)}
-                      onChange={e => setLabelWidth(Math.max(10, parseInt(e.target.value) || 50))}
-                      placeholder="50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                      Height (mm)
-                    </label>
-                    <Input
-                      type="number"
-                      min="15"
-                      max="150"
-                      value={String(labelHeight)}
-                      onChange={e => setLabelHeight(Math.max(10, parseInt(e.target.value) || 30))}
-                      placeholder="30"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Label Layout Template Preset Selection */}
@@ -2280,7 +1988,7 @@ export const ProductsPage = () => {
                       className={`p-2.5 rounded-xl border text-left transition-all ${
                         isSelected
                           ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-400/30 font-semibold'
-                          : 'bg-white dark:bg-dark-card/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:border-blue-300'
+                          : 'bg-white dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300'
                       }`}
                     >
                       <div className="text-xs font-bold">{tmpl.label}</div>
@@ -2324,22 +2032,27 @@ export const ProductsPage = () => {
             </div>
 
             {/* Live Canvas Sticker Preview */}
-            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-dark-card/60 border border-dashed border-gray-300 dark:border-dark-border-strong relative overflow-hidden">
+            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600 relative overflow-hidden">
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Live Sticker Preview ({labelWidth}mm × {labelHeight}mm)</span>
               <div
-                className="w-[260px] p-3.5 rounded-xl bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border shadow-md flex flex-col justify-start items-stretch gap-1 min-h-[140px] relative overflow-hidden"
+                className="w-[260px] rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-md relative overflow-hidden"
                 style={{
-                  minHeight: `${Math.max(110, Math.round(260 * (labelHeight / labelWidth)))}px`,
-                  transform: `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
+                  height: `${Math.max(110, Math.round(260 * (labelHeight / labelWidth)))}px`,
                 }}
               >
+                <div
+                  className="absolute inset-0 p-3.5 flex flex-col justify-center items-stretch gap-1"
+                  style={{
+                    transform: `translate(${settings?.printerConfig?.labelOffsetX || 0}px, ${settings?.printerConfig?.labelOffsetY || 0}px)`,
+                  }}
+                >
                 {activeLabelTemplate.map((el: LabelElement) => {
                   const alignClass = el.align === 'left' ? 'text-left w-full' : el.align === 'right' ? 'text-right w-full' : 'text-center w-full'
                   const fontKey = el.fontSize || (el.large ? 'large' : 'medium')
-                  const fontClass = fontKey === 'small' ? 'text-[9px]' : fontKey === 'large' ? 'text-sm text-blue-600 dark:text-white' : fontKey === 'xlarge' ? 'text-base text-blue-600 dark:text-white font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'
+                  const fontClass = fontKey === 'small' ? 'text-[9px]' : fontKey === 'large' ? 'text-sm text-blue-600 dark:text-blue-400' : fontKey === 'xlarge' ? 'text-base text-blue-600 dark:text-blue-400 font-extrabold' : 'text-xs text-gray-700 dark:text-gray-200'
 
                   if (el.type === 'divider') {
-                    return <hr key={el.id} className="border-t border-gray-300 dark:border-dark-border-strong my-1 w-full" />
+                    return <hr key={el.id} className="border-t border-gray-300 dark:border-gray-600 my-1 w-full" />
                   }
 
                   if (el.type === 'sideBySideBarcodeQr') {
@@ -2379,7 +2092,7 @@ export const ProductsPage = () => {
                   }
                   const text = resolveElementText(el, labelData)
                   if (!text) return null
-                  const priceExtra = el.type === 'price' ? 'mt-auto pt-1 font-bold text-gray-900 dark:text-white' : ''
+                  const priceExtra = el.type === 'price' ? 'font-bold text-gray-900 dark:text-white' : ''
                   return (
                     <div
                       key={el.id}
@@ -2389,6 +2102,7 @@ export const ProductsPage = () => {
                     </div>
                   )
                 })}
+                </div>
               </div>
             </div>
 
@@ -2429,7 +2143,6 @@ export const ProductsPage = () => {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         product={detailProduct}
-        trackStock={trackStock}
         categoryName={detailProduct ? getCategoryName(detailProduct.categoryId) : undefined}
         supplierName={detailProduct ? (suppliers?.find(s => s.id === detailProduct.supplierId)?.name || 'None') : undefined}
         onEdit={openEdit}
@@ -2442,19 +2155,6 @@ export const ProductsPage = () => {
           }
         }}
         onPrintLabel={handlePrintLabel}
-      />
-
-      <AddFoodItemModal
-        isOpen={foodModalOpen}
-        editingProduct={foodEditProduct}
-        onClose={() => {
-          setFoodModalOpen(false)
-          setFoodEditProduct(null)
-        }}
-        onItemCreated={() => {
-          setFoodModalOpen(false)
-          setFoodEditProduct(null)
-        }}
       />
 
       <BulkProductUploadModal
@@ -2488,10 +2188,9 @@ export const ProductsPage = () => {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         title="Export Products & Inventory"
-        subtitle={browseStoreName ? `Store: ${browseStoreName}` : 'All Stores / Global Catalog'}
+        subtitle="Product catalog"
         totalCount={selectedIds.size > 0 ? selectedIds.size : activeProducts.length}
         itemLabel={selectedIds.size > 0 ? 'selected products' : 'products'}
-        storeName={browseStoreName || undefined}
         businessName={settings?.businessName || 'SEZNIK ENTERPRISES'}
         businessGSTIN={settings?.businessGSTIN}
         businessPhone={settings?.businessPhone}
@@ -2506,16 +2205,15 @@ export const ProductsPage = () => {
             businessPhone: settings?.businessPhone || '',
             businessGSTIN: settings?.businessGSTIN || '',
             businessLogoURL: settings?.businessLogoURL || '',
-            storeName: browseStoreName || undefined,
           }
 
           if (format === 'excel') {
-            exportProductsToExcel(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            exportProductsToExcel(targetProducts, categories, meta)
           } else if (format === 'pdf') {
-            const html = buildProductsHtmlReport(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            const html = buildProductsHtmlReport(targetProducts, categories, meta)
             triggerPrintReport(html, 'Products-Inventory-Report')
           } else if (format === 'image') {
-            exportProductsToImage(targetProducts, categories, meta, browseStoreId ? browseStoreStockMap : undefined)
+            exportProductsToImage(targetProducts, categories, meta)
           }
         }}
       />

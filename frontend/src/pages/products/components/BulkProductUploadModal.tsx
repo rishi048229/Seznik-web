@@ -1,13 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
-import JSZip from 'jszip'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
-import { useProducts, useAiExtractDocument, useBulkImportProducts } from '@/hooks/useProducts'
+import { useProducts, useBulkImportProducts } from '@/hooks/useProducts'
 import { type AiExtractedProduct } from '@/services/productService'
-import { preprocessImageForOcr } from '@/utils/imagePreprocess'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import {
@@ -34,6 +32,8 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { downloadBulkUploadTemplate, normalizeUnit } from '@/utils/bulkTemplateGenerator'
+
+const BULK_UPLOAD_MAX_ROWS = 500
 
 // Custom High-Finish UI SVG Icons
 const CautionBadgeIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
@@ -128,8 +128,8 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
   const qc = useQueryClient()
   const { data: existingCatalogProducts = [] } = useProducts()
 
-  const { mutate: extractDocument, isPending: isExtracting } = useAiExtractDocument()
   const { mutate: bulkImport, isPending: isImporting } = useBulkImportProducts()
+  const isExtracting = false
 
   // Cycle progress messages during parsing
   useEffect(() => {
@@ -429,72 +429,12 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
 
     setStep('analyzing')
 
-    // Handle Apple Numbers (.numbers) format via QuickLook preview PDF extraction
     if (fileTypeCategory === 'numbers') {
-      const parseNumbersFile = async () => {
-        try {
-          const zip = await JSZip.loadAsync(selectedFile)
-
-          // 1. Look for QuickLook/Preview.pdf (standard in macOS Numbers)
-          const previewPdf = zip.file(/quicklook\/preview\.pdf$/i)[0] || zip.file(/preview\.pdf$/i)[0]
-          if (previewPdf) {
-            const pdfBlob = await previewPdf.async('blob')
-            const reader = new FileReader()
-            reader.onload = () => {
-              const base64Data = reader.result as string
-              sendExtractionRequest(base64Data, 'application/pdf')
-            }
-            reader.onerror = () => {
-              setStep('upload')
-              toast.error('Failed to read QuickLook preview from Apple Numbers file.')
-            }
-            reader.readAsDataURL(pdfBlob)
-            return
-          }
-
-          // 2. Look for QuickLook/Thumbnail.jpg or image snapshot
-          const thumbFile =
-            zip.file(/quicklook\/thumbnail\.jpg$/i)[0] ||
-            zip.file(/thumbnail\.jpg$/i)[0] ||
-            zip.file(/\.(jpg|jpeg|png)$/i)[0]
-          if (thumbFile) {
-            const imgBlob = await thumbFile.async('blob')
-            const reader = new FileReader()
-            reader.onload = () => {
-              const base64Data = reader.result as string
-              sendExtractionRequest(base64Data, 'image/jpeg')
-            }
-            reader.onerror = () => {
-              setStep('upload')
-              toast.error('Failed to read thumbnail from Apple Numbers file.')
-            }
-            reader.readAsDataURL(imgBlob)
-            return
-          }
-
-          // 3. Look for index.xml (Numbers '08/'09)
-          const indexXml = zip.file(/index\.xml$/i)[0]
-          if (indexXml) {
-            const xmlText = await indexXml.async('string')
-            const base64Data = btoa(unescape(encodeURIComponent(xmlText)))
-            sendExtractionRequest(`data:text/plain;base64,${base64Data}`, 'text/plain')
-            return
-          }
-
-          // 4. If Numbers file was saved without QuickLook preview
-          setStep('upload')
-          toast.error(
-            'This Apple Numbers file was saved without a QuickLook preview. In Numbers on Mac, click File > Export To > Excel (.xlsx) or CSV, then upload that file here.',
-            { duration: 8000 }
-          )
-        } catch (err) {
-          console.error('Apple Numbers extraction error:', err)
-          setStep('upload')
-          toast.error('Could not unpack Apple Numbers document. Try exporting to Excel (.xlsx) or CSV from Numbers.')
-        }
-      }
-
-      parseNumbersFile()
+      setStep('upload')
+      toast.error(
+        'Apple Numbers (.numbers) cannot be parsed in the browser. In Numbers, use File → Export To → Excel (.xlsx) or CSV, then upload that file.',
+        { duration: 9000 }
+      )
       return
     }
 
@@ -530,28 +470,20 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
             return
           }
 
-          // 2. Universal SEZ AI Multi-Modal Sheet Extraction (CSV / HTML representation)
-          const csvText = XLSX.utils.sheet_to_csv(activeSheet)
-          const htmlContent = XLSX.utils.sheet_to_html(activeSheet)
-          const textPayload = (csvText && csvText.trim().length > 0) ? csvText : htmlContent
-
-          if (!textPayload || textPayload.trim().length === 0) {
-            setStep('upload')
-            toast.error('The uploaded spreadsheet file appears to be empty.')
-            return
-          }
-
-          const base64Data = btoa(unescape(encodeURIComponent(textPayload)))
-          sendExtractionRequest(`data:text/csv;base64,${base64Data}`, 'text/csv')
-        } catch (err) {
           setStep('upload')
-          toast.error('Failed to parse spreadsheet file. Please check file formatting.')
-          readAndSendFile(selectedFile)
+          toast.error(
+            'Could not find product rows. Download the template and use columns like Product Name, Cost Price, Selling Price, Stock Quantity, and Unit.',
+            { duration: 8000 }
+          )
+        } catch {
+          setStep('upload')
+          toast.error('Failed to parse spreadsheet file. Please check file formatting or use the template.')
         }
       }
       reader.readAsArrayBuffer(selectedFile)
     } else {
-      readAndSendFile(selectedFile)
+      setStep('upload')
+      toast.error('Only Excel, CSV, and compatible spreadsheet files are supported.')
     }
   }
 
@@ -566,66 +498,6 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
   const handleConfirmAndStartExtraction = () => {
     setShowSampleConfirmModal(false)
     startActualExtraction()
-  }
-
-  const readAndSendFile = async (file: File) => {
-    // Photos and screenshots get downscaled + contrast-normalized first —
-    // oversized, unevenly-lit images are the main reason extraction fails.
-    if (file.type.startsWith('image/')) {
-      try {
-        const processed = await preprocessImageForOcr(file)
-        if (processed.isLowResolution) {
-          toast('This image is quite low resolution — extraction may miss items.')
-        }
-        sendExtractionRequest(processed.dataUrl, processed.mimeType)
-        return
-      } catch {
-        // Preprocessing is an enhancement, never a gate — fall through to the raw file.
-      }
-    }
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      const base64Data = reader.result as string
-      sendExtractionRequest(base64Data, file.type || 'image/jpeg')
-    }
-    reader.onerror = () => {
-      setStep('upload')
-      toast.error('Could not read that file. Please try another one.')
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const sendExtractionRequest = (documentData: string, mimeType: string) => {
-    extractDocument(
-      { documentData, mimeType },
-      {
-        onSuccess: (res) => {
-          if (res.products && res.products.length > 0) {
-            const enriched = res.products.map(p => ({
-              ...p,
-              selected: true,
-              taxRate: p.taxRate ?? 0,
-              currentStock: p.currentStock ?? 10,
-              unit: p.unit || 'piece',
-              priceIncludesGst: p.priceIncludesGst ?? false
-            }))
-            setExtractedProducts(enriched)
-            setStep('review')
-            const preservedCount = enriched.filter(p => p.isExistingBarcode).length
-            toast.success(`Successfully parsed ${res.count} products! (${preservedCount} barcodes preserved)`)
-          } else {
-            setStep('upload')
-            toast.error('Could not find any product items in the file. Please check your sheet data.')
-          }
-        },
-        onError: (err) => {
-          setStep('upload')
-          const msg = err instanceof Error ? err.message : 'File parsing failed'
-          toast.error(msg)
-        },
-      }
-    )
   }
 
   const handleToggleSelectAll = (checked: boolean) => {
@@ -662,6 +534,10 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
       toast.error('Please select at least 1 product to import.')
       return
     }
+    if (selectedList.length > BULK_UPLOAD_MAX_ROWS) {
+      toast.error(`Bulk import is limited to ${BULK_UPLOAD_MAX_ROWS} products per upload. Deselect extras or split your file.`)
+      return
+    }
 
     bulkImport(selectedList, {
       onSuccess: (res) => {
@@ -683,7 +559,7 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
   const handleResetAndClose = () => {
     setSelectedFile(null)
     setFilePreview(null)
-    setFileTypeCategory('image')
+    setFileTypeCategory('excel')
     setExtractedProducts([])
     setStep('upload')
     setShowSampleConfirmModal(false)
@@ -908,9 +784,13 @@ export const BulkProductUploadModal: React.FC<BulkProductUploadModalProps> = ({ 
               </div>
 
               {/* Mac Apple Numbers compatibility banner */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50/80 dark:bg-dark-elevated border border-slate-200/70 dark:border-dark-border text-[11.5px] text-slate-700 dark:text-zinc-300">
+                <span className="font-bold shrink-0">Limits:</span>
+                <span>Up to <strong>500 products per upload</strong>, <strong>500 new products per day</strong>, and <strong>5,000 active products</strong> per store. Parsing runs locally in your browser — no cloud AI.</span>
+              </div>
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/40 text-[11.5px] text-emerald-900 dark:text-emerald-200">
                 <span className="font-bold shrink-0">🍎 Mac Users:</span>
-                <span>You can upload native <strong>.numbers</strong> spreadsheets directly. Our engine automatically parses the document via QuickLook vision!</span>
+                <span>For Apple Numbers (.numbers), export to <strong>Excel (.xlsx)</strong> or <strong>CSV</strong> first, then upload here.</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">

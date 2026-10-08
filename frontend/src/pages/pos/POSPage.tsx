@@ -12,7 +12,7 @@ import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialMod
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, ScanLine, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight, Tag, Send } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, ScanLine, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
 import { QuickEditProductModal } from './components/QuickEditProductModal'
 import { Button } from '@/components/ui/Button'
@@ -22,12 +22,11 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { POSPageSkeleton } from '@/components/ui/PageSkeleton'
-import { formatINR, roundCurrency } from '@/utils/currency'
+import { formatINR } from '@/utils/currency'
 import { getCartLineGstFigures, formatCartLineGstHint } from '@/utils/cartGstDisplay'
 import { localDateInputValue, saleTimestampFromBillDate } from '@/utils/date'
 import { printCompletedSale } from '@/utils/printCompletedSale'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
-import { RemotePrintSendModal } from '@/components/printers/RemotePrintSendModal'
 import { getTopLevelCategories, getChildCategories } from '@/utils/categoryTree'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { trackUserAction } from '@/utils/analytics'
@@ -36,8 +35,6 @@ import { toastError } from '@/utils/userMessage'
 import type { Product } from '@/types/product.types'
 import type { Sale } from '@/types/sale.types'
 import type { Category } from '@/services/categoryService'
-import { DailyUsageBanner } from '@/components/common/DailyUsageBanner'
-import { isBrowserLoadableImageSrc } from '@/utils/receiptLogo'
 
 const pillClass = (active: boolean, nested = false) =>
   `rounded-full font-semibold whitespace-nowrap transition-all shrink-0 ${
@@ -152,7 +149,7 @@ export const POSPage = () => {
   const { data: categories } = useCategories()
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
-  const { items, addItem, removeItem, updateQty, applyDiscount, clearCart, totals, updateItemDetails } = useCart()
+  const { items, addItem, removeItem, updateQty, clearCart, totals, updateItemDetails } = useCart()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
 
   const [search, setSearch] = useState('')
@@ -165,8 +162,6 @@ export const POSPage = () => {
   const [scanInput, setScanInput] = useState('')
   const scanInputRef = useRef<HTMLInputElement>(null)
   const blePrinter = useBlePrinter()
-  const [sendRemotePrint, setSendRemotePrint] = useState(false)
-  const [remotePrintSale, setRemotePrintSale] = useState<{ id: string; invoiceNumber: string; grandTotal: number } | null>(null)
 
   // Quick-edit a product's own details (name/price/stock/etc.) without leaving
   // the billing screen — opened from either the product grid or a cart line.
@@ -211,7 +206,6 @@ export const POSPage = () => {
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>('flat')
   const [method, setMethod] = useState<'cash' | 'card' | 'upi' | 'credit'>('cash')
   const [amountPaid, setAmountPaid] = useState('')
-  const [itemDiscountOpenId, setItemDiscountOpenId] = useState<string | null>(null)
   const [billDate, setBillDate] = useState<string>(() => localDateInputValue())
 
   // Build a map of product stock reserved in cart
@@ -297,10 +291,8 @@ export const POSPage = () => {
     if (isPaymentOpen) {
       if (method === 'credit') {
         setAmountPaid('0')
-      } else if (method === 'cash') {
-        // Keep cash tender empty so change can be calculated from note chips.
       } else if (!amountPaid || amountPaid === '0') {
-        setAmountPaid(finalTotal.toFixed(2))
+        setAmountPaid(finalTotal.toString())
       }
     }
   }, [isPaymentOpen, method, finalTotal])
@@ -364,7 +356,7 @@ export const POSPage = () => {
   const isComplete = unpaidAmount <= 0.01 || Boolean(selectedCustomer)
 
   const openPayment = () => {
-    setAmountPaid(method === 'cash' ? '' : method === 'credit' ? '0' : finalTotal.toFixed(2))
+    setAmountPaid(method === 'credit' ? '0' : finalTotal.toString())
     setIsPaymentOpen(true)
   }
 
@@ -425,19 +417,17 @@ export const POSPage = () => {
 
     setIsPaymentOpen(false)
 
-    if (!sendRemotePrint) {
-      void printCompletedSale({
-        sale: draftSale,
-        settings,
-        customerName,
-        ble: blePrinter,
-      }).catch((error) => {
-        toastError(error, t('pos.errFailedPrintBluetooth'))
-      })
-    }
+    void printCompletedSale({
+      sale: draftSale,
+      settings,
+      customerName,
+      ble: blePrinter,
+    }).catch((error) => {
+      toastError(error, t('pos.errFailedPrintBluetooth'))
+    })
 
     createSale(saleData, {
-      onSuccess: (created) => {
+      onSuccess: () => {
         trackUserAction('pos_checkout_completed', { grandTotal: finalTotal, itemCount: items.length, paymentMethod: method })
         clearCart()
         setOrderDiscount(0)
@@ -445,14 +435,6 @@ export const POSPage = () => {
         setMethod('cash')
         setAmountPaid('')
         toast.success(t('pos.saleCompleted'))
-        if (sendRemotePrint) {
-          setRemotePrintSale({
-            id: created.id,
-            invoiceNumber: created.invoiceNumber,
-            grandTotal: created.grandTotal || saleData.grandTotal,
-          })
-          setSendRemotePrint(false)
-        }
       },
       onError: (error) => {
         console.error('Sale creation failed:', error)
@@ -503,9 +485,7 @@ export const POSPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-8.5rem)] lg:h-[calc(100dvh-4.25rem)] -mx-3 sm:-mx-4 lg:-mx-6 -mt-3 sm:-mt-4 lg:-mt-6 min-h-0 min-w-0 max-w-full overflow-hidden">
-      <DailyUsageBanner className="mx-3 sm:mx-4 lg:mx-6 mb-2 shrink-0" />
-    <div className="flex flex-col sm:flex-row flex-1 gap-0 min-h-0 min-w-0 overflow-hidden">
+    <div className="flex flex-col sm:flex-row h-[calc(100dvh-8.5rem)] lg:h-[calc(100dvh-4.25rem)] gap-0 -mx-3 sm:-mx-4 lg:-mx-6 -mt-3 sm:-mt-4 lg:-mt-6 min-h-0 min-w-0 max-w-full overflow-hidden">
 
       {/* Mobile Tab Switcher */}
       <div className="sm:hidden flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
@@ -713,8 +693,8 @@ export const POSPage = () => {
                   }`}
                 >
                   <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                    {isBrowserLoadableImageSrc(product.imageURL) ? (
-                      <img src={product.imageURL!} alt={product.name} className="w-full h-full object-cover" />
+                    {product.imageURL ? (
+                      <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
                       <ShoppingCart size={28} className="text-gray-300" />
                     )}
@@ -837,8 +817,8 @@ export const POSPage = () => {
                   <div className="flex items-center gap-3">
                     {/* Product Image */}
                     <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-gray-600 overflow-hidden flex-shrink-0">
-                      {isBrowserLoadableImageSrc(item.imageURL) ? (
-                        <img src={item.imageURL!} alt={item.productName} className="w-full h-full object-cover" />
+                      {item.imageURL ? (
+                        <img src={item.imageURL} alt={item.productName} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400">
                           <ShoppingCart size={18} />
@@ -883,100 +863,26 @@ export const POSPage = () => {
 
                   {/* Quantity Controls + Line Total - Separate Row */}
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-600">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
-                        <button
-                          onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
-                          className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span className="text-sm font-bold w-8 text-center text-gray-900 dark:text-gray-100">{item.quantity}</span>
-                        <button
-                          onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
-                          className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          disabled={item.quantity >= available}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
+                    <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
                       <button
-                        type="button"
-                        onClick={() => setItemDiscountOpenId(itemDiscountOpenId === item.productId ? null : item.productId)}
-                        className={`text-[11px] px-2 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
-                          item.discount > 0
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
-                            : 'bg-gray-100 hover:bg-blue-50 text-gray-500 hover:text-blue-600 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
-                        }`}
-                        title="Add/Edit discount for this item"
+                        onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors"
                       >
-                        <Tag size={12} />
-                        <span>{item.discount > 0 ? `-${formatINR(item.discount)}` : '+ Disc'}</span>
+                        <Minus size={14} />
+                      </button>
+                      <span className="text-sm font-bold w-8 text-center text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                      <button
+                        onClick={() => handleUpdateQty(item.productId, item.quantity + 1)}
+                        className="w-7 h-7 flex items-center justify-center hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-500 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        disabled={item.quantity >= available}
+                      >
+                        <Plus size={14} />
                       </button>
                     </div>
-                    <div className="text-right">
-                      {item.discount > 0 && (
-                        <p className="text-[11px] text-gray-400 line-through leading-tight">
-                          {formatINR(lineGst.payable + item.discount)}
-                        </p>
-                      )}
-                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                        {formatINR(lineGst.payable)}
-                      </p>
-                    </div>
+                    <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                      {formatINR(lineGst.payable)}
+                    </span>
                   </div>
-                  {itemDiscountOpenId === item.productId && (
-                    <div className="mt-2.5 p-2 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1">
-                          <Tag size={12} className="text-blue-600" />
-                          Line Discount
-                        </span>
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400">Max: {formatINR(item.sellingPrice * item.quantity)}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="relative flex-1">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">₹</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max={item.sellingPrice * item.quantity}
-                            step="0.01"
-                            placeholder="0.00"
-                            value={item.discount || ''}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0
-                              const safeVal = Math.max(0, Math.min(item.sellingPrice * item.quantity, val))
-                              applyDiscount(item.productId, safeVal)
-                            }}
-                            className="w-full h-8 pl-6 pr-2 text-xs font-bold rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                          />
-                        </div>
-                        <div className="flex gap-1">
-                          {[5, 10, 20].map((pct) => (
-                            <button
-                              key={pct}
-                              type="button"
-                              onClick={() => applyDiscount(item.productId, roundCurrency((item.sellingPrice * item.quantity) * (pct / 100)))}
-                              className="px-2 py-1 text-[10px] font-bold rounded bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 text-blue-700 dark:text-blue-300"
-                            >
-                              {pct}%
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              applyDiscount(item.productId, 0)
-                              setItemDiscountOpenId(null)
-                            }}
-                            className="px-2 py-1 text-[10px] font-bold rounded bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-100"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             })
@@ -1044,7 +950,6 @@ export const POSPage = () => {
           </div>
         </div>
       </Card>
-      </div>
 
       {/* Payment Modal */}
       <Modal
@@ -1065,23 +970,6 @@ export const POSPage = () => {
         }
       >
         <div className="space-y-6">
-          <label className="flex items-start gap-3 p-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/20 cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={sendRemotePrint}
-              onChange={e => setSendRemotePrint(e.target.checked)}
-            />
-            <span>
-              <span className="flex items-center gap-1.5 text-sm font-bold text-slate-800 dark:text-gray-100">
-                <Send size={14} className="text-blue-600" />
-                Send to teammate to print
-              </span>
-              <span className="block text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                After checkout, pick who should print this receipt on their phone or browser.
-              </span>
-            </span>
-          </label>
           {/* Total Display */}
           <div className="text-center py-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-1">
             {taxAmount > 0 && (
@@ -1123,12 +1011,7 @@ export const POSPage = () => {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => {
-                    setMethod(id)
-                    if (id === 'cash') setAmountPaid('')
-                    else if (id === 'credit') setAmountPaid('0')
-                    else setAmountPaid(finalTotal.toFixed(2))
-                  }}
+                  onClick={() => setMethod(id)}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                     method === id
                       ? 'border-[#0a0a2e] bg-[#0a0a2e]/5'
@@ -1168,24 +1051,13 @@ export const POSPage = () => {
             />
 
             {method === 'cash' && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setAmountPaid(finalTotal.toFixed(2))}
-                  className="py-1.5 px-2.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
-                >
-                  Exact
-                </button>
-                {[10, 20, 50, 100, 200, 500].map(amt => (
+              <div className="flex gap-2 mt-2">
+                {[100, 500, 1000, 2000].map(amt => (
                   <button
                     key={amt}
                     type="button"
                     onClick={() => setAmountPaid(String(amt))}
-                    className={`py-1.5 px-2.5 text-xs font-medium border rounded-lg transition-colors ${
-                      Number(amountPaid) === amt
-                        ? 'bg-[#0a0a2e] text-white border-[#0a0a2e]'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300'
-                    }`}
+                    className="flex-1 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-colors"
                   >
                     {formatINR(amt)}
                   </button>
@@ -1267,11 +1139,6 @@ export const POSPage = () => {
         steps={pageTutorial.tutorialData.tourSteps}
         isOpen={pageTutorial.isTourOpen}
         onClose={pageTutorial.closeTour}
-      />
-      <RemotePrintSendModal
-        isOpen={!!remotePrintSale}
-        onClose={() => setRemotePrintSale(null)}
-        sale={remotePrintSale}
       />
     </div>
   )

@@ -1,314 +1,29 @@
 import { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
-import * as XLSX from 'xlsx';
 import prisma from '../config/db';
-import { getOwnerUserId } from '../utils/getOwnerUserId';
-import { userTracksStock } from '../utils/stockTracking';
-import { handleApiError } from '../utils/apiErrorHandler';
+import { getTenantUserId } from '../utils/ownerUser';
 import {
   assertCanCreateProducts,
   BULK_PRODUCT_IMPORT_MAX,
 } from '../utils/dailyUsageLimits';
 import { validateImagePayloads } from '../utils/mediaPayloadLimits';
 
-const PRODUCT_LIST_SELECT = {
-  id: true,
-  name: true,
-  sku: true,
-  barcode: true,
-  barcodeType: true,
-  categoryId: true,
-  supplierId: true,
-  imageURL: true,
-  costPrice: true,
-  sellingPrice: true,
-  taxRate: true,
-  priceIncludesGst: true,
-  currentStock: true,
-  lowStockThreshold: true,
-  unit: true,
-  isActive: true,
-  isAvailable: true,
-  discountType: true,
-  discountValue: true,
-  userId: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
-
-/** Slim list for mobile POS/catalog — omits imageURL (can be huge) and audit fields. */
-const PRODUCT_CATALOG_SELECT = {
-  id: true,
-  name: true,
-  sku: true,
-  barcode: true,
-  barcodeType: true,
-  categoryId: true,
-  supplierId: true,
-  costPrice: true,
-  sellingPrice: true,
-  taxRate: true,
-  priceIncludesGst: true,
-  currentStock: true,
-  lowStockThreshold: true,
-  unit: true,
-  isActive: true,
-  isAvailable: true,
-  discountType: true,
-  discountValue: true,
-} as const;
-
-/**
- * Every Product column a client is allowed to write. Requests are filtered through this instead
- * of spreading req.body straight into Prisma: an unknown key (a field a newer app build sends
- * before the server knows about it) used to make Prisma throw and fail the whole create with a
- * 500 — which is exactly how `discountType` broke product creation in production.
- */
-const WRITABLE_PRODUCT_FIELDS = [
-  'name',
-  'sku',
-  'barcode',
-  'barcodeType',
-  'categoryId',
-  'supplierId',
-  'imageURL',
-  'costPrice',
-  'sellingPrice',
-  'taxRate',
-  'priceIncludesGst',
-  'currentStock',
-  'lowStockThreshold',
-  'unit',
-  'isActive',
-  'isAvailable',
-  'discountType',
-  'discountValue',
-  'brand',
-  'description',
-  'expiryDate',
-] as const;
-
-function pickWritableProductFields(source: Record<string, any>): Record<string, any> {
-  const picked: Record<string, any> = {};
-  for (const field of WRITABLE_PRODUCT_FIELDS) {
-    if (source[field] !== undefined) picked[field] = source[field];
-  }
-  return picked;
-}
-
-// Tried in order for every AI document/invoice call — keeping this in one place means a bad
-// model name never silently kills a whole feature: later entries still get a chance.
-//
-// Verified live against the real API key/project on 2026-08-18 (see models.generateContent
-// responses, not just models.list — several models that show up as "available" in the list
-// still 404 or 429 when actually called):
-//   gemini-3.6-flash        -> works (text + image), ~2-4s
-//   gemini-flash-latest     -> works
-//   gemini-3.5-flash        -> works
-//   gemini-2.5-flash        -> 404 "no longer available to new users" (retired)
-//   gemini-2.5-flash-lite   -> 404 "no longer available to new users" (retired)
-//   gemini-1.5-flash        -> not in this project's model list at all
-//   gemini-2.0-flash        -> not in this project's model list at all
-//   gemini-3.1-pro-preview  -> 429 RESOURCE_EXHAUSTED, free-tier quota is 0 for "pro" models —
-//                              always fails on this account, never worth trying
-const GEMINI_MODEL_FALLBACK_LIST = [
-  'gemini-flash-latest',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-flash-lite-latest',
-];
-
-/**
- * Calls Gemini with each model in GEMINI_MODEL_FALLBACK_LIST until one succeeds and returns
- * parseable content, or throws with the *real* underlying error from the last attempt.
- */
-async function generateWithGeminiFallback(ai: GoogleGenAI, contents: any[], extraConfig: Record<string, any> = {}): Promise<string> {
-  let lastErr: Error = new Error('No Gemini model attempted');
-  for (const modelName of GEMINI_MODEL_FALLBACK_LIST) {
-    try {
-      const generatePromise = ai.models.generateContent({
-        model: modelName,
-        contents,
-        config: { responseMimeType: 'application/json', ...extraConfig },
-      });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
-      );
-      const response: any = await Promise.race([generatePromise, timeoutPromise]);
-      const text = response?.text || '';
-      if (text) return text;
-      lastErr = new Error(`Model ${modelName} returned an empty response`);
-    } catch (err: any) {
-      lastErr = err instanceof Error ? err : new Error(String(err?.message || err));
-      console.warn(`Gemini model ${modelName} failed:`, lastErr.message);
-    }
-  }
-  throw lastErr;
-}
-
-/**
- * .xlsx/.xls are binary (zip-based) spreadsheet formats — base64-decoding them straight to a
- * UTF-8 string (what this endpoint used to do for every "spreadsheet" mimetype) produces garbage,
- * not readable rows, so Gemini would extract nothing. Parses the real workbook with the already-
- * installed `xlsx` package and converts the first sheet to CSV text instead.
- */
-function excelBufferToCsvText(base64Data: string): string {
-  const buffer = Buffer.from(base64Data, 'base64');
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return '';
-  const sheet = workbook.Sheets[firstSheetName];
-  return XLSX.utils.sheet_to_csv(sheet);
-}
-
-/**
- * Resiliently extracts product lists from Gemini responses, handling trailing commas,
- * unescaped quotes, truncated output JSON, and relaxed formats without throwing parse errors.
- */
-function robustParseProductJson(rawText: string): any[] {
-  if (!rawText) return [];
-  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-
-  // 1. Direct JSON.parse
-  try {
-    const parsed = JSON.parse(cleaned);
-    const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
-    if (list.length > 0) return list;
-  } catch (e) {
-    // Attempt repairs
-  }
-
-  // 2. Remove trailing commas before object/array close
-  try {
-    const noTrailingCommas = cleaned.replace(/,\s*([\]}])/g, '$1');
-    const parsed = JSON.parse(noTrailingCommas);
-    const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
-    if (list.length > 0) return list;
-  } catch (e) {
-    // Attempt repair of truncated responses
-  }
-
-  // 3. Repair truncated responses (e.g. hitting output token limits)
-  try {
-    const lastBraceIdx = cleaned.lastIndexOf('}');
-    if (lastBraceIdx > 0) {
-      let candidate = cleaned.slice(0, lastBraceIdx + 1);
-      if (!candidate.endsWith(']')) {
-        candidate += ']';
-      }
-      if (candidate.startsWith('{') && !candidate.endsWith('}')) {
-        candidate += '}';
-      }
-      candidate = candidate.replace(/,\s*([\]}])/g, '$1');
-      const parsed = JSON.parse(candidate);
-      const list = Array.isArray(parsed.products) ? parsed.products : (Array.isArray(parsed) ? parsed : []);
-      if (list.length > 0) return list;
-    }
-  } catch (e) {
-    // Fall back to regex item extraction
-  }
-
-  // 4. Regex object scanner: extracts individual { ... } item blocks
-  const products: any[] = [];
-  const objectRegex = /\{\s*"name"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*,[\s\S]*?\}/g;
-  let match;
-  while ((match = objectRegex.exec(cleaned)) !== null) {
-    try {
-      const objStr = match[0].replace(/,\s*([\]}])/g, '$1');
-      const obj = JSON.parse(objStr);
-      if (obj && obj.name) {
-        products.push(obj);
-      }
-    } catch (e) {
-      try {
-        const nameMatch = match[0].match(/"name"\s*:\s*"([^"]+)"/);
-        const priceMatch = match[0].match(/"sellingPrice"\s*:\s*([0-9.]+)/);
-        const costMatch = match[0].match(/"costPrice"\s*:\s*([0-9.]+)/);
-        const barcodeMatch = match[0].match(/"barcode"\s*:\s*(?:"([^"]+)"|([0-9]+)|null)/);
-        const catMatch = match[0].match(/"categoryName"\s*:\s*"([^"]+)"/);
-        const unitMatch = match[0].match(/"unit"\s*:\s*"([^"]+)"/);
-        const stockMatch = match[0].match(/"currentStock"\s*:\s*([0-9]+)/);
-
-        if (nameMatch) {
-          products.push({
-            name: nameMatch[1],
-            sellingPrice: priceMatch ? parseFloat(priceMatch[1]) : 0,
-            costPrice: costMatch ? parseFloat(costMatch[1]) : (priceMatch ? parseFloat(priceMatch[1]) : 0),
-            categoryName: catMatch ? catMatch[1] : 'General',
-            barcode: barcodeMatch ? (barcodeMatch[1] || barcodeMatch[2] || null) : null,
-            unit: unitMatch ? unitMatch[1] : 'piece',
-            currentStock: stockMatch ? parseInt(stockMatch[1]) : 10,
-          });
-        }
-      } catch (err) {
-        // Skip unparseable single item
-      }
-    }
-  }
-
-  return products;
-}
-
 export const getProducts = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
+    const userId = getTenantUserId(req);
     const products = await prisma.product.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      select: PRODUCT_LIST_SELECT,
     });
     res.json(products);
   } catch (error) {
-    console.error('getProducts failed:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
-  }
-};
-
-export const getProductCatalog = async (req: Request, res: Response) => {
-  try {
-    const userId = await getOwnerUserId((req as any).user.id);
-
-    // Aggregating into JSON inside Postgres was tried here and measured slower end-to-end (6.6s vs
-    // 2.6s): Prisma parses the aggregate back into JS and res.json re-serializes it, so a 2MB
-    // payload gets walked twice. findMany's row deserialization is the cheaper path at this size.
-    const products = await prisma.product.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      select: PRODUCT_CATALOG_SELECT,
-    });
-
-    res.json(products);
-  } catch (error) {
-    console.error('getProductCatalog failed:', error);
-    res.status(500).json({ error: 'Failed to fetch product catalog' });
-  }
-};
-
-export const getProductById = async (req: Request, res: Response) => {
-  try {
-    const userId = await getOwnerUserId((req as any).user.id);
-    const { id } = req.params;
-    const productId = Array.isArray(id) ? id[0] : id;
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId },
-      select: PRODUCT_LIST_SELECT,
-    });
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    res.json(product);
-  } catch (error) {
-    console.error('getProductById failed:', error);
-    res.status(500).json({ error: 'Failed to fetch product' });
   }
 };
 
 export const createProduct = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
-    const imageErr = validateImagePayloads(req.body || {});
-    if (imageErr) return res.status(400).json({ error: imageErr });
+    const userId = getTenantUserId(req);
     await assertCanCreateProducts(userId, 1);
     const { imageUrl, sku, categoryId, ...rest } = req.body;
 
@@ -331,31 +46,19 @@ export const createProduct = async (req: Request, res: Response) => {
       }
     }
 
-    // Only real Product columns reach Prisma — anything else the client sent is ignored rather
-    // than blowing up the whole create.
-    const data = pickWritableProductFields(rest);
-
-    const name = typeof data.name === 'string' ? data.name.trim() : '';
-    if (!name) {
-      return res.status(400).json({ error: 'Product name is required' });
-    }
-
-    const tracksStock = await userTracksStock(userId);
-    if (data.currentStock === undefined || data.currentStock === null) {
-      data.currentStock = 0;
-    }
-    if (data.lowStockThreshold === undefined || data.lowStockThreshold === null) {
-      data.lowStockThreshold = tracksStock ? 5 : 0;
-    }
-    if (data.isAvailable === undefined) {
-      data.isAvailable = true;
-    }
+    // Strip unknown fields that Prisma doesn't recognize
+    delete rest.imageURL;
+    delete rest.category;
 
     const product = await prisma.product.create({
-      data: { ...data, name, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
+      data: { ...rest, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
     });
     res.status(201).json(product);
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as { statusCode?: number; message?: string };
+    if (err?.statusCode === 429 || err?.statusCode === 400) {
+      return res.status(err.statusCode).json({ error: err.message || 'Product limit reached' });
+    }
     console.error('createProduct error:', error);
     res.status(500).json({ error: 'Failed to create product' });
   }
@@ -363,7 +66,7 @@ export const createProduct = async (req: Request, res: Response) => {
 
 export const updateProduct = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     const { imageUrl, ...rest } = req.body;
 
@@ -371,12 +74,16 @@ export const updateProduct = async (req: Request, res: Response) => {
     if (imageUrl !== undefined) {
       rest.imageURL = imageUrl;
     }
-    // Same allowlist as create — id/userId/timestamps and any unknown key can never be written.
-    const data = pickWritableProductFields(rest);
+    // Strip unknown fields
+    delete rest.category;
+    delete rest.id;
+    delete rest.createdAt;
+    delete rest.updatedAt;
+    delete rest.userId;
 
     const product = await prisma.product.updateMany({
       where: { id: String(id), userId },
-      data,
+      data: rest,
     });
     res.json({ success: true, count: product.count });
   } catch (error) {
@@ -387,7 +94,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
 export const softDeleteProduct = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     
     await prisma.product.updateMany({
@@ -402,7 +109,7 @@ export const softDeleteProduct = async (req: Request, res: Response) => {
 
 export const bulkSoftDeleteProducts = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
+    const userId = getTenantUserId(req);
     const { productIds } = req.body; // array of ids
     
     await prisma.product.updateMany({
@@ -417,8 +124,7 @@ export const bulkSoftDeleteProducts = async (req: Request, res: Response) => {
 
 export const adjustStock = async (req: Request, res: Response) => {
   try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
+    const userId = getTenantUserId(req);
     const { id } = req.params;
     // Accept BOTH `qty` (legacy) and `change` (frontend) — `change` takes priority
     const { qty, change, reason } = req.body;
@@ -426,12 +132,6 @@ export const adjustStock = async (req: Request, res: Response) => {
 
     if (amount === undefined || amount === null || isNaN(Number(amount))) {
       return res.status(400).json({ error: 'Stock adjustment quantity is required (send `change` or `qty`)' });
-    }
-
-    if (!(await userTracksStock(userId))) {
-      return res.status(400).json({
-        error: 'Stock quantity is not tracked for this business. Mark items available or not available instead.',
-      });
     }
 
     const product = await prisma.product.findFirst({
@@ -466,34 +166,17 @@ export const adjustStock = async (req: Request, res: Response) => {
 
 export const getProductByBarcode = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
-    const rawBarcode = String(req.params.barcode || '').trim();
-    const cleanDigits = rawBarcode.replace(/[^0-9]/g, '');
-
+    const userId = getTenantUserId(req);
+    const { barcode } = req.params;
+    
     const product = await prisma.product.findFirst({
-      where: {
-        userId,
-        isActive: true,
-        OR: [
-          { barcode: rawBarcode },
-          { sku: rawBarcode },
-          { id: rawBarcode },
-          ...(cleanDigits.length >= 4
-            ? [
-                { barcode: cleanDigits },
-                { barcode: cleanDigits.replace(/^0+/, '') },
-                { barcode: `0${cleanDigits}` },
-                { sku: cleanDigits },
-              ]
-            : []),
-        ],
-      },
+      where: { barcode: String(barcode), userId, isActive: true },
     });
-
+    
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
-
+    
     res.json(product);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch product by barcode' });
@@ -502,7 +185,7 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
 
 export const batchBarcodeStockUpdate = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
+    const userId = getTenantUserId(req);
     const { entries } = req.body; // array of { productId, qtyToAdd, barcode }
 
     await prisma.$transaction(
@@ -534,573 +217,31 @@ export const batchBarcodeStockUpdate = async (req: Request, res: Response) => {
 
 export const getLowStockProducts = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
-    const thresholdOverride = Number(req.query.threshold);
-
+    const userId = getTenantUserId(req);
+    const { threshold } = req.query;
+    
     const products = await prisma.product.findMany({
       where: {
         userId,
         isActive: true,
+        currentStock: { lte: Number(threshold) || 0 }
       },
-      select: PRODUCT_LIST_SELECT,
       orderBy: { currentStock: 'asc' },
     });
-
-    const lowStock = products.filter((p) => {
-      const threshold = Number.isFinite(thresholdOverride)
-        ? thresholdOverride
-        : (p.lowStockThreshold ?? 0);
-      return p.currentStock <= threshold;
-    });
-
-    res.json(lowStock);
+    
+    res.json(products);
   } catch (error) {
-    console.error('getLowStockProducts failed:', error);
     res.status(500).json({ error: 'Failed to fetch low stock products' });
   }
 };
 
-export const aiExtractFromDocument = async (req: Request, res: Response) => {
-  try {
-    const rawUserId = (req as any).user.id;
-    const rawData = req.body.documentData || req.body.imageBase64 || req.body.textData;
-    const mimeType = req.body.mimeType || 'image/jpeg';
-
-    if (!rawData) {
-      return res.status(400).json({ error: 'No document data provided. Please upload an image, PDF, or document file.' });
-    }
-
-    // Trim and sanitize GEMINI_API_KEY from environment
-    const rawKey = process.env.GEMINI_API_KEY || '';
-    const apiKey = rawKey.replace(/["']/g, '').trim();
-
-    if (!apiKey || apiKey.length < 10) {
-      console.error('GEMINI_API_KEY is missing or invalid in environment.');
-      return res.status(400).json({
-        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY to backend/.env and restart server.'
-      });
-    }
-
-    // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
-    const cleanBase64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
-
-    const promptText = `You are SEZ AI, an expert inventory extraction assistant. Analyze the uploaded document (which may be an Excel sheet, HTML table, CSV data, PDF invoice, purchase bill, multi-column sticker label grid, hotel/restaurant menu, price catalog, handwritten bill, or price list).
-
-YOUR TASK: Extract EVERY SINGLE product/item present anywhere in the document.
-
-For each item, extract:
-1. "name": The exact product name or description (e.g. "BALESTER BRUSH", "BANGLES", "JATI", "MOM CLAY BLACK", "TRAY BOMBAY"). Do NOT set currency prices like "₹ 40.00" as the product name!
-2. "sellingPrice": Numeric selling price (e.g. 80, 750, 150, 25, 40, 350). Strip ₹, Rs, or currency symbols.
-3. "costPrice": Numeric cost price. If not mentioned, set equal to sellingPrice.
-4. "categoryName": Appropriate category (e.g. Groceries, Jewelry, Packaging, Cosmetics, General).
-5. "barcode": CRITICAL BARCODE RULE:
-   - Extract the EXACT barcode number or alphanumeric code (e.g. "165000", "365000", "135000", "105000", "OLDDUE8102023", "380000", "122800", "2608082035002", "2311041715357") printed or listed for the item. Do NOT change a single character!
-   - Set "barcode": null ONLY if the item literally has NO barcode or code number anywhere.
-6. "taxRate": Tax / GST percentage (0, 5, 12, 18, 28). Default to 0 if not listed.
-7. "currentStock": Stock quantity. Default to 10 if not listed.
-8. "unit": Unit type (piece, kg, liter, box, pack, bottle, plate).
-
-OUTPUT REQUIREMENT:
-Return ONLY a valid JSON object matching this exact structure:
-{
-  "products": [
-    {
-      "name": "Product Name",
-      "sellingPrice": 100,
-      "costPrice": 100,
-      "categoryName": "General",
-      "barcode": "165000",
-      "taxRate": 0,
-      "currentStock": 10,
-      "unit": "piece"
-    }
-  ]
-}
-RULES:
-1. Extract 100% of all items. Do NOT truncate or skip any products.
-2. Output ONLY raw JSON without any markdown formatting.`;
-
-    const ai = new GoogleGenAI({ apiKey });
-
-    // Genuinely binary spreadsheet formats (.xlsx/.xls) need real parsing — everything else in
-    // this bucket (csv/plain/text) already IS text, so a straight base64->utf8 decode is correct.
-    const isBinarySpreadsheet = mimeType.includes('sheet') || mimeType.includes('excel');
-    const isSpreadsheetOrText =
-      isBinarySpreadsheet ||
-      mimeType.includes('csv') ||
-      mimeType.includes('plain') ||
-      mimeType.includes('text');
-
-    let textContent = '';
-    if (isBinarySpreadsheet) {
-      try {
-        textContent = excelBufferToCsvText(cleanBase64);
-      } catch (e: any) {
-        console.error('Excel parsing error:', e?.message || e);
-        return res.status(400).json({ error: `Could not read this spreadsheet file: ${e?.message || 'unknown error'}` });
-      }
-    } else if (isSpreadsheetOrText) {
-      try {
-        textContent = Buffer.from(cleanBase64, 'base64').toString('utf-8');
-      } catch (e) {
-        textContent = cleanBase64;
-      }
-    }
-
-    // Set whenever a Gemini call itself fails (auth, quota, invalid model, timeout, etc.) so the
-    // final response can say what actually went wrong instead of a generic dead-end message —
-    // "no items found" and "the API call failed" used to look identical to the client.
-    let lastApiError: string | null = null;
-
-    const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
-      try {
-        const text = await generateWithGeminiFallback(ai, contentsPayload, { maxOutputTokens: 8192 });
-        const list = robustParseProductJson(text);
-        if (list.length === 0) {
-          console.warn('Gemini returned text but 0 products could be parsed:', text.slice(0, 300));
-        }
-        return list;
-      } catch (err: any) {
-        lastApiError = err?.message || String(err);
-        console.error('Gemini extraction error:', lastApiError);
-        return [];
-      }
-    };
-
-    let rawList: any[] = [];
-
-    // Optimization: If spreadsheet has more than 150 rows, process in parallel chunks!
-    if (isSpreadsheetOrText && textContent) {
-      const lines = textContent.split(/\r?\n/).filter(line => line.trim().length > 0);
-      
-      if (lines.length > 150) {
-        const header = lines[0];
-        const dataLines = lines.slice(1);
-        const chunkSize = 150;
-        const chunks: string[] = [];
-
-        for (let i = 0; i < dataLines.length; i += chunkSize) {
-          const chunkLines = dataLines.slice(i, i + chunkSize);
-          chunks.push([header, ...chunkLines].join('\n'));
-        }
-
-        console.log(`Processing ${lines.length} spreadsheet rows in ${chunks.length} parallel Gemini AI chunks...`);
-
-        const chunkPromises = chunks.map(chunkText => 
-          extractFromPromptPayload([`${promptText}\n\nSPREADSHEET CHUNK DATA TO EXTRACT:\n${chunkText}`])
-        );
-
-        const results = await Promise.all(chunkPromises);
-        rawList = results.flat();
-      }
-    }
-
-    // Fallback to single-call extraction if not chunked or image/PDF
-    if (rawList.length === 0) {
-      const contentsPayload = isSpreadsheetOrText
-        ? [`${promptText}\n\nSPREADSHEET / TEXT DOCUMENT DATA TO EXTRACT:\n${textContent}`]
-        : [
-            promptText,
-            {
-              inlineData: {
-                mimeType: mimeType || 'image/jpeg',
-                data: cleanBase64,
-              },
-            },
-          ];
-
-      rawList = await extractFromPromptPayload(contentsPayload);
-    }
-
-    if (rawList.length === 0) {
-      return res.status(500).json({
-        error: lastApiError
-          ? `Gemini AI request failed: ${lastApiError}`
-          : 'AI document analysis returned no items — the document may not contain any recognizable products. Please check file format or try a clearer file.',
-      });
-    }
-    
-    // Fetch all existing products for this user to check for catalog duplicates & manage barcodes
-    const existingProducts = await prisma.product.findMany({
-      where: { userId: rawUserId },
-      select: {
-        id: true,
-        name: true,
-        barcode: true,
-        currentStock: true,
-        sellingPrice: true,
-        costPrice: true,
-        unit: true,
-        category: { select: { name: true } }
-      }
-    });
-
-    const existingBarcodeSet = new Set(existingProducts.map(p => p.barcode).filter(Boolean));
-
-    // Ensure strictly valid barcodes and SKUs
-    const generateEAN13Barcode = () => {
-      let b = '';
-      do {
-        b = Math.floor(100000000000 + Math.random() * 900000000000).toString();
-      } while (existingBarcodeSet.has(b));
-      return b;
-    };
-
-    const sanitizedProducts = rawList.map((item: any, idx: number) => {
-      const rawBarcode = item.barcode ? String(item.barcode).replace(/[^a-zA-Z0-9]/g, '').trim() : '';
-      const rawName = String(item.name || 'Extracted Product').trim();
-
-      // Check if product already exists in user catalog (by barcode OR by name)
-      const matchedExisting = existingProducts.find(
-        (p) =>
-          (rawBarcode && p.barcode && p.barcode.toLowerCase() === rawBarcode.toLowerCase()) ||
-          p.name.toLowerCase().trim() === rawName.toLowerCase()
-      );
-
-      let finalBarcode = rawBarcode;
-      if (!matchedExisting) {
-        if (!finalBarcode || existingBarcodeSet.has(finalBarcode)) {
-          finalBarcode = generateEAN13Barcode();
-        }
-        existingBarcodeSet.add(finalBarcode);
-      } else {
-        finalBarcode = matchedExisting.barcode || finalBarcode || generateEAN13Barcode();
-      }
-
-      const finalSku = item.sku ? String(item.sku).trim() : `SKU-${Date.now().toString().slice(-6)}-${idx + 1}`;
-
-      return {
-        id: `temp-${Date.now()}-${idx}`,
-        name: rawName,
-        sellingPrice: parseFloat(String(item.sellingPrice)) || 0,
-        costPrice: parseFloat(String(item.costPrice || item.sellingPrice)) || 0,
-        categoryName: String(item.categoryName || matchedExisting?.category?.name || 'General').trim(),
-        barcode: finalBarcode,
-        sku: finalSku,
-        barcodeType: 'CODE128',
-        isExistingBarcode: !!item.barcode,
-        taxRate: parseFloat(String(item.taxRate)) || 0,
-        currentStock: parseInt(String(item.currentStock)) || 10,
-        unit: String(item.unit || matchedExisting?.unit || 'piece').trim(),
-        lowStockThreshold: 5,
-        priceIncludesGst: false,
-        selected: true,
-        userId: rawUserId,
-        // Existing product duplicate detection metadata
-        isAlreadyListed: !!matchedExisting,
-        matchedProductId: matchedExisting ? matchedExisting.id : null,
-        matchedProductName: matchedExisting ? matchedExisting.name : null,
-        currentCatalogStock: matchedExisting ? matchedExisting.currentStock : null,
-        importAction: matchedExisting ? 'update_stock' : 'create_new',
-      };
-    });
-
-    res.json({
-      success: true,
-      count: sanitizedProducts.length,
-      products: sanitizedProducts,
-    });
-  } catch (error) {
-    handleApiError(res, error, 'Failed to extract product details from document. Please verify the document is clear.');
-  }
-};
-
-export const aiConvertInvoice = async (req: Request, res: Response) => {
-  try {
-    const rawUserId = (req as any).user.id;
-    const rawData = req.body.documentData || req.body.imageBase64 || req.body.textData;
-    const mimeType = req.body.mimeType || 'image/jpeg';
-
-    if (!rawData) {
-      return res.status(400).json({ error: 'No invoice document data provided.' });
-    }
-
-    const rawKey = process.env.GEMINI_API_KEY || '';
-    const apiKey = rawKey.replace(/["']/g, '').trim();
-
-    if (!apiKey || apiKey.length < 10) {
-      return res.status(400).json({ error: 'GEMINI_API_KEY is missing in server backend/.env.' });
-    }
-
-    const cleanBase64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
-    const ai = new GoogleGenAI({ apiKey });
-
-    const promptText = `Analyze this purchase invoice, receipt, or bill image/PDF. Extract all invoice details into a JSON object:
-{
-  "invoiceNumber": "INV-1234",
-  "date": "${new Date().toISOString().split('T')[0]}",
-  "customerName": "Customer or Supplier Name",
-  "items": [
-    {
-      "productName": "Product Name",
-      "quantity": 2,
-      "unitPrice": 100,
-      "total": 200,
-      "gstRate": 18
-    }
-  ],
-  "subtotal": 200,
-  "totalTax": 36,
-  "grandTotal": 236
-}
-Return ONLY valid raw JSON with no markdown.`;
-
-    const text = await generateWithGeminiFallback(ai, [
-      promptText,
-      {
-        inlineData: {
-          mimeType: mimeType || 'image/jpeg',
-          data: cleanBase64,
-        },
-      },
-    ]);
-
-    const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const saleData = JSON.parse(cleaned);
-
-    res.json({
-      success: true,
-      saleData,
-    });
-  } catch (error: any) {
-    handleApiError(res, error, 'Failed to convert invoice with AI. Please check the image quality and retry.');
-  }
-};
-
-export const bulkImportProducts = async (req: Request, res: Response) => {
-  try {
-    const rawUserId = (req as any).user.id;
-    const userId = await getOwnerUserId(rawUserId);
-    const imageErr = validateImagePayloads(req.body || {});
-    if (imageErr) return res.status(400).json({ error: imageErr });
-    const items = Array.isArray(req.body.products)
-      ? req.body.products
-      : (Array.isArray(req.body.items)
-        ? req.body.items
-        : (Array.isArray(req.body) ? req.body : []));
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'No items provided for bulk import.' });
-    }
-
-    // Filter out skipped items and completely empty rows
-    const validItems = items.filter((i: any) => {
-      if (i.importAction === 'skip' || i.action === 'skip') return false;
-      const name = String(i.name || '').trim();
-      return name.length > 0;
-    });
-
-    if (validItems.length === 0) {
-      return res.status(400).json({ error: 'No valid products to import.' });
-    }
-
-    if (validItems.length > BULK_PRODUCT_IMPORT_MAX) {
-      return res.status(400).json({
-        error: `Bulk import is limited to ${BULK_PRODUCT_IMPORT_MAX} products per upload. Split your file and try again.`,
-      });
-    }
-
-    await assertCanCreateProducts(userId, validItems.length);
-
-    // Fetch existing catalog products for this store owner
-    const existingProducts = await prisma.product.findMany({
-      where: { userId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        barcode: true,
-        currentStock: true,
-        sellingPrice: true,
-        costPrice: true,
-        categoryId: true,
-      },
-    });
-
-    const existingBarcodeMap = new Map<string, any>();
-    const existingNameMap = new Map<string, any>();
-    for (const p of existingProducts) {
-      if (p.barcode) {
-        existingBarcodeMap.set(p.barcode.toLowerCase().trim(), p);
-      }
-      if (p.name) {
-        existingNameMap.set(p.name.toLowerCase().trim(), p);
-      }
-    }
-
-    // Ensure Categories exist
-    const categoryNames = Array.from(
-      new Set(validItems.map((i: any) => String(i.categoryName || 'General').trim()))
-    );
-    const existingCategories = await prisma.category.findMany({
-      where: { userId },
-    });
-    const categoryMap = new Map<string, string>();
-    existingCategories.forEach((c) => categoryMap.set(c.name.toLowerCase(), c.id));
-
-    for (const catName of categoryNames) {
-      const lower = catName.toLowerCase();
-      if (!categoryMap.has(lower) && catName.length > 0) {
-        try {
-          const newCat = await prisma.category.create({
-            data: { name: catName, userId, isActive: true },
-          });
-          categoryMap.set(lower, newCat.id);
-        } catch {
-          // If already created concurrently, find it
-          const found = await prisma.category.findFirst({
-            where: { userId, name: { equals: catName, mode: 'insensitive' } },
-          });
-          if (found) categoryMap.set(lower, found.id);
-        }
-      }
-    }
-
-    let defaultCatId = existingCategories[0]?.id;
-    if (!defaultCatId) {
-      const generalCat = await prisma.category.findFirst({ where: { userId } }) ||
-        await prisma.category.create({ data: { name: 'General', userId, isActive: true } });
-      defaultCatId = generalCat.id;
-    }
-
-    let updatedCount = 0;
-    let createdCount = 0;
-    const updatedProductList: any[] = [];
-    const createdProductList: any[] = [];
-
-    const usedBarcodes = new Set<string>(
-      existingProducts.map((p) => (p.barcode ? p.barcode.toLowerCase().trim() : '')).filter(Boolean)
-    );
-
-    for (let idx = 0; idx < validItems.length; idx++) {
-      const item = validItems[idx];
-      const rawBarcode = item.barcode ? String(item.barcode).trim() : '';
-      const rawName = String(item.name || '').trim();
-      const lowerBarcode = rawBarcode.toLowerCase();
-      const lowerName = rawName.toLowerCase();
-
-      // Check if item already exists in catalog
-      const matched =
-        (item.matchedProductId ? existingProducts.find((p) => p.id === item.matchedProductId) : null) ||
-        (lowerBarcode ? existingBarcodeMap.get(lowerBarcode) : null) ||
-        (lowerName ? existingNameMap.get(lowerName) : null);
-
-      const shouldUpdate =
-        matched &&
-        (item.importAction === 'update_stock' || item.action === 'update_stock' || !item.importAction);
-
-      if (shouldUpdate && matched) {
-        // 1. Update Existing Product (Stock restock & price adjustment)
-        const qtyToAdd = Number(item.currentStock) || Number(item.quantity) || 0;
-        const sellPrice = Number(item.sellingPrice) || 0;
-        const costPrice = Number(item.costPrice) || 0;
-
-        try {
-          const updated = await prisma.product.update({
-            where: { id: matched.id },
-            data: {
-              ...(qtyToAdd > 0 ? { currentStock: { increment: qtyToAdd } } : {}),
-              ...(sellPrice > 0 ? { sellingPrice: sellPrice } : {}),
-              ...(costPrice > 0 ? { costPrice } : {}),
-            },
-            include: { category: true },
-          });
-
-          if (qtyToAdd > 0) {
-            await prisma.stockHistory.create({
-              data: {
-                productId: matched.id,
-                change: qtyToAdd,
-                reason: `Spreadsheet Import - Restock (+${qtyToAdd})`,
-                userId,
-              },
-            });
-          }
-
-          updatedProductList.push(updated);
-          updatedCount++;
-        } catch (stockErr) {
-          console.warn(`Could not update existing product ${matched.id}:`, stockErr);
-        }
-      } else {
-        // 2. Create Brand New Product
-        const catName = String(item.categoryName || 'General').trim();
-        const catId = categoryMap.get(catName.toLowerCase()) || defaultCatId;
-        const sku = item.sku || `SKU-IMP-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
-
-        let finalBarcode = rawBarcode;
-        if (!finalBarcode || usedBarcodes.has(finalBarcode.toLowerCase())) {
-          let genB = '';
-          do {
-            genB = `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-          } while (usedBarcodes.has(genB.toLowerCase()));
-          finalBarcode = genB;
-        }
-        usedBarcodes.add(finalBarcode.toLowerCase());
-
-        const initialStock = Number(item.currentStock) || 0;
-
-        try {
-          const newProd = await prisma.product.create({
-            data: {
-              name: rawName,
-              sku,
-              barcode: finalBarcode,
-              barcodeType: item.barcodeType || 'CODE128',
-              categoryId: catId,
-              costPrice: Number(item.costPrice) || 0,
-              sellingPrice: Number(item.sellingPrice) || 0,
-              taxRate: Number(item.taxRate) || 0,
-              priceIncludesGst: Boolean(item.priceIncludesGst),
-              currentStock: initialStock,
-              lowStockThreshold: Number(item.lowStockThreshold) || 5,
-              unit: String(item.unit || 'piece').toLowerCase().trim(),
-              isActive: true,
-              userId,
-            },
-            include: { category: true },
-          });
-
-          if (initialStock > 0) {
-            await prisma.stockHistory.create({
-              data: {
-                productId: newProd.id,
-                change: initialStock,
-                reason: 'Initial Stock (Spreadsheet Import)',
-                userId,
-              },
-            });
-          }
-
-          // Register in lookup maps in case duplicate items exist in the same sheet
-          existingBarcodeMap.set(finalBarcode.toLowerCase(), newProd);
-          existingNameMap.set(rawName.toLowerCase(), newProd);
-
-          createdProductList.push(newProd);
-          createdCount++;
-        } catch (createErr) {
-          console.error(`Failed to create product "${rawName}":`, createErr);
-        }
-      }
-    }
-
-    const allResultProducts = [...updatedProductList, ...createdProductList];
-
-    res.json({
-      success: true,
-      count: updatedCount + createdCount,
-      updatedCount,
-      createdCount,
-      products: allResultProducts,
-    });
-  } catch (error) {
-    console.error('bulkImportProducts error:', error);
-    res.status(500).json({ error: 'Failed to bulk import products' });
-  }
-};
-
+// Products expiring within `days` (default 30), including already-expired
+// ones — powers the Products page "Expiring Soon" panel and the POS/Scan-to-
+// Bill add-to-cart warning. Products with no expiryDate are excluded
+// entirely (this feature is invisible until a user opts in per-product).
 export const getExpiringProducts = async (req: Request, res: Response) => {
   try {
-    const userId = await getOwnerUserId((req as any).user.id);
+    const userId = getTenantUserId(req);
     const days = Number(req.query.days) || 30;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
@@ -1225,7 +366,6 @@ const FALLBACK_MODELS: UsableModel[] = [
   { name: 'gemini-pro-latest', outputTokenLimit: 65536 },
 ];
 
-
 export const checkAiStatus = async (_req: Request, res: Response) => {
   const rawKeyString = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
   const apiKeys = rawKeyString
@@ -1252,5 +392,711 @@ export const checkAiStatus = async (_req: Request, res: Response) => {
     usingFallbackList: isConfigured && available.length === 0,
     timestamp: new Date().toISOString()
   });
+};
+
+export const aiExtractFromDocument = async (req: Request, res: Response) => {
+  try {
+    const rawUserId = getTenantUserId(req);
+    const { documentData, mimeType = 'image/jpeg' } = req.body;
+
+    if (!documentData) {
+      return res.status(400).json({ error: 'No document data provided. Please upload an image, PDF, Excel, or CSV file.' });
+    }
+
+    // Resolve GEMINI_API_KEY (supports multiple comma-separated keys for auto-rotation on rate limits)
+    const rawKeyString = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || '';
+    const apiKeys = rawKeyString
+      .split(/[,;\n]/)
+      .map(k => k.replace(/["'\r]/g, '').trim())
+      .filter(k => k.length >= 10);
+
+    if (apiKeys.length === 0) {
+      console.error('GEMINI_API_KEY is missing or invalid in environment.');
+      return res.status(400).json({
+        error: 'GEMINI_API_KEY is missing in server backend/.env. Please add GEMINI_API_KEY=AIzaSy... to backend/.env and restart PM2.'
+      });
+    }
+
+    // Extract base64 portion if data URI scheme was sent (e.g. data:image/png;base64,...)
+    let cleanMimeType = mimeType || 'image/jpeg';
+    let cleanBase64 = documentData;
+
+    if (documentData.startsWith('data:')) {
+      const match = documentData.match(/^data:([^;]+);base64,(.*)$/s);
+      if (match) {
+        cleanMimeType = match[1] || cleanMimeType;
+        cleanBase64 = match[2];
+      } else if (documentData.includes(',')) {
+        cleanBase64 = documentData.split(',')[1];
+      }
+    }
+    cleanBase64 = cleanBase64.replace(/\s/g, '').trim();
+
+    const promptText = `You are SEZ AI, an expert inventory extraction assistant with strong OCR ability. Analyze the uploaded document and extract every product/item you can read.
+
+The document may be any of these — treat each appropriately:
+- A PHONE PHOTO of a paper bill, supplier invoice, or price list (may be angled, shadowed, blurry, or unevenly lit)
+- A HANDWRITTEN bill, challan, or stock register page (cursive or print handwriting, possibly in English, Hindi, or a mix)
+- A RESTAURANT / FAST-FOOD MENU (dish names with prices, often in columns or sections)
+- A SCREENSHOT of a spreadsheet, billing software, WhatsApp message, or webpage
+- A sticker/label grid sheet, product catalog page, PDF, spreadsheet, or CSV text
+
+READING GUIDANCE FOR DIFFICULT IMAGES — this matters:
+- Low light, glare, shadows, skew, and camera blur are EXPECTED. Read through them; do not give up.
+- For handwriting, use surrounding context (column alignment, currency symbols, running totals) to resolve ambiguous characters.
+- Common OCR confusions to resolve carefully: 0/O, 1/l/I, 5/S, 6/b, 8/B, 2/Z, 7/1.
+- If a price is genuinely unreadable, still output the item with sellingPrice 0 rather than dropping it — the user reviews and corrects everything before import.
+- NEVER return an empty product list just because quality is poor. Extract your best reading of whatever is legible.
+
+For each item extract:
+1. "name": The item/dish/product name exactly as written (e.g. "Hot Dog", "Cheese Pizza", "BALESTER BRUSH", "Parle-G 100g"). NEVER use a price like "$ 4.95" or "₹ 40.00" as the name.
+2. "sellingPrice": Numeric selling price. Strip $, ₹, Rs, INR and commas (e.g. "₹ 1,250.00" -> 1250). If a row shows both MRP and a lower rate, prefer the selling/rate column.
+3. "costPrice": Numeric cost/purchase price. If not shown, set equal to sellingPrice.
+4. "categoryName": A sensible category (e.g. Fast Food, Beverages, Groceries, Jewelry, Stationery, Cosmetics, General). Infer from menu section headings or document context when present.
+5. "barcode": The exact barcode/EAN/UPC/item-code if visible. Set null if not visible — do NOT invent one.
+6. "taxRate": GST percentage (0, 5, 12, 18, 28). Default 0.
+7. "currentStock": Quantity if shown. Default 10.
+8. "unit": piece, plate, portion, box, kg, gram, liter, pack, bottle, dozen. Default "piece".
+
+OUTPUT: Return ONLY a valid raw JSON object, no markdown fences, no commentary:
+{
+  "products": [
+    { "name": "Hot Dog", "sellingPrice": 2.50, "costPrice": 2.50, "categoryName": "Fast Food", "barcode": null, "taxRate": 0, "currentStock": 10, "unit": "piece" }
+  ]
+}
+
+RULES:
+1. Extract ALL items anywhere in the document — every row, every menu section, every column. Do not skip or summarize.
+2. Skip non-product lines: totals, subtotals, GST summary rows, discounts, "Grand Total", addresses, phone numbers, invoice numbers.
+3. Output ONLY raw JSON.`;
+
+    // Ask Google what this key can actually call, rather than trusting a
+    // hardcoded list that goes stale every time a model is retired.
+    const discovered = await discoverUsableModels(apiKeys[0]);
+    const modelsToTry = (discovered.length > 0 ? discovered : FALLBACK_MODELS).slice(0, 4);
+    console.log(
+      `AI extraction will try: ${modelsToTry.map(m => m.name).join(', ')}` +
+      (discovered.length === 0 ? ' (discovery unavailable — using fallback list)' : '')
+    );
+
+    const isSpreadsheetOrText = 
+      cleanMimeType.includes('csv') || 
+      cleanMimeType.includes('sheet') || 
+      cleanMimeType.includes('excel') || 
+      cleanMimeType.includes('plain') ||
+      cleanMimeType.includes('text');
+
+    let textContent = '';
+    if (isSpreadsheetOrText) {
+      try {
+        textContent = Buffer.from(cleanBase64, 'base64').toString('utf-8');
+      } catch (e) {
+        textContent = cleanBase64;
+      }
+    }
+
+    // Helper: Recursively search ANY JSON structure (arrays, nested category objects, menu sections) for product items
+    const extractItemsRecursively = (obj: any, parentKey = ''): any[] => {
+      if (!obj) return [];
+      if (Array.isArray(obj)) {
+        let list: any[] = [];
+        for (const item of obj) {
+          if (item && typeof item === 'object') {
+            const rawName = item.name || item.product_name || item.productName || item.itemName || item.item_name || item.dish || item.title || item.item || item.description || item.particulars || '';
+            const rawPrice = item.sellingPrice ?? item.selling_price ?? item.price ?? item.rate ?? item.mrp ?? item.sale_price ?? item.amount ?? item.costPrice ?? item.cost;
+            
+            if (rawName || rawPrice !== undefined) {
+              const nameStr = String(rawName || `Item ${list.length + 1}`).trim();
+              const numPrice = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice || 0).replace(/[^0-9.]/g, '')) || 0;
+              const rawCost = item.costPrice ?? item.cost_price ?? item.cost ?? numPrice;
+              const numCost = typeof rawCost === 'number' ? rawCost : parseFloat(String(rawCost || 0).replace(/[^0-9.]/g, '')) || numPrice;
+              const categoryStr = String(item.categoryName || item.category_name || item.category || (parentKey && !['products', 'items', 'data', 'menu', 'result', 'list'].includes(parentKey.toLowerCase()) ? parentKey : 'General')).trim();
+
+              list.push({
+                name: nameStr,
+                sellingPrice: numPrice,
+                costPrice: numCost,
+                categoryName: categoryStr || 'General',
+                barcode: item.barcode || item.bar_code || item.code || null,
+                taxRate: Number(item.taxRate ?? item.tax_rate ?? item.tax ?? item.gst ?? 0) || 0,
+                currentStock: Number(item.currentStock ?? item.current_stock ?? item.stock ?? item.quantity ?? item.qty ?? 10) || 10,
+                unit: String(item.unit || item.uom || item.portion || 'piece').trim().toLowerCase()
+              });
+            } else {
+              list = list.concat(extractItemsRecursively(item, parentKey));
+            }
+          }
+        }
+        return list;
+      } else if (typeof obj === 'object') {
+        let list: any[] = [];
+        for (const key of Object.keys(obj)) {
+          list = list.concat(extractItemsRecursively(obj[key], key));
+        }
+        return list;
+      }
+      return [];
+    };
+
+    const extractTextFromResponse = (response: any): string => {
+      if (!response) return '';
+      if (typeof response === 'string') return response;
+      if (typeof response.text === 'function') {
+        try {
+          const res = response.text();
+          if (res && typeof res === 'string') return res;
+        } catch (_) {}
+      }
+      if (typeof response.text === 'string') return response.text;
+      if (response.candidates?.[0]?.content?.parts) {
+        return response.candidates[0].content.parts.map((p: any) => p.text || '').join('\n');
+      }
+      return '';
+    };
+
+    const parseProductsFromText = (rawText: string): any[] => {
+      if (!rawText) return [];
+      try {
+        const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        const extracted = extractItemsRecursively(parsed);
+        if (extracted.length > 0) return extracted;
+      } catch (e) {
+        // Fallback: extract JSON array or object with regex
+        const arrayMatch = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (arrayMatch) {
+          try {
+            const arr = JSON.parse(arrayMatch[0]);
+            const extracted = extractItemsRecursively(arr);
+            if (extracted.length > 0) return extracted;
+          } catch (_) {}
+        }
+        const objMatch = rawText.match(/\{[\s\S]*\}/);
+        if (objMatch) {
+          try {
+            const parsedObj = JSON.parse(objMatch[0]);
+            const extracted = extractItemsRecursively(parsedObj);
+            if (extracted.length > 0) return extracted;
+          } catch (_) {}
+        }
+      }
+      return [];
+    };
+
+    let hadRateLimit = false;
+    let hadAuthError = false;
+    // Every model+key attempt, so a failure report names the real blocker
+    // instead of just whichever candidate happened to be tried last.
+    const attemptErrors: { model: string; error: string }[] = [];
+    const noteAttemptError = (model: string, error: string) => {
+      attemptErrors.push({ model, error: String(error).slice(0, 200) });
+    };
+
+    const restParts = isSpreadsheetOrText
+      ? [{ text: `${promptText}\n\nDOCUMENT CONTENT:\n${textContent}` }]
+      : [
+          { inline_data: { mime_type: cleanMimeType, data: cleanBase64 } },
+          { text: promptText },
+        ];
+
+    const extractFromPromptPayload = async (contentsPayload: any[]): Promise<any[]> => {
+      // REST runs first and alone in the happy path. Calling the SDK first meant
+      // an unparsable SDK response cost a full inference round-trip before REST
+      // repeated the exact same work — roughly doubling wall-clock time.
+      for (const apiKey of apiKeys) {
+        for (const { name: modelName, outputTokenLimit: maxOutputTokens } of modelsToTry) {
+          for (const withoutThinking of [true, false]) {
+            const startedAt = Date.now();
+
+            const generationConfig: Record<string, unknown> = {
+              responseMimeType: 'application/json',
+              maxOutputTokens,
+              // Deterministic reading — faithful OCR, not creative rewriting.
+              temperature: 0,
+            };
+            // Extraction is transcription, not reasoning. Gemini 2.5+/3.x models
+            // budget "thinking" tokens by default, which is the single largest
+            // latency cost on this call and buys us almost nothing here.
+            if (withoutThinking) {
+              generationConfig.thinkingConfig = { thinkingBudget: 0 };
+            }
+
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
+
+            try {
+              const restResponse = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contents: [{ parts: restParts }], generationConfig }),
+                  signal: controller.signal,
+                }
+              );
+
+              if (restResponse.ok) {
+                const restData: any = await restResponse.json();
+                const items = parseProductsFromText(extractTextFromResponse(restData));
+                console.log(
+                  `Gemini ${modelName} answered in ${Date.now() - startedAt}ms — ${items.length} items` +
+                  (withoutThinking ? ' (thinking off)' : '')
+                );
+                if (items.length > 0) return items;
+
+                // A 200 with no parsable items means the model hit its output
+                // ceiling mid-JSON, or genuinely saw no products.
+                const finishReason = restData?.candidates?.[0]?.finishReason;
+                if (finishReason && finishReason !== 'STOP') {
+                  noteAttemptError(
+                    `${modelName} (rest)`,
+                    `Model stopped early (${finishReason}) — the document may hold more items than one response can return.`
+                  );
+                  console.warn(`Gemini REST model ${modelName} finishReason=${finishReason}`);
+                }
+                break; // the model answered; a different thinking setting won't help
+              }
+
+              const errText = await restResponse.text();
+              // Models predating thinkingConfig reject it outright — retry once without.
+              if (withoutThinking && /thinking/i.test(errText)) {
+                console.warn(`Model ${modelName} rejected thinkingConfig; retrying without it.`);
+                continue;
+              }
+
+              noteAttemptError(`${modelName} (rest)`, errText);
+              if (restResponse.status === 429 || errText.includes('RESOURCE_EXHAUSTED')) hadRateLimit = true;
+              if (restResponse.status === 403 || errText.includes('PERMISSION_DENIED')) hadAuthError = true;
+              console.warn(`Gemini REST model ${modelName} returned ${restResponse.status}:`, errText.slice(0, 300));
+              break;
+            } catch (restErr: any) {
+              const timedOut = restErr?.name === 'AbortError';
+              noteAttemptError(
+                `${modelName} (rest)`,
+                timedOut ? `Timed out after ${GEMINI_REQUEST_TIMEOUT_MS / 1000}s` : (restErr?.message || String(restErr))
+              );
+              console.warn(`Gemini REST model ${modelName} failed:`, restErr?.message || restErr);
+              break;
+            } finally {
+              clearTimeout(timeout);
+            }
+          }
+        }
+      }
+
+      // Last resort only — if every REST attempt failed, the SDK is worth one
+      // try in case outbound REST is blocked at the network level.
+      for (const apiKey of apiKeys) {
+        const { name: modelName, outputTokenLimit: maxOutputTokens } = modelsToTry[0];
+        try {
+          const ai = new GoogleGenAI({ apiKey });
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: contentsPayload,
+            config: { responseMimeType: 'application/json', maxOutputTokens, temperature: 0 },
+          });
+          const items = parseProductsFromText(extractTextFromResponse(response));
+          if (items.length > 0) return items;
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+          noteAttemptError(`${modelName} (sdk)`, msg);
+          if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) hadRateLimit = true;
+          if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('API key not valid')) hadAuthError = true;
+          console.warn(`Gemini SDK fallback (${modelName}) failed:`, msg);
+        }
+      }
+
+      return [];
+    };
+
+    let rawList: any[] = [];
+
+    // Optimization: If spreadsheet has more than 150 rows, process in parallel chunks!
+    if (isSpreadsheetOrText && textContent) {
+      const lines = textContent.split(/\r?\n/).filter(line => line.trim().length > 0);
+      
+      if (lines.length > 150) {
+        const header = lines[0];
+        const dataLines = lines.slice(1);
+        const chunkSize = 150;
+        const chunks: string[] = [];
+
+        for (let i = 0; i < dataLines.length; i += chunkSize) {
+          const chunkLines = dataLines.slice(i, i + chunkSize);
+          chunks.push([header, ...chunkLines].join('\n'));
+        }
+
+        console.log(`Processing ${lines.length} spreadsheet rows in ${chunks.length} parallel Gemini AI chunks...`);
+
+        const chunkPromises = chunks.map(chunkText => 
+          extractFromPromptPayload([`${promptText}\n\nSPREADSHEET CHUNK DATA TO EXTRACT:\n${chunkText}`])
+        );
+
+        const results = await Promise.all(chunkPromises);
+        rawList = results.flat();
+      }
+    }
+
+    // Fallback to single-call extraction if not chunked or image/PDF
+    if (rawList.length === 0) {
+      const contentsPayload = isSpreadsheetOrText
+        ? [`${promptText}\n\nSPREADSHEET / TEXT DOCUMENT DATA TO EXTRACT:\n${textContent}`]
+        : [
+            {
+              inlineData: {
+                mimeType: cleanMimeType,
+                data: cleanBase64,
+              },
+            },
+            promptText,
+          ];
+
+      rawList = await extractFromPromptPayload(contentsPayload);
+    }
+
+    if (rawList.length === 0) {
+      if (hadRateLimit) {
+        return res.status(429).json({
+          error: 'Google Gemini AI rate limit / quota exceeded (429). Please wait a few moments or add another API key to backend/.env (comma-separated).'
+        });
+      }
+      if (hadAuthError) {
+        return res.status(403).json({
+          error: 'Invalid or restricted Google Gemini API key (403). Please verify your API key in backend/.env from https://aistudio.google.com/apikey'
+        });
+      }
+      // Distinguish "the API call itself failed" from "the API worked but saw
+      // no products". Previously both cases blamed image clarity/lighting,
+      // which sent users chasing a photo problem that wasn't the real cause.
+      if (attemptErrors.length > 0) {
+        console.error('aiExtractFromDocument — every model attempt failed:', attemptErrors);
+
+        // Prefer the most actionable failure over the chronologically last one:
+        // a trailing 404 from a deprecated candidate hides the real blocker.
+        const pick = (re: RegExp) => attemptErrors.find(a => re.test(a.error));
+        const authErr = pick(/403|PERMISSION_DENIED|API key not valid|API_KEY_INVALID/i);
+        const quotaErr = pick(/429|RESOURCE_EXHAUSTED|quota/i);
+        const badReqErr = pick(/400|INVALID_ARGUMENT/i);
+        const truncErr = pick(/stopped early/i);
+
+        let hint: string;
+        let chosen: { model: string; error: string };
+        if (authErr) {
+          hint = 'Your Gemini API key was rejected. Verify it at https://aistudio.google.com/apikey and confirm the Generative Language API is enabled for that project.';
+          chosen = authErr;
+        } else if (quotaErr) {
+          hint = 'Gemini quota/rate limit reached. Wait a minute, or add a second key to GEMINI_API_KEY in backend/.env (comma-separated) to rotate automatically.';
+          chosen = quotaErr;
+        } else if (truncErr) {
+          hint = 'The document has more items than one AI response can return. Split it into smaller files, or upload it as CSV/Excel.';
+          chosen = truncErr;
+        } else if (badReqErr) {
+          hint = 'Gemini rejected the file payload — it may be an unsupported format or too large.';
+          chosen = badReqErr;
+        } else {
+          hint = `No available Gemini model could process this file. Tried: ${modelsToTry.map(m => m.name).join(', ')}. Open /api/products/ai-status to see which models this key can actually use.`;
+          chosen = attemptErrors[0];
+        }
+
+        return res.status(502).json({
+          error: `${hint}\n\n(${chosen.model}: ${chosen.error.slice(0, 200)})`,
+          triedModels: modelsToTry.map(m => m.name),
+        });
+      }
+
+      return res.status(422).json({
+        error: 'The AI read the file but could not identify any products in it. If this is a photo, try retaking it straighter and with more even lighting, or upload the price list as a CSV/Excel file instead.'
+      });
+    }
+    
+    // Fetch existing barcodes for this user to avoid duplicates
+    const existingProducts = await prisma.product.findMany({
+      where: { userId: rawUserId },
+      select: { barcode: true }
+    });
+    const existingBarcodes = new Set(existingProducts.map(p => p.barcode).filter(Boolean));
+
+    // Process extracted products
+    const processedProducts = rawList.map((item, idx) => {
+      let barcode = item.barcode ? String(item.barcode).trim() : '';
+      let isExistingBarcode = false;
+
+      if (barcode && barcode !== 'null' && barcode !== 'undefined') {
+        isExistingBarcode = true;
+      } else {
+        // Auto-generate unique 12-digit barcode if no barcode existed in document
+        do {
+          const rand = Math.floor(1000000000 + Math.random() * 9000000000);
+          barcode = `SZ${rand}`;
+        } while (existingBarcodes.has(barcode));
+      }
+
+      existingBarcodes.add(barcode);
+
+      return {
+        id: `temp-${Date.now()}-${idx}`,
+        name: String(item.name || `Extracted Item ${idx + 1}`).trim(),
+        sellingPrice: Math.max(0, Number(item.sellingPrice) || 0),
+        costPrice: Math.max(0, Number(item.costPrice) || 0),
+        categoryName: String(item.categoryName || 'General').trim(),
+        barcode,
+        isExistingBarcode,
+        barcodeType: 'CODE128',
+        taxRate: Math.max(0, Number(item.taxRate) || 0),
+        currentStock: Math.max(0, Number(item.currentStock) || 10),
+        lowStockThreshold: 5,
+        unit: String(item.unit || 'piece').toLowerCase().trim(),
+        priceIncludesGst: false,
+        selected: true
+      };
+    });
+
+    res.json({
+      success: true,
+      count: processedProducts.length,
+      products: processedProducts
+    });
+  } catch (error) {
+    console.error('aiExtractFromDocument error:', error);
+    res.status(500).json({ error: 'Failed to process document with Gemini AI' });
+  }
+};
+
+export const bulkImportProducts = async (req: Request, res: Response) => {
+  try {
+    const userId = getTenantUserId(req);
+    const imageErr = validateImagePayloads(req.body || {});
+    if (imageErr) return res.status(400).json({ error: imageErr });
+    const items = Array.isArray(req.body.products)
+      ? req.body.products
+      : (Array.isArray(req.body.items)
+        ? req.body.items
+        : (Array.isArray(req.body) ? req.body : []));
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'No items provided for bulk import.' });
+    }
+
+    const validItems = items.filter((i: any) => {
+      if (i.importAction === 'skip' || i.action === 'skip') return false;
+      const name = String(i.name || '').trim();
+      return name.length > 0;
+    });
+
+    if (validItems.length === 0) {
+      return res.status(400).json({ error: 'No valid products to import.' });
+    }
+
+    if (validItems.length > BULK_PRODUCT_IMPORT_MAX) {
+      return res.status(400).json({
+        error: `Bulk import is limited to ${BULK_PRODUCT_IMPORT_MAX} products per upload. Split your file and try again.`,
+      });
+    }
+
+    const existingProducts = await prisma.product.findMany({
+      where: { userId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        barcode: true,
+        currentStock: true,
+        sellingPrice: true,
+        costPrice: true,
+        categoryId: true,
+      },
+    });
+
+    const existingBarcodeMap = new Map<string, (typeof existingProducts)[0]>();
+    const existingNameMap = new Map<string, (typeof existingProducts)[0]>();
+    for (const p of existingProducts) {
+      if (p.barcode) {
+        existingBarcodeMap.set(p.barcode.toLowerCase().trim(), p);
+      }
+      if (p.name) {
+        existingNameMap.set(p.name.toLowerCase().trim(), p);
+      }
+    }
+
+    const countNewCreates = (items: any[]) =>
+      items.filter((item) => {
+        const rawBarcode = item.barcode ? String(item.barcode).trim().toLowerCase() : '';
+        const rawName = String(item.name || '').trim().toLowerCase();
+        const matched =
+          (item.matchedProductId ? existingProducts.find((p) => p.id === item.matchedProductId) : null) ||
+          (rawBarcode ? existingBarcodeMap.get(rawBarcode) : null) ||
+          (rawName ? existingNameMap.get(rawName) : null);
+        const forceUpdate =
+          matched &&
+          (item.importAction === 'update_stock' || item.action === 'update_stock' || !item.importAction);
+        return !forceUpdate;
+      }).length;
+
+    await assertCanCreateProducts(userId, countNewCreates(validItems));
+
+    const categoryNames = Array.from(
+      new Set(validItems.map((i: any) => String(i.categoryName || 'General').trim()))
+    );
+    const existingCategories = await prisma.category.findMany({
+      where: { userId },
+    });
+    const categoryMap = new Map<string, string>();
+    existingCategories.forEach((c) => categoryMap.set(c.name.toLowerCase(), c.id));
+
+    for (const catName of categoryNames) {
+      const lower = catName.toLowerCase();
+      if (!categoryMap.has(lower) && catName.length > 0) {
+        try {
+          const newCat = await prisma.category.create({
+            data: { name: catName, userId, isActive: true },
+          });
+          categoryMap.set(lower, newCat.id);
+        } catch {
+          const found = await prisma.category.findFirst({
+            where: { userId, name: { equals: catName, mode: 'insensitive' } },
+          });
+          if (found) categoryMap.set(lower, found.id);
+        }
+      }
+    }
+
+    let defaultCatId = existingCategories[0]?.id;
+    if (!defaultCatId) {
+      const generalCat = await prisma.category.findFirst({ where: { userId } }) ||
+        await prisma.category.create({ data: { name: 'General', userId, isActive: true } });
+      defaultCatId = generalCat.id;
+    }
+
+    let updatedCount = 0;
+    let createdCount = 0;
+    const updatedProductList: unknown[] = [];
+    const createdProductList: unknown[] = [];
+
+    const usedBarcodes = new Set<string>(
+      existingProducts.map((p) => (p.barcode ? p.barcode.toLowerCase().trim() : '')).filter(Boolean)
+    );
+
+    for (let idx = 0; idx < validItems.length; idx++) {
+      const item = validItems[idx];
+      const rawBarcode = item.barcode ? String(item.barcode).trim() : '';
+      const rawName = String(item.name || '').trim();
+      const lowerBarcode = rawBarcode.toLowerCase();
+      const lowerName = rawName.toLowerCase();
+
+      const matched =
+        (item.matchedProductId ? existingProducts.find((p) => p.id === item.matchedProductId) : null) ||
+        (lowerBarcode ? existingBarcodeMap.get(lowerBarcode) : null) ||
+        (lowerName ? existingNameMap.get(lowerName) : null);
+
+      const shouldUpdate =
+        matched &&
+        (item.importAction === 'update_stock' || item.action === 'update_stock' || !item.importAction);
+
+      if (shouldUpdate && matched) {
+        const qtyToAdd = Number(item.currentStock) || Number(item.quantity) || 0;
+        const sellPrice = Number(item.sellingPrice) || 0;
+        const costPrice = Number(item.costPrice) || 0;
+
+        try {
+          const updated = await prisma.product.update({
+            where: { id: matched.id },
+            data: {
+              ...(qtyToAdd > 0 ? { currentStock: { increment: qtyToAdd } } : {}),
+              ...(sellPrice > 0 ? { sellingPrice: sellPrice } : {}),
+              ...(costPrice > 0 ? { costPrice } : {}),
+            },
+            include: { category: true },
+          });
+
+          if (qtyToAdd > 0) {
+            await prisma.stockHistory.create({
+              data: {
+                productId: matched.id,
+                change: qtyToAdd,
+                reason: `Spreadsheet Import - Restock (+${qtyToAdd})`,
+                userId,
+              },
+            });
+          }
+
+          updatedProductList.push(updated);
+          updatedCount++;
+        } catch (stockErr) {
+          console.warn(`Could not update existing product ${matched.id}:`, stockErr);
+        }
+      } else {
+        const catName = String(item.categoryName || 'General').trim();
+        const catId = categoryMap.get(catName.toLowerCase()) || defaultCatId;
+        const sku = item.sku || `SKU-IMP-${Date.now().toString(36).toUpperCase()}-${idx + 1}`;
+
+        let finalBarcode = rawBarcode;
+        if (!finalBarcode || usedBarcodes.has(finalBarcode.toLowerCase())) {
+          let genB = '';
+          do {
+            genB = `SZ${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+          } while (usedBarcodes.has(genB.toLowerCase()));
+          finalBarcode = genB;
+        }
+        usedBarcodes.add(finalBarcode.toLowerCase());
+
+        const initialStock = Number(item.currentStock) || 0;
+
+        try {
+          const newProd = await prisma.product.create({
+            data: {
+              name: rawName,
+              sku,
+              barcode: finalBarcode,
+              barcodeType: item.barcodeType || 'CODE128',
+              categoryId: catId,
+              costPrice: Number(item.costPrice) || 0,
+              sellingPrice: Number(item.sellingPrice) || 0,
+              taxRate: Number(item.taxRate) || 0,
+              priceIncludesGst: Boolean(item.priceIncludesGst),
+              currentStock: initialStock,
+              lowStockThreshold: Number(item.lowStockThreshold) || 5,
+              unit: String(item.unit || 'piece').toLowerCase().trim(),
+              isActive: true,
+              userId,
+            },
+            include: { category: true },
+          });
+
+          if (initialStock > 0) {
+            await prisma.stockHistory.create({
+              data: {
+                productId: newProd.id,
+                change: initialStock,
+                reason: 'Initial Stock (Spreadsheet Import)',
+                userId,
+              },
+            });
+          }
+
+          existingBarcodeMap.set(finalBarcode.toLowerCase(), newProd);
+          existingNameMap.set(rawName.toLowerCase(), newProd);
+
+          createdProductList.push(newProd);
+          createdCount++;
+        } catch (createErr) {
+          console.error(`Failed to create product "${rawName}":`, createErr);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      count: updatedCount + createdCount,
+      updatedCount,
+      createdCount,
+      products: [...updatedProductList, ...createdProductList],
+    });
+  } catch (error: unknown) {
+    const err = error as { statusCode?: number; message?: string };
+    if (err?.statusCode === 429 || err?.statusCode === 400) {
+      return res.status(err.statusCode).json({ error: err.message || 'Import limit reached' });
+    }
+    console.error('bulkImportProducts error:', error);
+    res.status(500).json({ error: 'Failed to bulk import products' });
+  }
 };
 

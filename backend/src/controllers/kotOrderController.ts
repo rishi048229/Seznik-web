@@ -248,6 +248,62 @@ export const createOrder = async (req: Request, res: Response) => {
   }
 };
 
+export const updateKotOrderItem = async (req: Request, res: Response) => {
+  try {
+    const userId = getTenantUserId(req);
+    const orderId = String(req.params.id);
+    const itemId = String(req.params.itemId);
+    const quantity = Number(req.body.quantity);
+
+    const order = await prisma.kOTOrder.findFirst({
+      where: { id: orderId, userId },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.status === 'billed' || order.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot edit items on a billed or cancelled order' });
+    }
+
+    const item = await prisma.kOTOrderItem.findFirst({
+      where: { id: itemId, orderId },
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    if (item.sentToKitchenAt) {
+      return res.status(400).json({ error: 'Cannot change quantity after the item was sent to kitchen' });
+    }
+
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      return res.status(400).json({ error: 'Invalid quantity' });
+    }
+
+    if (quantity === 0) {
+      await prisma.kOTOrderItem.delete({ where: { id: itemId } });
+    } else {
+      await prisma.kOTOrderItem.update({
+        where: { id: itemId },
+        data: { quantity: Math.floor(quantity) },
+      });
+    }
+
+    const updated = await prisma.kOTOrder.findFirst({
+      where: { id: orderId, userId },
+      include: ORDER_INCLUDE,
+    });
+
+    res.json(updated ? enrichOrder(updated) : updated);
+  } catch (error) {
+    console.error('updateKotOrderItem error:', error);
+    res.status(500).json({ error: 'Failed to update order item' });
+  }
+};
+
 export const addItemsToOrder = async (req: Request, res: Response) => {
   try {
     const userId = await getOwnerUserId((req as any).user.id);

@@ -49,6 +49,25 @@ export const useAddKotItems = () => {
   })
 }
 
+export const useUpdateKotOrderItem = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      itemId,
+      quantity,
+    }: {
+      orderId: string
+      itemId: string
+      quantity: number
+    }) => kotOrderService.updateKotOrderItemQuantity(orderId, itemId, quantity),
+    onSuccess: (_data, vars) => {
+      invalidateKotAndTables(qc)
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.KOT_ORDERS, undefined, vars.orderId] })
+    },
+  })
+}
+
 export const useSendKotToKitchen = () => {
   const qc = useQueryClient()
   return useMutation({
