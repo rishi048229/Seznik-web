@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { getTenantUserId } from '../utils/ownerUser';
+import { kotLineSubtotal, splitKotModifiers } from '../utils/kotModifiers';
 
 const ACTIVE_STATUSES = ['open', 'sent_to_kitchen', 'preparing', 'ready', 'served'];
 
@@ -28,9 +29,12 @@ const itemSnapshot = (items: Array<{ productName: string; quantity: number; note
     modifiers: it.modifiers,
   }));
 
-const enrichOrder = (o: { items: Array<{ unitPrice: number; quantity: number; taxRate: number }> }) => {
-  const subtotal = o.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
-  const tax = o.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+const enrichOrder = (o: {
+  items: Array<{ unitPrice: number; quantity: number; taxRate: number; status?: string; modifiers?: unknown }>;
+}) => {
+  const active = o.items.filter((it) => it.status !== 'voided');
+  const subtotal = active.reduce((acc, it) => acc + kotLineSubtotal(it), 0);
+  const tax = active.reduce((acc, it) => acc + (kotLineSubtotal(it) * (it.taxRate || 0)) / 100, 0);
   return {
     ...o,
     subtotal,
@@ -407,6 +411,7 @@ export const generateBill = async (req: Request, res: Response) => {
       serviceCharge = 0,
       roomCharge = 0,
       roomChargeLabel,
+      voids = [],
     } = req.body;
 
     const order = await prisma.kOTOrder.findFirst({
@@ -425,6 +430,27 @@ export const generateBill = async (req: Request, res: Response) => {
     const resolvedCustomerId = customerId || order.customerId || null;
 
     const result = await prisma.$transaction(async (tx) => {
+      if (Array.isArray(voids)) {
+        for (const v of voids) {
+          const itemId = v?.itemId ? String(v.itemId) : '';
+          if (!itemId) continue;
+          const reason = v?.reason ? String(v.reason).trim() : '';
+          const existing = order.items.find((it) => it.id === itemId);
+          if (!existing || existing.status === 'voided') continue;
+          const noteSuffix = reason ? `[VOID: ${reason}]` : '[VOID]';
+          await tx.kOTOrderItem.updateMany({
+            where: { id: itemId, orderId: id, userId },
+            data: {
+              status: 'voided',
+              notes: existing.notes ? `${existing.notes} ${noteSuffix}` : noteSuffix,
+            },
+          });
+        }
+      }
+
+      const refreshedItems = await tx.kOTOrderItem.findMany({ where: { orderId: id, userId } });
+      const billableItems = refreshedItems.filter((it) => it.status !== 'voided');
+
       const count = await tx.sale.count({ where: { userId, status: { not: 'cancelled' } } });
       const settingsRow = await tx.settings.findUnique({ where: { userId } });
       const invoicePrefix =
@@ -433,8 +459,11 @@ export const generateBill = async (req: Request, res: Response) => {
           .trim() || 'INV';
       const invoiceNumber = `${invoicePrefix}-${String(count + 1).padStart(5, '0')}`;
 
-      const subtotal = order.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
-      const itemTax = order.items.reduce((acc, it) => acc + (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100, 0);
+      const subtotal = billableItems.reduce((acc, it) => acc + kotLineSubtotal(it), 0);
+      const itemTax = billableItems.reduce(
+        (acc, it) => acc + (kotLineSubtotal(it) * (it.taxRate || 0)) / 100,
+        0
+      );
       const overrideTaxRate = taxRate !== undefined && taxRate !== null && taxRate !== '' ? Number(taxRate) : null;
       const totalTax = overrideTaxRate !== null && !Number.isNaN(overrideTaxRate)
         ? (subtotal * overrideTaxRate) / 100
@@ -447,19 +476,33 @@ export const generateBill = async (req: Request, res: Response) => {
       const change = Math.max(0, paid - grandTotal);
       const saleDate = new Date();
 
-      const saleItems = order.items.map((it) => ({
-        productId: it.productId || undefined,
-        productName: it.productName,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        sellingPrice: it.unitPrice,
-        taxRate: overrideTaxRate !== null ? overrideTaxRate : it.taxRate,
-        discount: 0,
-        taxAmount: overrideTaxRate !== null
-          ? (it.unitPrice * it.quantity * overrideTaxRate) / 100
-          : (it.unitPrice * it.quantity * (it.taxRate || 0)) / 100,
-        total: it.unitPrice * it.quantity,
-      }));
+      const saleItems = billableItems.flatMap((it) => {
+        const { kitchen, addOns } = splitKotModifiers(it.modifiers);
+        const lineSub = kotLineSubtotal(it);
+        const unitWithAddOns = it.quantity > 0 ? lineSub / it.quantity : it.unitPrice;
+        const addonLabel = addOns.map((a) => a.name).join(', ');
+        const displayName =
+          addonLabel || kitchen.length
+            ? `${it.productName}${addonLabel ? ` + ${addonLabel}` : ''}`
+            : it.productName;
+        const rows: any[] = [
+          {
+            productId: it.productId || undefined,
+            productName: displayName,
+            quantity: it.quantity,
+            unitPrice: unitWithAddOns,
+            sellingPrice: unitWithAddOns,
+            taxRate: overrideTaxRate !== null ? overrideTaxRate : it.taxRate,
+            discount: 0,
+            taxAmount:
+              overrideTaxRate !== null
+                ? (lineSub * overrideTaxRate) / 100
+                : (lineSub * (it.taxRate || 0)) / 100,
+            total: lineSub,
+          },
+        ];
+        return rows;
+      });
 
       if (service > 0) {
         saleItems.push({
@@ -506,8 +549,30 @@ export const generateBill = async (req: Request, res: Response) => {
         },
       });
 
-      for (const it of order.items) {
+      for (const it of billableItems) {
         if (!it.productId) continue;
+        const { addOns } = splitKotModifiers(it.modifiers);
+        for (const addOn of addOns) {
+          if (!addOn.productId) continue;
+          try {
+            const addProd = await tx.product.findFirst({ where: { id: addOn.productId, userId } });
+            if (!addProd) continue;
+            if (order.locationId) {
+              await tx.productLocationStock.upsert({
+                where: { productId_locationId: { productId: addOn.productId, locationId: order.locationId } },
+                update: { stock: { decrement: it.quantity } },
+                create: { productId: addOn.productId, locationId: order.locationId, userId, stock: -it.quantity },
+              });
+            } else {
+              await tx.product.update({
+                where: { id: addOn.productId },
+                data: { currentStock: { decrement: it.quantity } },
+              });
+            }
+          } catch (stockErr) {
+            console.warn(`Could not decrement add-on stock ${addOn.productId}:`, stockErr);
+          }
+        }
         try {
           const prod = await tx.product.findFirst({
             where: { id: it.productId, userId },

@@ -199,6 +199,8 @@ export interface KotConfig {
   allowedOrderTypes?: Array<'dine_in' | 'takeaway' | 'delivery'>
   kitchenTicketsEnabled?: boolean
   waiterNames?: string[]
+  /** Product IDs shown as priced add-ons when adding a dish to KOT. */
+  addOnProductIds?: string[]
 }
 
 export interface UserSettings {

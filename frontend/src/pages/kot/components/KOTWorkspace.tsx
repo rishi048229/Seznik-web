@@ -37,6 +37,13 @@ import type { Sale } from '@/types/sale.types'
 import type { KOTBillResult, KOTDraftItem, KOTOrderItem, KOTOrderType, RestaurantTable } from '@/types/kot.types'
 import { mergeKotConfig, orderTypeLabel, ticketTitle } from '../kotConfig'
 import { ticketLaneLabel } from '../kotUtils'
+import {
+  encodeAddOnModifier,
+  formatAddOnsForDisplay,
+  kitchenModifiersForSlip,
+  kotLineSubtotal,
+} from '@/utils/kotAddOns'
+import { useCustomers } from '@/hooks/useCustomers'
 
 const LAST_WAITER_KEY = 'kot_last_waiter'
 
@@ -86,6 +93,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const [pickedProduct, setPickedProduct] = useState<Product | null>(null)
   const [itemNotes, setItemNotes] = useState('')
   const [itemMods, setItemMods] = useState<string[]>([])
+  const [itemAddOnIds, setItemAddOnIds] = useState<string[]>([])
+  const { data: customers = [] } = useCustomers()
   const [billOpen, setBillOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [assignTableId, setAssignTableId] = useState('')
@@ -143,6 +152,19 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const stockFor = (product: Product) => product.currentStock
   const priceFor = (product: Product) => product.sellingPrice
 
+  const addOnProducts = useMemo(
+    () =>
+      kotCfg.addOnProductIds
+        .map((id) => products.find((p) => p.id === id))
+        .filter((p): p is Product => !!p && p.isActive),
+    [kotCfg.addOnProductIds, products]
+  )
+
+  const billableOrderItems = useMemo(
+    () => (order?.items ?? []).filter((it) => it.status !== 'voided'),
+    [order?.items]
+  )
+
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase()
     const childIds = categoryId ? getChildCategories(categories, categoryId).map((c) => c.id) : []
@@ -154,18 +176,18 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     })
   }, [products, search, categoryId, categories])
 
-  const sentItems = (order?.items ?? []).filter((it) => !!it.sentToKitchenAt)
-  const unprintedServerItems = (order?.items ?? []).filter((it) => !it.sentToKitchenAt)
+  const sentItems = (order?.items ?? []).filter((it) => !!it.sentToKitchenAt && it.status !== 'voided')
+  const unprintedServerItems = (order?.items ?? []).filter((it) => !it.sentToKitchenAt && it.status !== 'voided')
 
   const totals = useMemo(() => {
-    const all = [
-      ...(order?.items ?? []).map((it) => ({ qty: it.quantity, price: it.unitPrice, tax: it.taxRate })),
-      ...pendingItems.map((it) => ({ qty: it.quantity, price: it.unitPrice, tax: it.taxRate })),
-    ]
-    const subtotal = all.reduce((s, it) => s + it.price * it.qty, 0)
-    const tax = all.reduce((s, it) => s + (it.price * it.qty * (it.tax || 0)) / 100, 0)
+    const lines = [...billableOrderItems, ...pendingItems]
+    const subtotal = lines.reduce((s, it) => s + kotLineSubtotal(it), 0)
+    const tax = lines.reduce((s, it) => {
+      const lineSub = kotLineSubtotal(it)
+      return s + (lineSub * (it.taxRate || 0)) / 100
+    }, 0)
     return { subtotal, tax, grandTotal: subtotal + tax }
-  }, [order?.items, pendingItems])
+  }, [billableOrderItems, pendingItems])
 
   const busy = isCreating || isAdding || isSending || isAssigning || isCancelling
   const displayName = ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
@@ -289,8 +311,19 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     return false
   }
 
+  const buildModifiersForDraft = () => {
+    const addOnMods = itemAddOnIds
+      .map((id) => addOnProducts.find((p) => p.id === id))
+      .filter(Boolean)
+      .map((p) =>
+        encodeAddOnModifier({ productId: p!.id, name: p!.name, price: p!.sellingPrice })
+      )
+    return [...itemMods, ...addOnMods]
+  }
+
   const confirmAddItem = async () => {
     if (!pickedProduct) return
+    const modifiers = buildModifiersForDraft()
     const draft: KOTDraftItem = {
       tempId: crypto.randomUUID(),
       productId: pickedProduct.id,
@@ -299,13 +332,14 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       unitPrice: priceFor(pickedProduct),
       taxRate: pickedProduct.taxRate || 0,
       notes: itemNotes.trim() || undefined,
-      modifiers: [...itemMods],
+      modifiers,
       imageURL: pickedProduct.imageURL,
     }
 
     setPickedProduct(null)
     setItemNotes('')
     setItemMods([])
+    setItemAddOnIds([])
     setMobileTab('ticket')
     mergeDraftIntoPending(draft)
   }
@@ -329,7 +363,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     items: KOTOrderItem[],
     orderNumber: number,
     waiter: string | null | undefined,
-    opts?: { batchNumber?: number; isAdditional?: boolean; isCancelled?: boolean },
+    opts?: { batchNumber?: number; isAdditional?: boolean; isCancelled?: boolean; isReprint?: boolean },
   ) => {
     if (items.length === 0) return
     const slip = {
@@ -342,6 +376,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       batchNumber: opts?.batchNumber,
       isAdditional: opts?.isAdditional,
       isCancelled: opts?.isCancelled,
+      isReprint: opts?.isReprint,
       orderTime: new Date(),
       notes: order?.notes,
       priority: order?.priority,
@@ -349,7 +384,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         productName: it.productName,
         quantity: it.quantity,
         notes: it.notes,
-        modifiers: it.modifiers,
+        modifiers: kitchenModifiersForSlip(it.modifiers),
       })),
     }
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
@@ -397,6 +432,19 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     }
   }
 
+  const handleReprintKot = async () => {
+    if (!order || sentItems.length === 0) {
+      toast.error('Nothing sent to kitchen yet')
+      return
+    }
+    const ok = window.confirm(
+      'Reprint kitchen ticket? The kitchen already received this order — use only if the slip was lost.'
+    )
+    if (!ok) return
+    await printKitchen(sentItems, order.orderNumber, order.waiterName, { isReprint: true })
+    toast.success('KOT reprint sent')
+  }
+
   const printCustomerReceipt = async (saleRaw: KOTBillResult['sale']) => {
     const items = Array.isArray(saleRaw.items)
       ? (saleRaw.items as Array<Record<string, number | string>>).map((it) => ({
@@ -429,6 +477,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
     const receiptConfig = resolveEffectiveReceiptConfig(settings)
     const paperSize = settings?.printerConfig?.paperSize || '58mm'
+    const cust =
+      sale.customerId ? customers.find((c) => c.id === sale.customerId) : order?.customer
     const billCtx = {
       sale,
       receiptConfig,
@@ -439,6 +489,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
       orderType,
       kotNumber: order?.orderNumber,
       paperSize: paperSize as '58mm' | '80mm',
+      customerName: cust?.name ?? undefined,
+      customerPhone: cust?.phone ?? undefined,
     }
     const useBle = shouldPrintThermalOverBle(settings, blePrinter)
 
@@ -617,6 +669,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
                 setPickedProduct(p)
                 setItemNotes('')
                 setItemMods([])
+                setItemAddOnIds([])
               }}
             />
           )}
@@ -698,16 +751,29 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
               </div>
             )}
             {kotCfg.kitchenTicketsEnabled && (
-              <Button
-                onClick={handleSendToKitchen}
-                disabled={!hasNewItems || busy}
-                loading={isSending || isAdding || isCreating}
-                className="w-full"
-                variant="secondary"
-              >
-                <Printer size={16} className="mr-2" />
-                Send to Kitchen / Print KOT
-              </Button>
+              <>
+                <Button
+                  onClick={handleSendToKitchen}
+                  disabled={!hasNewItems || busy}
+                  loading={isSending || isAdding || isCreating}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  <Printer size={16} className="mr-2" />
+                  Send to Kitchen / Print KOT
+                </Button>
+                {sentItems.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    className="w-full"
+                    onClick={() => void handleReprintKot()}
+                  >
+                    Reprint last KOT (duplicate)
+                  </Button>
+                )}
+              </>
             )}
             <Button
               onClick={handleSettle}
@@ -738,11 +804,19 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         product={pickedProduct}
         notes={itemNotes}
         modifiers={itemMods}
+        addOnProducts={addOnProducts}
+        selectedAddOnIds={itemAddOnIds}
         onNotesChange={setItemNotes}
         onToggleModifier={(mod) =>
           setItemMods((prev) => (prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod]))
         }
-        onCancel={() => setPickedProduct(null)}
+        onToggleAddOn={(id) =>
+          setItemAddOnIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+        }
+        onCancel={() => {
+          setPickedProduct(null)
+          setItemAddOnIds([])
+        }}
         onConfirm={confirmAddItem}
       />
 
@@ -756,24 +830,66 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         customerId={customerId}
         onCustomerChange={setCustomerId}
         loading={isBilling}
+        billItems={[
+          ...billableOrderItems.map((it) => ({
+            id: it.id,
+            productName: it.productName,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            taxRate: it.taxRate,
+            modifiers: it.modifiers,
+            sentToKitchenAt: it.sentToKitchenAt,
+          })),
+          ...pendingItems.map((it) => ({
+            id: it.tempId,
+            productName: it.productName,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            taxRate: it.taxRate,
+            modifiers: it.modifiers,
+            sentToKitchenAt: null as string | null,
+            isPending: true,
+          })),
+        ]}
         onSettle={(payload) => {
           if (!orderId) return
+          void (async () => {
+            try {
+              if (pendingItems.length > 0) await persistPending(orderId)
+            } catch (err) {
+              toastError(err, 'Could not save pending items')
+              return
+            }
           generateBill(
             { id: orderId, data: payload },
             {
               onSuccess: async (result) => {
                 toast.success('Bill settled — start the next one')
                 setBillOpen(false)
-                try {
-                  await printCustomerReceipt(result.sale)
-                } catch (err) {
-                  console.error(err)
+                if (payload.printBill !== false) {
+                  try {
+                    await printCustomerReceipt(result.sale)
+                  } catch (err) {
+                    console.error(err)
+                  }
+                }
+                if (payload.voids?.length) {
+                  const voidedSent = payload.voids.filter((v) => v.printVoidKot && v.wasSentToKitchen)
+                  if (voidedSent.length > 0 && order) {
+                    const voidItems = billableOrderItems.filter((it) =>
+                      voidedSent.some((v) => v.itemId === it.id)
+                    )
+                    if (voidItems.length) {
+                      await printKitchen(voidItems, order.orderNumber, order.waiterName, { isCancelled: true })
+                    }
+                  }
                 }
                 startFreshBill()
               },
               onError: (err) => toastError(err, 'Could not settle the bill'),
             }
           )
+          })()
         }}
       />
 

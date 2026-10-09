@@ -139,6 +139,13 @@ export interface CreateKOTOrderPayload {
   }>
 }
 
+export interface KOTBillVoidLine {
+  itemId: string
+  reason?: string
+  printVoidKot?: boolean
+  wasSentToKitchen?: boolean
+}
+
 export interface KOTBillPayload {
   paymentMethod: 'cash' | 'card' | 'upi' | 'credit'
   discount?: number
@@ -148,6 +155,8 @@ export interface KOTBillPayload {
   taxRate?: number | null
   serviceCharge?: number
   roomCharge?: number
+  printBill?: boolean
+  voids?: KOTBillVoidLine[]
   roomChargeLabel?: string
 }
 

@@ -4,7 +4,22 @@ import { formatINR } from '@/utils/currency'
 import { formatSentTime } from '../kotUtils'
 import { visibleOrderTypes } from '../kotConfig'
 import type { KOTDraftItem, KOTOrderItem, KOTOrderType } from '@/types/kot.types'
+import { formatAddOnsForDisplay, kotLineSubtotal, splitKotModifiers } from '@/utils/kotAddOns'
 import type { KotConfig } from '@/types/settings.types'
+
+const ModifierLines = ({ modifiers }: { modifiers?: string[] | null }) => {
+  const { kitchen } = splitKotModifiers(modifiers)
+  const addOns = formatAddOnsForDisplay(modifiers)
+  if (!kitchen.length && !addOns) return null
+  return (
+    <>
+      {kitchen.length > 0 && (
+        <p className="text-[11px] italic text-gray-500 dark:text-gray-400">* {kitchen.join(', ')}</p>
+      )}
+      {addOns && <p className="text-[11px] text-emerald-700 dark:text-emerald-400">+ {addOns}</p>}
+    </>
+  )
+}
 
 interface OrderTicketPanelProps {
   tableName: string
@@ -140,9 +155,7 @@ export const OrderTicketPanel = ({
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {it.quantity} × {it.productName}
                       </p>
-                      {it.modifiers?.length > 0 && (
-                        <p className="text-[11px] italic text-gray-500">* {it.modifiers.join(', ')}</p>
-                      )}
+                      <ModifierLines modifiers={it.modifiers} />
                       {it.notes && <p className="text-[11px] italic text-red-600 dark:text-red-400">{it.notes}</p>}
                     </div>
                     <Check size={16} className="text-emerald-500 shrink-0 mt-0.5" />
@@ -179,9 +192,7 @@ export const OrderTicketPanel = ({
                       title="Tap to add one more"
                     >
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{it.productName}</p>
-                      {it.modifiers?.length > 0 && (
-                        <p className="text-[11px] italic text-gray-600 dark:text-gray-400">* {it.modifiers.join(', ')}</p>
-                      )}
+                      <ModifierLines modifiers={it.modifiers} />
                       {it.notes && <p className="text-[11px] italic text-red-600 dark:text-red-400">{it.notes}</p>}
                     </button>
                     <button type="button" onClick={() => onRemoveUnprinted(it.id)} className="text-red-400 hover:text-red-600 shrink-0">
@@ -198,7 +209,7 @@ export const OrderTicketPanel = ({
                         <Plus size={12} />
                       </button>
                     </div>
-                    <span className="text-xs font-semibold">{formatINR(it.unitPrice * it.quantity)}</span>
+                    <span className="text-xs font-semibold">{formatINR(kotLineSubtotal(it))}</span>
                   </div>
                 </li>
               ))}
@@ -215,9 +226,7 @@ export const OrderTicketPanel = ({
                       title="Tap to add one more"
                     >
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{it.productName}</p>
-                      {it.modifiers.length > 0 && (
-                        <p className="text-[11px] italic text-gray-600 dark:text-gray-400">* {it.modifiers.join(', ')}</p>
-                      )}
+                      <ModifierLines modifiers={it.modifiers} />
                       {it.notes && <p className="text-[11px] italic text-red-600 dark:text-red-400">{it.notes}</p>}
                     </button>
                     <button type="button" onClick={() => onRemovePending(it.tempId)} className="text-red-400 hover:text-red-600 shrink-0">
@@ -234,7 +243,7 @@ export const OrderTicketPanel = ({
                         <Plus size={12} />
                       </button>
                     </div>
-                    <span className="text-xs font-semibold">{formatINR(it.unitPrice * it.quantity)}</span>
+                    <span className="text-xs font-semibold">{formatINR(kotLineSubtotal(it))}</span>
                   </div>
                 </li>
               ))}

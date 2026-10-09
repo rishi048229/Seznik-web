@@ -15,6 +15,7 @@ export interface RestaurantBillContext {
   orderType?: string | null
   kotNumber?: number | null
   customerName?: string | null
+  customerPhone?: string | null
   paperSize?: '58mm' | '80mm'
 }
 
@@ -105,7 +106,8 @@ export const generateRestaurantBillHTML = (ctx: RestaurantBillContext): string =
       ${ctx.kotNumber != null ? sumRow('KOT No', String(ctx.kotNumber)) : ''}
       ${ctx.tableName ? sumRow('Table', ctx.tableName) : ''}
       ${ctx.waiterName ? sumRow('Waiter', ctx.waiterName) : ''}
-      ${ctx.customerName ? sumRow('Guest', ctx.customerName) : ''}
+      ${ctx.receiptConfig?.showCustomerDetails !== false && ctx.customerName ? sumRow('Guest', ctx.customerName) : ''}
+      ${ctx.receiptConfig?.showCustomerDetails !== false && ctx.customerPhone ? sumRow('Phone', ctx.customerPhone) : ''}
       ${sumRow('Date', when)}
     </table>
     <div style="border-top:1px dashed #000;margin:6px 0;"></div>
@@ -167,7 +169,12 @@ export const generateRestaurantBillEscPos = (ctx: RestaurantBillContext): Uint8A
   if (ctx.kotNumber != null) b.twoCol('KOT No', String(ctx.kotNumber), cols)
   if (ctx.tableName) b.twoCol('Table', ctx.tableName, cols)
   if (ctx.waiterName) b.twoCol('Waiter', ctx.waiterName, cols)
-  if (ctx.customerName) b.twoCol('Guest', ctx.customerName, cols)
+  if (ctx.receiptConfig?.showCustomerDetails !== false && ctx.customerName) {
+    b.twoCol('Guest', ctx.customerName, cols)
+  }
+  if (ctx.receiptConfig?.showCustomerDetails !== false && ctx.customerPhone) {
+    b.twoCol('Phone', ctx.customerPhone, cols)
+  }
   b.twoCol('Date', when, cols)
   b.hr(cols, '-')
   b.twoCol('Item', 'Amt', cols)

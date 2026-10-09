@@ -360,7 +360,7 @@ export const POSPage = () => {
     setIsPaymentOpen(true)
   }
 
-  const handleCheckout = () => {
+  const finalizeSale = (printBill: boolean) => {
     if (!isComplete || isCreating) return
 
     const saleItems = items.map(item => {
@@ -417,14 +417,17 @@ export const POSPage = () => {
 
     setIsPaymentOpen(false)
 
-    void printCompletedSale({
-      sale: draftSale,
-      settings,
-      customerName,
-      ble: blePrinter,
-    }).catch((error) => {
-      toastError(error, t('pos.errFailedPrintBluetooth'))
-    })
+    if (printBill) {
+      void printCompletedSale({
+        sale: draftSale,
+        settings,
+        customerName,
+        customerPhone: selectedCustomer ? customers?.find(c => c.id === selectedCustomer)?.phone : undefined,
+        ble: blePrinter,
+      }).catch((error) => {
+        toastError(error, t('pos.errFailedPrintBluetooth'))
+      })
+    }
 
     createSale(saleData, {
       onSuccess: () => {
@@ -442,6 +445,9 @@ export const POSPage = () => {
       },
     })
   }
+
+  const handleCheckout = () => finalizeSale(true)
+  const handleCheckoutNoPrint = () => finalizeSale(false)
 
   const handlePreviewCurrentBill = () => {
     if (items.length === 0) {
@@ -958,15 +964,26 @@ export const POSPage = () => {
         title={t('pos.completePayment')}
         size="md"
         footer={
-          <Button
-            onClick={handleCheckout}
-            disabled={!isComplete || isCreating}
-            loading={isCreating}
-            className="w-full py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
-          >
-            <Printer size={18} className="mr-2" />
-            {isComplete ? t('pos.completeAndPrint') : t('pos.insufficientAmount')}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <Button
+              variant="outline"
+              onClick={handleCheckoutNoPrint}
+              disabled={!isComplete || isCreating}
+              loading={isCreating}
+              className="flex-1 py-3"
+            >
+              {isComplete ? 'Complete without print' : t('pos.insufficientAmount')}
+            </Button>
+            <Button
+              onClick={handleCheckout}
+              disabled={!isComplete || isCreating}
+              loading={isCreating}
+              className="flex-1 py-3.5 text-base font-bold bg-[#0a0a2e] hover:bg-[#1a1555]"
+            >
+              <Printer size={18} className="mr-2" />
+              {isComplete ? t('pos.completeAndPrint') : t('pos.insufficientAmount')}
+            </Button>
+          </div>
         }
       >
         <div className="space-y-6">

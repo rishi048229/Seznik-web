@@ -18,6 +18,7 @@ export interface KotSlipData {
   batchNumber?: number | null
   isAdditional?: boolean
   isCancelled?: boolean
+  isReprint?: boolean
   orderTime: string | Date
   notes?: string | null
   priority?: string | null
@@ -39,13 +40,16 @@ export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = 
   const titleFs = is80 ? '22px' : '18px'
   const baseFs = is80 ? '14px' : '13px'
   const smallFs = is80 ? '12px' : '11px'
-  const additional = !!data.isAdditional && !data.isCancelled
+  const additional = !!data.isAdditional && !data.isCancelled && !data.isReprint
   const cancelled = !!data.isCancelled
+  const reprint = !!data.isReprint && !cancelled
   const title = cancelled
     ? 'KOT CANCELLED'
-    : additional
-      ? 'ADDITIONAL KOT'
-      : ((data.slipTitle || 'KITCHEN ORDER TICKET').trim() || 'KITCHEN ORDER TICKET')
+    : reprint
+      ? 'KOT REPRINT'
+      : additional
+        ? 'ADDITIONAL KOT'
+        : ((data.slipTitle || 'KITCHEN ORDER TICKET').trim() || 'KITCHEN ORDER TICKET')
   const roundLabel = data.batchNumber && data.batchNumber > 1 ? ` · Round ${data.batchNumber}` : ''
 
   const itemRows = data.items
@@ -82,7 +86,8 @@ export const generateKotSlipHTML = (data: KotSlipData, width: '50mm' | '80mm' = 
     </table>
     ${data.notes ? `<div style="margin-top:8px;font-size:${smallFs};"><strong>Order note:</strong> ${escapeHtml(data.notes)}</div>` : ''}
     <div style="border-top:2px solid #000;margin:10px 0 4px;"></div>
-    <div style="text-align:center;font-size:${smallFs};">${cancelled ? '-- Stop preparing --' : '-- Kitchen Copy --'}</div>
+    ${reprint ? `<div style="text-align:center;font-weight:900;font-size:${baseFs};margin:6px 0;">*** DUPLICATE — already sent ***</div>` : ''}
+    <div style="text-align:center;font-size:${smallFs};">${cancelled ? '-- Stop preparing --' : reprint ? '-- Reprint copy --' : '-- Kitchen Copy --'}</div>
     <div style="height:14mm;"></div>
   </div>`
 }
@@ -91,13 +96,16 @@ export const generateKotSlipEscPos = (data: KotSlipData, paperSize: '58mm' | '80
   const cols = paperSize === '80mm' ? 48 : 32
   const b = new EscPosBuilder()
   b.init(paperSize)
-  const additional = !!data.isAdditional && !data.isCancelled
+  const additional = !!data.isAdditional && !data.isCancelled && !data.isReprint
   const cancelled = !!data.isCancelled
+  const reprint = !!data.isReprint && !cancelled
   const title = cancelled
     ? 'KOT CANCELLED'
-    : additional
-      ? 'ADDITIONAL KOT'
-      : ((data.slipTitle || 'KITCHEN ORDER TICKET').trim() || 'KITCHEN ORDER TICKET')
+    : reprint
+      ? 'KOT REPRINT'
+      : additional
+        ? 'ADDITIONAL KOT'
+        : ((data.slipTitle || 'KITCHEN ORDER TICKET').trim() || 'KITCHEN ORDER TICKET')
   const roundLabel = data.batchNumber && data.batchNumber > 1 ? ` Round ${data.batchNumber}` : ''
   b.align('center')
   b.bold(true)
@@ -135,7 +143,12 @@ export const generateKotSlipEscPos = (data: KotSlipData, paperSize: '58mm' | '80
   }
   b.hr(cols, '=')
   b.align('center')
-  b.line(cancelled ? '-- Stop preparing --' : '-- Kitchen Copy --')
+  if (reprint) {
+    b.bold(true)
+    b.line('*** DUPLICATE — already sent ***')
+    b.bold(false)
+  }
+  b.line(cancelled ? '-- Stop preparing --' : reprint ? '-- Reprint copy --' : '-- Kitchen Copy --')
   b.ejectAndCut()
   return b.toBytes()
 }

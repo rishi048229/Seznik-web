@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
-import { Building2, ChefHat, Receipt } from 'lucide-react'
+import { Building2, ChefHat, Receipt, PlusCircle } from 'lucide-react'
+import { useProducts } from '@/hooks/useProducts'
+import { KotAddOnSettingsTab } from './KotAddOnSettingsTab'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -12,7 +14,7 @@ import { DEFAULT_KOT_CONFIG, mergeKotConfig } from '../kotConfig'
 import { KotSettingsFields } from './KotSettingsFields'
 import type { KotConfig, ReceiptConfig } from '@/types/settings.types'
 
-export type KOTSettingsTab = 'business' | 'bill' | 'kot'
+export type KOTSettingsTab = 'business' | 'bill' | 'kot' | 'addons'
 
 interface KOTSettingsModalProps {
   isOpen: boolean
@@ -23,11 +25,13 @@ interface KOTSettingsModalProps {
 const TABS: Array<{ id: KOTSettingsTab; label: string; icon: typeof Building2 }> = [
   { id: 'business', label: 'Business', icon: Building2 },
   { id: 'bill', label: 'Customer bill', icon: Receipt },
+  { id: 'addons', label: 'Add-ons', icon: PlusCircle },
   { id: 'kot', label: 'Kitchen', icon: ChefHat },
 ]
 
 export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: KOTSettingsModalProps) => {
   const { data: settings } = useSettings()
+  const { data: products = [] } = useProducts()
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateSettings()
   const { mutate: createSettings, isPending: isCreating } = useCreateSettings()
   const [tab, setTab] = useState<KOTSettingsTab>(initialTab)
@@ -142,7 +146,7 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
           onClick={() => {
             if (tab === 'business') saveBusiness()
             else if (tab === 'bill') saveBill()
-            else saveKot()
+            else if (tab === 'addons' || tab === 'kot') saveKot()
           }}
           loading={saving}
           className="w-full sm:w-auto"
@@ -237,6 +241,14 @@ export const KOTSettingsModal = ({ isOpen, onClose, initialTab = 'business' }: K
               onChange={(checked) => setReceipt((r) => ({ ...r, showPrintTime: checked }))}
             />
           </div>
+        )}
+
+        {tab === 'addons' && (
+          <KotAddOnSettingsTab
+            productIds={kot.addOnProductIds}
+            products={products}
+            onChange={(addOnProductIds) => setKot((k) => ({ ...k, addOnProductIds }))}
+          />
         )}
 
         {tab === 'kot' && (

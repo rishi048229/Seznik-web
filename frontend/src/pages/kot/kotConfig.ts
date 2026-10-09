@@ -21,6 +21,7 @@ export const DEFAULT_KOT_CONFIG: Required<KotConfig> = {
   allowedOrderTypes: ['dine_in', 'takeaway', 'delivery'],
   kitchenTicketsEnabled: true,
   waiterNames: [],
+  addOnProductIds: [],
 }
 
 export interface VenuePreset {
@@ -168,6 +169,9 @@ export const mergeKotConfig = (raw?: KotConfig | null): Required<KotConfig> => {
     kitchenTicketsEnabled: raw?.kitchenTicketsEnabled ?? preset.kitchenTicketsEnabled,
     waiterNames: Array.isArray(raw?.waiterNames)
       ? raw.waiterNames.filter((n): n is string => typeof n === 'string' && n.trim().length > 0).map((n) => n.trim())
+      : [],
+    addOnProductIds: Array.isArray(raw?.addOnProductIds)
+      ? raw.addOnProductIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
       : [],
   }
 }

@@ -11,8 +11,11 @@ interface ItemNotesDialogProps {
   product: Product | null
   notes: string
   modifiers: string[]
+  addOnProducts: Product[]
+  selectedAddOnIds: string[]
   onNotesChange: (value: string) => void
   onToggleModifier: (mod: string) => void
+  onToggleAddOn: (productId: string) => void
   onCancel: () => void
   onConfirm: () => void
 }
@@ -22,12 +25,19 @@ export const ItemNotesDialog = ({
   product,
   notes,
   modifiers,
+  addOnProducts,
+  selectedAddOnIds,
   onNotesChange,
   onToggleModifier,
+  onToggleAddOn,
   onCancel,
   onConfirm,
 }: ItemNotesDialogProps) => {
   if (!product) return null
+
+  const addOnExtra = addOnProducts
+    .filter((p) => selectedAddOnIds.includes(p.id))
+    .reduce((s, p) => s + p.sellingPrice, 0)
 
   return (
     <Modal
@@ -41,16 +51,49 @@ export const ItemNotesDialog = ({
             Cancel
           </Button>
           <Button className="flex-1" onClick={onConfirm}>
-            Add to KOT
+            Add to order
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
-        <p className="text-sm text-gray-500 dark:text-gray-400">{formatINR(product.sellingPrice)}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Base {formatINR(product.sellingPrice)}
+          {addOnExtra > 0 ? (
+            <span className="text-emerald-700 dark:text-emerald-400 font-semibold"> + add-ons {formatINR(addOnExtra)}</span>
+          ) : null}
+        </p>
+
+        {addOnProducts.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+              Add-ons (billed)
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {addOnProducts.map((addOn) => {
+                const selected = selectedAddOnIds.includes(addOn.id)
+                return (
+                  <button
+                    key={addOn.id}
+                    type="button"
+                    onClick={() => onToggleAddOn(addOn.id)}
+                    className={`text-xs font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
+                      selected
+                        ? 'bg-emerald-100 border-emerald-500 text-emerald-900 dark:bg-emerald-900/40 dark:border-emerald-400 dark:text-emerald-100'
+                        : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    {addOn.name} · {formatINR(addOn.sellingPrice)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-            Cooking instructions
+            Kitchen instructions
           </p>
           <div className="flex flex-wrap gap-1.5">
             {KOT_MODIFIER_PRESETS.map((mod) => {

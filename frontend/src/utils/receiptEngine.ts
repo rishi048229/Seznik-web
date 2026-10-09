@@ -473,8 +473,16 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       }
     }
     if (showCustomerDetails && customerName) {
-      lines.push(row('Customer:', customerName, COLS))
-      if (customerPhone) lines.push(row('Phone   :', customerPhone, COLS))
+      if (compactMode && !showInvoiceNoAndDate) {
+        lines.push(row('Customer:', customerName, COLS))
+        if (customerPhone) lines.push(row('Phone   :', customerPhone, COLS))
+      } else if (compactMode && showInvoiceNoAndDate) {
+        lines.push(row('Cust:', customerName, COLS))
+        if (customerPhone) lines.push(row('Ph  :', customerPhone, COLS))
+      } else {
+        lines.push(row('Customer:', customerName, COLS))
+        if (customerPhone) lines.push(row('Phone   :', customerPhone, COLS))
+      }
     }
     lines.push(divider('-', COLS))
   }

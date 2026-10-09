@@ -15,12 +15,13 @@ export const printCompletedSale = async (args: {
   sale: Sale
   settings?: UserSettings | null
   customerName?: string
+  customerPhone?: string
   ble: BlePrinterLike
   onDone?: () => void
   /** When true, only print over Bluetooth. Used when the format picker is also shown. */
   skipBrowserFallback?: boolean
 }): Promise<void> => {
-  const { sale, settings, customerName, ble, onDone, skipBrowserFallback } = args
+  const { sale, settings, customerName, customerPhone, ble, onDone, skipBrowserFallback } = args
   const receiptConfig = resolveEffectiveReceiptConfig(settings)
   const paperSize = settings?.printerConfig?.paperSize || '58mm'
   const width = thermalWidth(paperSize)
@@ -38,6 +39,7 @@ export const printCompletedSale = async (args: {
         businessName: settings?.businessName,
         businessAddress: settings?.businessAddress,
         customerName,
+        customerPhone,
       })
       await ble.print(bytes)
       onDone?.()
@@ -56,6 +58,7 @@ export const printCompletedSale = async (args: {
     businessName: settings?.businessName,
     businessAddress: settings?.businessAddress,
     customerName,
+    customerPhone,
     width,
     logoURL: settings?.businessLogoURL || receiptConfig?.logoURL,
     settingsTaxName: 'GST',
