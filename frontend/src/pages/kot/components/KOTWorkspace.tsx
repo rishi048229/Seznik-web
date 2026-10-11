@@ -77,6 +77,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   const kotCfg = mergeKotConfig(settings?.kotConfig)
 
   const [orderId, setOrderId] = useState<string | null>(existingOrderId ?? table?.activeOrder?.id ?? null)
+  // A fresh bill started with "New" must not reuse the table that already holds a running order.
+  const [billTable, setBillTable] = useState<RestaurantTable | null>(table)
   const [orderType, setOrderType] = useState<KOTOrderType>(
     initialOrderType || (table && kotCfg.allowedOrderTypes.includes('dine_in') ? 'dine_in' : kotCfg.defaultOrderType)
   )
@@ -190,7 +192,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   }, [billableOrderItems, pendingItems])
 
   const busy = isCreating || isAdding || isSending || isAssigning || isCancelling
-  const displayName = ticketTitle(order?.table?.name || order?.partyLabel || table?.name, orderType)
+  const displayName = ticketTitle(order?.table?.name || order?.partyLabel || billTable?.name, orderType)
 
   const openTickets = useMemo(() => {
     const list = [...runningOrders]
@@ -205,6 +207,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
     setBillOpen(false)
     setCustomerId('')
     setOrderId(null)
+    setBillTable(null)
+    setAssignTableId('')
     setMobileTab('menu')
     if (!kotCfg.allowedOrderTypes.includes(orderType)) {
       setOrderType(kotCfg.defaultOrderType)
@@ -218,14 +222,10 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
         if (orderId) {
           await persistPending(orderId)
         } else {
-          const created = await createOrder(startOrderPayload(pendingItems))
-          setPendingItems([])
-          if (!id) {
-            setOrderId(created.id)
-            toast.success('Bill kept in the bar')
-            return
-          }
+          await createOrder(startOrderPayload(pendingItems))
         }
+        setPendingItems([])
+        if (!id) toast.success('Running bill saved. New bill started.')
       }
       if (!id) {
         startFreshBill()
@@ -255,8 +255,8 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
 
   const startOrderPayload = (items: KOTDraftItem[]) => ({
     orderType,
-    tableId: table?.id,
-    partyLabel: table?.name || orderTypeLabel(orderType),
+    tableId: billTable?.id,
+    partyLabel: billTable?.name || orderTypeLabel(orderType),
     waiterName: waiterName.trim() || undefined,
     status: 'open' as const,
     items: toPayloadItems(items),
@@ -532,7 +532,7 @@ export const KOTWorkspace = ({ table = null, existingOrderId = null, initialOrde
   }
 
   const vacantTables = tables.filter((tb) => tb.isActive !== false && !tb.isOccupied)
-  const canAssignTable = Boolean(orderId && kotCfg.showTables && !order?.tableId && !table?.id)
+  const canAssignTable = Boolean(orderId && kotCfg.showTables && !order?.tableId && !billTable?.id)
 
   const handleAssignTable = async () => {
     if (!orderId || !assignTableId) {
