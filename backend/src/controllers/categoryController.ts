@@ -116,11 +116,46 @@ export const deleteCategory = async (req: Request, res: Response) => {
     const userId = getTenantUserId(req);
     const { id } = req.params;
 
-    await prisma.category.deleteMany({
+    const category = await prisma.category.findFirst({
       where: { id: String(id), userId },
+      select: { id: true, name: true },
+    });
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found.' });
+    }
+
+    const childCategories = await prisma.category.findMany({
+      where: { parentId: category.id, userId },
+      select: { id: true, name: true },
+    });
+    const categoryIds = [category.id, ...childCategories.map((c) => c.id)];
+
+    const productCount = await prisma.product.count({
+      where: { userId, categoryId: { in: categoryIds } },
+    });
+
+    if (productCount > 0) {
+      const productWord = productCount === 1 ? 'product' : 'products';
+      const scope =
+        childCategories.length > 0
+          ? `"${category.name}" (including its subcategories)`
+          : `"${category.name}"`;
+      return res.status(400).json({
+        error: `${scope} still has ${productCount} ${productWord}. Move or remove ${productCount === 1 ? 'that product' : 'those products'} from this category, then delete it.`,
+        code: 'CATEGORY_HAS_PRODUCTS',
+        categoryName: category.name,
+        productCount,
+      });
+    }
+
+    await prisma.category.deleteMany({
+      where: { id: category.id, userId },
     });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete category — remove or reassign its products and subcategories first' });
+    console.error('deleteCategory error:', error);
+    res.status(500).json({
+      error: 'Could not delete this category. Please try again.',
+    });
   }
 };

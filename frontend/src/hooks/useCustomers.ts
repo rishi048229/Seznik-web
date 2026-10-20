@@ -55,6 +55,8 @@ export const useRecordPayment = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] })
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.CREDITS] })
+      // Partial payments also update sale.amountPaid, so refresh invoices.
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
     },
   })
 }

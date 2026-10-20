@@ -449,8 +449,11 @@ export interface ProductExportRow {
   name: string
   sku: string
   barcode?: string
+  barcodeType?: string
   categoryName: string
+  supplierName?: string
   brand?: string
+  description?: string
   unit: string
   costPrice: number
   sellingPrice: number
@@ -460,12 +463,16 @@ export interface ProductExportRow {
   lowStockThreshold: number
   stockValue: number
   status: string
+  isActive?: string
+  expiryDate?: string
+  createdAt?: string
 }
 
 export function prepareProductsExportData(
   products: Product[],
   categories: Category[] = [],
-  storeStockMap?: Map<string, { stock: number; priceOverride?: number | null }>
+  storeStockMap?: Map<string, { stock: number; priceOverride?: number | null }>,
+  supplierNameById?: Map<string, string>
 ): {
   rows: ProductExportRow[]
   totalItems: number
@@ -475,6 +482,13 @@ export function prepareProductsExportData(
   const catMap = new Map(categories.map(c => [c.id, c.name]))
   let totalUnits = 0
   let totalStockValue = 0
+
+  const formatDate = (value?: string | Date | null) => {
+    if (!value) return ''
+    const d = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
 
   const rows: ProductExportRow[] = products.map(p => {
     const storeEntry = storeStockMap?.get(p.id)
@@ -495,10 +509,13 @@ export function prepareProductsExportData(
     return {
       id: p.id,
       name: p.name,
-      sku: p.sku || '—',
-      barcode: p.barcode || '—',
+      sku: p.sku || '',
+      barcode: p.barcode || '',
+      barcodeType: p.barcodeType || '',
       categoryName: catMap.get(p.categoryId) || 'Uncategorised',
-      brand: p.brand || '—',
+      supplierName: p.supplierId ? (supplierNameById?.get(p.supplierId) || '') : '',
+      brand: p.brand || '',
+      description: p.description || '',
       unit: formatDisplayUnit(p.unit),
       costPrice: cost,
       sellingPrice: effectivePrice,
@@ -508,6 +525,9 @@ export function prepareProductsExportData(
       lowStockThreshold: p.lowStockThreshold || 0,
       stockValue: stockVal,
       status,
+      isActive: p.isActive === false ? 'Inactive' : 'Active',
+      expiryDate: formatDate(p.expiryDate),
+      createdAt: formatDate(p.createdAt),
     }
   })
 
@@ -526,9 +546,15 @@ export function exportProductsToExcel(
   products: Product[],
   categories: Category[] = [],
   meta: BusinessMetadata = {},
-  storeStockMap?: Map<string, { stock: number; priceOverride?: number | null }>
+  storeStockMap?: Map<string, { stock: number; priceOverride?: number | null }>,
+  supplierNameById?: Map<string, string>
 ): void {
-  const { rows, totalItems, totalUnits, totalStockValue } = prepareProductsExportData(products, categories, storeStockMap)
+  const { rows, totalItems, totalUnits, totalStockValue } = prepareProductsExportData(
+    products,
+    categories,
+    storeStockMap,
+    supplierNameById
+  )
   const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
   const headerRows = [
@@ -547,8 +573,11 @@ export function exportProductsToExcel(
       'Product Name',
       'SKU',
       'Barcode',
+      'Barcode Type',
       'Category',
+      'Supplier',
       'Brand',
+      'Description',
       'Unit',
       'Cost Price (INR)',
       'Selling Price (INR)',
@@ -558,6 +587,9 @@ export function exportProductsToExcel(
       'Min Alert Qty',
       'Total Stock Value (INR)',
       'Stock Status',
+      'Active Status',
+      'Expiry Date',
+      'Created On',
     ],
   ]
 
@@ -566,8 +598,11 @@ export function exportProductsToExcel(
     r.name,
     r.sku,
     r.barcode,
+    r.barcodeType,
     r.categoryName,
+    r.supplierName,
     r.brand,
+    r.description,
     r.unit,
     r.costPrice,
     r.sellingPrice,
@@ -577,6 +612,9 @@ export function exportProductsToExcel(
     r.lowStockThreshold,
     r.stockValue,
     r.status,
+    r.isActive,
+    r.expiryDate,
+    r.createdAt,
   ])
 
   const totalsRow = [
@@ -591,30 +629,42 @@ export function exportProductsToExcel(
     '',
     '',
     '',
+    '',
+    '',
+    '',
     totalUnits,
     '',
     totalStockValue,
+    '',
+    '',
+    '',
     '',
   ]
 
   const ws = XLSX.utils.aoa_to_sheet([...headerRows, ...dataRows, [], totalsRow])
 
   ws['!cols'] = [
-    { wch: 6 },  // S.No
-    { wch: 32 }, // Name
-    { wch: 18 }, // SKU
-    { wch: 18 }, // Barcode
-    { wch: 22 }, // Category
-    { wch: 16 }, // Brand
-    { wch: 8 },  // Unit
-    { wch: 16 }, // Cost
-    { wch: 18 }, // Selling
-    { wch: 12 }, // GST
-    { wch: 12 }, // Mode
-    { wch: 14 }, // Stock
-    { wch: 14 }, // Low Stock
-    { wch: 22 }, // Valuation
-    { wch: 14 }, // Status
+    { wch: 6 },
+    { wch: 32 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 12 },
+    { wch: 22 },
+    { wch: 20 },
+    { wch: 16 },
+    { wch: 36 },
+    { wch: 8 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
   ]
 
   const wb = XLSX.utils.book_new()

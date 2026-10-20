@@ -2207,8 +2207,12 @@ export const ProductsPage = () => {
             businessLogoURL: settings?.businessLogoURL || '',
           }
 
+          const supplierNameById = new Map(
+            (suppliers ?? []).map((s) => [s.id, s.name] as const)
+          )
+
           if (format === 'excel') {
-            exportProductsToExcel(targetProducts, categories, meta)
+            exportProductsToExcel(targetProducts, categories, meta, undefined, supplierNameById)
           } else if (format === 'pdf') {
             const html = buildProductsHtmlReport(targetProducts, categories, meta)
             triggerPrintReport(html, 'Products-Inventory-Report')

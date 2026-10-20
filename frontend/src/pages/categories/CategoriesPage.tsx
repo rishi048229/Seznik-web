@@ -30,6 +30,7 @@ import {
   Info, TrendingUp, Package, Tag, Watch, Headphones, FolderTree, CornerDownRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { toastError } from '@/utils/userMessage'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 const CATEGORY_ICONS: React.ReactNode[] = [
@@ -158,21 +159,42 @@ export const CategoriesPage = () => {
     })
   }
 
-  const handleDelete = (category: Category) => {
-    const childCount = childrenOf(category.id).length
-    const warning = childCount > 0
-      ? `Delete "${category.name}" and its ${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}?`
-      : `Delete category "${category.name}"?`
-    if (!confirm(warning)) return
-    deleteCategory(category.id, {
-      onSuccess: () => toast.success('Category deleted'),
-      onError: () => toast.error('Failed to delete — move or remove its products first'),
-    })
-  }
-
   // Stats
   const getCategoryProductCount = (categoryId: string) =>
     products?.filter(p => p.categoryId === categoryId && p.isActive !== false).length ?? 0
+
+  /** Includes inactive products — same rule the API uses when blocking delete. */
+  const getAssignedProductCount = (categoryId: string) =>
+    products?.filter(p => p.categoryId === categoryId).length ?? 0
+
+  const handleDelete = (category: Category) => {
+    const childCats = childrenOf(category.id)
+    const totalProductsInTree =
+      getAssignedProductCount(category.id) +
+      childCats.reduce((sum, child) => sum + getAssignedProductCount(child.id), 0)
+
+    if (totalProductsInTree > 0) {
+      const productWord = totalProductsInTree === 1 ? 'product' : 'products'
+      const scope =
+        childCats.length > 0
+          ? `"${category.name}" (including its subcategories)`
+          : `"${category.name}"`
+      toast.error(
+        `${scope} still has ${totalProductsInTree} ${productWord}. Move or remove ${totalProductsInTree === 1 ? 'that product' : 'those products'} from this category, then delete it.`
+      )
+      return
+    }
+
+    const childCount = childCats.length
+    const warning = childCount > 0
+      ? `Delete "${category.name}" and its ${childCount} empty subcategor${childCount === 1 ? 'y' : 'ies'}?`
+      : `Delete empty category "${category.name}"?`
+    if (!confirm(warning)) return
+    deleteCategory(category.id, {
+      onSuccess: () => toast.success(`"${category.name}" deleted`),
+      onError: (err) => toastError(err, `Could not delete "${category.name}". Please try again.`),
+    })
+  }
 
   const totalProducts = products?.filter(p => p.isActive !== false).length ?? 0
   const categoryDistribution = all.map(cat => ({

@@ -338,7 +338,10 @@ export const CustomerDetailPage = () => {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {customerSales.slice(0, 8).map(sale => {
                       const isCreditSale = sale.paymentMethod === 'credit'
-                      const isUnpaid = isCreditSale && (sale.grandTotal - (sale.amountPaid ?? 0) > 0) && totalCreditBalance > 0
+                      const paid = sale.amountPaid ?? 0
+                      const outstanding = Math.max(0, sale.grandTotal - paid)
+                      const isFullyPaid = outstanding <= 0.009
+                      const isPartial = isCreditSale && paid > 0.009 && !isFullyPaid
 
                       return (
                         <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
@@ -354,7 +357,13 @@ export const CustomerDetailPage = () => {
                           </td>
 
                           <td className="px-6 py-4 font-bold text-right text-gray-900 dark:text-gray-100">
-                            {formatINR(sale.grandTotal)}
+                            <div>{formatINR(sale.grandTotal)}</div>
+                            {isCreditSale && paid > 0.009 && (
+                              <div className="text-[10px] font-semibold text-emerald-600 mt-0.5">
+                                Paid {formatINR(paid)}
+                                {!isFullyPaid ? ` · Due ${formatINR(outstanding)}` : ''}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
@@ -367,10 +376,12 @@ export const CustomerDetailPage = () => {
                           </td>
                           <td className="px-6 py-4 text-center">
                             {isCreditSale ? (
-                              isUnpaid ? (
-                                <Badge variant="danger" className="font-extrabold text-[10px] uppercase">{t('customers.unpaidCredit')}</Badge>
-                              ) : (
+                              isFullyPaid ? (
                                 <Badge variant="success" className="font-extrabold text-[10px] uppercase">{t('customers.creditPaid')}</Badge>
+                              ) : isPartial ? (
+                                <Badge variant="warning" className="font-extrabold text-[10px] uppercase">Partial</Badge>
+                              ) : (
+                                <Badge variant="danger" className="font-extrabold text-[10px] uppercase">{t('customers.unpaidCredit')}</Badge>
                               )
                             ) : (
                               <Badge variant="success" className="font-extrabold text-[10px] uppercase">{t('dashboard.paid')}</Badge>
