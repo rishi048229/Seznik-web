@@ -130,27 +130,69 @@ export const deleteCategory = async (req: Request, res: Response) => {
     });
     const categoryIds = [category.id, ...childCategories.map((c) => c.id)];
 
-    const productCount = await prisma.product.count({
-      where: { userId, categoryId: { in: categoryIds } },
+    // Product "delete" in the app is soft-delete (isActive=false). Only active
+    // catalog items should block removing a category.
+    const activeProductCount = await prisma.product.count({
+      where: { userId, categoryId: { in: categoryIds }, isActive: true },
     });
 
-    if (productCount > 0) {
-      const productWord = productCount === 1 ? 'product' : 'products';
+    if (activeProductCount > 0) {
+      const productWord = activeProductCount === 1 ? 'product' : 'products';
       const scope =
         childCategories.length > 0
           ? `"${category.name}" (including its subcategories)`
           : `"${category.name}"`;
       return res.status(400).json({
-        error: `${scope} still has ${productCount} ${productWord}. Move or remove ${productCount === 1 ? 'that product' : 'those products'} from this category, then delete it.`,
+        error: `${scope} still has ${activeProductCount} ${productWord}. Move or remove ${activeProductCount === 1 ? 'that product' : 'those products'} from this category, then delete it.`,
         code: 'CATEGORY_HAS_PRODUCTS',
         categoryName: category.name,
-        productCount,
+        productCount: activeProductCount,
       });
     }
 
-    await prisma.category.deleteMany({
-      where: { id: category.id, userId },
+    await prisma.$transaction(async (tx) => {
+      // Soft-deleted products still hold a categoryId FK. Move them off this
+      // category tree so delete is not blocked after the merchant cleared the catalog.
+      const inactiveCount = await tx.product.count({
+        where: { userId, categoryId: { in: categoryIds }, isActive: false },
+      });
+
+      if (inactiveCount > 0) {
+        let fallback = await tx.category.findFirst({
+          where: {
+            userId,
+            id: { notIn: categoryIds },
+            OR: [{ name: 'Uncategorised' }, { name: 'Uncategorized' }],
+          },
+          select: { id: true },
+        });
+
+        if (!fallback) {
+          fallback = await tx.category.findFirst({
+            where: { userId, id: { notIn: categoryIds } },
+            select: { id: true },
+            orderBy: { createdAt: 'asc' },
+          });
+        }
+
+        if (!fallback) {
+          fallback = await tx.category.create({
+            data: { name: 'Uncategorised', userId, isActive: true },
+            select: { id: true },
+          });
+        }
+
+        await tx.product.updateMany({
+          where: { userId, categoryId: { in: categoryIds }, isActive: false },
+          data: { categoryId: fallback.id },
+        });
+      }
+
+      await tx.category.deleteMany({
+        where: { id: category.id, userId },
+      });
     });
+
     res.json({ success: true });
   } catch (error) {
     console.error('deleteCategory error:', error);

@@ -159,28 +159,24 @@ export const CategoriesPage = () => {
     })
   }
 
-  // Stats
+  // Stats — only active products count (soft-deleted ones are already removed from the catalog).
   const getCategoryProductCount = (categoryId: string) =>
     products?.filter(p => p.categoryId === categoryId && p.isActive !== false).length ?? 0
 
-  /** Includes inactive products — same rule the API uses when blocking delete. */
-  const getAssignedProductCount = (categoryId: string) =>
-    products?.filter(p => p.categoryId === categoryId).length ?? 0
-
   const handleDelete = (category: Category) => {
     const childCats = childrenOf(category.id)
-    const totalProductsInTree =
-      getAssignedProductCount(category.id) +
-      childCats.reduce((sum, child) => sum + getAssignedProductCount(child.id), 0)
+    const activeInTree =
+      getCategoryProductCount(category.id) +
+      childCats.reduce((sum, child) => sum + getCategoryProductCount(child.id), 0)
 
-    if (totalProductsInTree > 0) {
-      const productWord = totalProductsInTree === 1 ? 'product' : 'products'
+    if (activeInTree > 0) {
+      const productWord = activeInTree === 1 ? 'product' : 'products'
       const scope =
         childCats.length > 0
           ? `"${category.name}" (including its subcategories)`
           : `"${category.name}"`
       toast.error(
-        `${scope} still has ${totalProductsInTree} ${productWord}. Move or remove ${totalProductsInTree === 1 ? 'that product' : 'those products'} from this category, then delete it.`
+        `${scope} still has ${activeInTree} ${productWord}. Move or remove ${activeInTree === 1 ? 'that product' : 'those products'} from this category, then delete it.`
       )
       return
     }
