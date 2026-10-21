@@ -1087,141 +1087,185 @@ export const ProductsPage = () => {
 
             {isLoading ? (
               <div className="p-4"><TableSkeleton rows={6} columns={7} /></div>
-            ) : viewMode === 'list' ? (
+            ) : (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
-                      <tr className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                        <th className="px-4 py-4 w-10">
-                          <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            {selectedIds.size === paginated.length && paginated.length > 0
-                              ? <CheckSquare size={16} className="text-blue-600" />
-                              : <Square size={16} />}
-                          </button>
-                        </th>
-                        <th className="px-6 py-4">Product Detail</th>
-                        <th className="px-6 py-4">SKU / Barcode</th>
-                        <th className="px-6 py-4">{t('common.category')}</th>
-                        <th className="px-6 py-4">{t('products.stockLevel')}</th>
-                        <th className="px-6 py-4">Price</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {paginated.map(product => {
-                        const storeStock = getBrowseStock(product)
-                        const storePrice = getBrowsePrice(product)
-                        const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3)) * 100, 100)
-                        const isLowStock = storeStock > 0 && storeStock <= product.lowStockThreshold
-                        const isOutOfStock = storeStock <= 0
-                        return (
-                          <tr
-                            key={product.id}
-                            onClick={() => openDetail(product)}
-                            className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-gray-800/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
-                          >
-                            <td className="px-4 py-4 w-10" onClick={(e) => e.stopPropagation()}>
-                              <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                                {selectedIds.has(product.id)
-                                  ? <CheckSquare size={16} className="text-blue-600" />
-                                  : <Square size={16} />}
-                              </button>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
-                                  {product.imageURL ? (
-                                    <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <Package size={20} className="text-gray-400" />
-                                    </div>
-                                  )}
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                                      {product.name}
-                                    </p>
-                                    {isExpiringSoon(product.expiryDate) && (
-                                      <span
-                                        title={formatExpiryMessage(product.expiryDate)}
-                                        className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
-                                          isExpired(product.expiryDate)
-                                            ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                                            : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                                        }`}
-                                      >
-                                        {isExpired(product.expiryDate) ? t('products.expired') : t('products.expiringSoonBadge')}
-                                      </span>
+                {viewMode === 'list' ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-gray-50 dark:bg-gray-800">
+                        <tr className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                          <th className="px-4 py-4 w-10">
+                            <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                              {selectedIds.size === paginated.length && paginated.length > 0
+                                ? <CheckSquare size={16} className="text-blue-600" />
+                                : <Square size={16} />}
+                            </button>
+                          </th>
+                          <th className="px-6 py-4">Product Detail</th>
+                          <th className="px-6 py-4">SKU / Barcode</th>
+                          <th className="px-6 py-4">{t('common.category')}</th>
+                          <th className="px-6 py-4">{t('products.stockLevel')}</th>
+                          <th className="px-6 py-4">Price</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {paginated.map(product => {
+                          const storeStock = getBrowseStock(product)
+                          const storePrice = getBrowsePrice(product)
+                          const stockPercent = Math.min((storeStock / (product.lowStockThreshold * 3)) * 100, 100)
+                          const isLowStock = storeStock > 0 && storeStock <= product.lowStockThreshold
+                          const isOutOfStock = storeStock <= 0
+                          return (
+                            <tr
+                              key={product.id}
+                              onClick={() => openDetail(product)}
+                              className={`cursor-pointer hover:bg-blue-50/50 dark:hover:bg-gray-800/80 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+                            >
+                              <td className="px-4 py-4 w-10" onClick={(e) => e.stopPropagation()}>
+                                <button onClick={() => toggleSelect(product.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                  {selectedIds.has(product.id)
+                                    ? <CheckSquare size={16} className="text-blue-600" />
+                                    : <Square size={16} />}
+                                </button>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-4">
+                                  <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
+                                    {product.imageURL ? (
+                                      <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <Package size={20} className="text-gray-400" />
+                                      </div>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-gray-400">{formatDisplayUnit(product.unit)}{product.brand ? ` · ${product.brand}` : ''}</p>
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                                        {product.name}
+                                      </p>
+                                      {isExpiringSoon(product.expiryDate) && (
+                                        <span
+                                          title={formatExpiryMessage(product.expiryDate)}
+                                          className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                                            isExpired(product.expiryDate)
+                                              ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                              : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                                          }`}
+                                        >
+                                          {isExpired(product.expiryDate) ? t('products.expired') : t('products.expiringSoonBadge')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-gray-400">{formatDisplayUnit(product.unit)}{product.brand ? ` · ${product.brand}` : ''}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-sm font-mono text-gray-600 dark:text-gray-300">{product.sku}</span>
-                              {product.barcode && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <Barcode size={12} className="text-gray-400" />
-                                  <span className="text-xs text-gray-400">{product.barcode}</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm font-mono text-gray-600 dark:text-gray-300">{product.sku}</span>
+                                {product.barcode && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <Barcode size={12} className="text-gray-400" />
+                                    <span className="text-xs text-gray-400">{product.barcode}</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4">
+                                <Badge variant="info">
+                                  <AutoTranslatedText text={getCategoryName(product.categoryId)} />
+                                </Badge>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-1">
+                                  <span className={`text-sm font-semibold ${
+                                    isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
+                                  }`}>
+                                    {storeStock} Units
+                                  </span>
+                                  <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
+                                      }`}
+                                      style={{ width: `${stockPercent}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
+                              </td>
+                              <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
+                                    title="Print label"
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                                  >
+                                    <Tag size={16} className="text-gray-400" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openEdit(product) }}
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                                  >
+                                    <MoreHorizontal size={18} className="text-gray-400" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  /* Grid View */
+                  <div className="p-3 sm:p-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                      {paginated.map(product => (
+                        <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openDetail(product)}>
+                          <div>
+                            <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden relative group">
+                              {product.imageURL ? (
+                                <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Package size={28} className="text-gray-300" />
                                 </div>
                               )}
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge variant="info">
-                                <AutoTranslatedText text={getCategoryName(product.categoryId)} />
-                              </Badge>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col gap-1">
-                                <span className={`text-sm font-semibold ${
-                                  isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'
-                                }`}>
-                                  {storeStock} Units
-                                </span>
-                                <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-blue-500'
-                                    }`}
-                                    style={{ width: `${stockPercent}%` }}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-base font-bold text-blue-600">{formatINR(storePrice)}</span>
-                            </td>
-                            <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
-                                  title="Print label"
-                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                                >
-                                  <Tag size={16} className="text-gray-400" />
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); openEdit(product) }}
-                                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                                >
-                                  <MoreHorizontal size={18} className="text-gray-400" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
+                                title="Print Label"
+                                className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 hover:text-blue-600 shadow-md transition-all active:scale-95"
+                              >
+                                <Tag size={14} />
+                              </button>
+                            </div>
+                            <p className="text-[10px] sm:text-xs text-gray-400 font-mono truncate">{product.sku}</p>
+                            <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 mt-0.5 line-clamp-1">
+                              {product.name}
+                            </p>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+                            <Badge variant={
+                              getBrowseStock(product) <= 0 ? 'danger' :
+                              getBrowseStock(product) <= product.lowStockThreshold ? 'warning' : 'success'
+                            }>
+                              {getBrowseStock(product) <= 0 ? 'Out of Stock' : `${getBrowseStock(product)} left`}
+                            </Badge>
+                            <span className="text-sm sm:text-base font-bold text-blue-600">{formatINR(getBrowsePrice(product))}</span>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                {/* Pagination */}
+                {/* Pagination — shared by list and grid */}
                 {filtered.length > 0 && (
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <span className="text-xs text-gray-500">
                       Showing {paginated.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0} to {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} products
                     </span>
@@ -1257,48 +1301,6 @@ export const ProductsPage = () => {
                   </div>
                 )}
               </>
-            ) : (
-              /* Grid View */
-              <div className="p-3 sm:p-6">
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                  {paginated.map(product => (
-                    <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between" onClick={() => openDetail(product)}>
-                      <div>
-                        <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden relative group">
-                          {product.imageURL ? (
-                            <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Package size={28} className="text-gray-300" />
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}
-                            title="Print Label"
-                            className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 hover:text-blue-600 shadow-md transition-all active:scale-95"
-                          >
-                            <Tag size={14} />
-                          </button>
-                        </div>
-                        <p className="text-[10px] sm:text-xs text-gray-400 font-mono truncate">{product.sku}</p>
-                        <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 mt-0.5 line-clamp-1">
-                          {product.name}
-                        </p>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <Badge variant={
-                          getBrowseStock(product) <= 0 ? 'danger' :
-                          getBrowseStock(product) <= product.lowStockThreshold ? 'warning' : 'success'
-                        }>
-                          {getBrowseStock(product) <= 0 ? 'Out of Stock' : `${getBrowseStock(product)} left`}
-                        </Badge>
-                        <span className="text-sm sm:text-base font-bold text-blue-600">{formatINR(getBrowsePrice(product))}</span>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
             )}
 
             {!isLoading && filtered.length === 0 && (
