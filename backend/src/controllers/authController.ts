@@ -608,6 +608,10 @@ export const getManagedUsers = async (req: Request, res: Response) => {
 export const createManagedUser = async (req: Request, res: Response) => {
   try {
     const adminId = getTenantUserId(req);
+    if (!adminId) {
+      return res.status(401).json({ error: 'Not authorized' });
+    }
+
     const { uid, displayName, email, role, permissions, password, photoURL, businessName, plan } = req.body;
 
     if (!displayName || !password) {
@@ -627,7 +631,7 @@ export const createManagedUser = async (req: Request, res: Response) => {
     const managed = await prisma.managedUser.create({
       data: {
         uid: uid || `user_${Date.now()}`,
-        displayName,
+        displayName: String(displayName).trim(),
         email: normalizedEmail,
         role: role || 'agent',
         permissions: normalizePermissions(permissions, role || 'agent'),
@@ -640,9 +644,81 @@ export const createManagedUser = async (req: Request, res: Response) => {
     });
 
     res.status(201).json(serializeManagedUser(managed));
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    console.error('createManagedUser error:', error);
+    if (error?.code === 'P2002') {
+      return res.status(400).json({ error: 'An account with this email or id already exists' });
+    }
     res.status(500).json({ error: 'Failed to create managed user' });
+  }
+};
+
+export const updateManagedUser = async (req: Request, res: Response) => {
+  try {
+    const adminId = getTenantUserId(req);
+    const uid = String(req.params.uid || '');
+    if (!adminId || !uid) {
+      return res.status(400).json({ error: 'Agent id is required' });
+    }
+
+    const existing = await prisma.managedUser.findFirst({ where: { uid, adminId } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Agent account not found' });
+    }
+
+    const { displayName, email, role, permissions, photoURL, businessName, plan } = req.body;
+    const data: Record<string, unknown> = {};
+
+    if (displayName !== undefined) data.displayName = String(displayName).trim();
+    if (role !== undefined) data.role = role || 'agent';
+    if (permissions !== undefined) {
+      data.permissions = normalizePermissions(permissions, role || existing.role || 'agent');
+    }
+    if (photoURL !== undefined) data.photoURL = photoURL || null;
+    if (businessName !== undefined) data.businessName = businessName || '';
+    if (plan !== undefined) data.plan = plan || 'free';
+
+    if (email !== undefined) {
+      const normalizedEmail = email ? normalizeEmail(email) : null;
+      if (normalizedEmail) {
+        const account = await findAccountByEmail(normalizedEmail);
+        if (account && account.record.id !== existing.id) {
+          return res.status(400).json({ error: 'An account with this email already exists' });
+        }
+      }
+      data.email = normalizedEmail;
+    }
+
+    const managed = await prisma.managedUser.update({
+      where: { id: existing.id },
+      data,
+    });
+
+    res.json(serializeManagedUser(managed));
+  } catch (error) {
+    console.error('updateManagedUser error:', error);
+    res.status(500).json({ error: 'Failed to update managed user' });
+  }
+};
+
+export const deleteManagedUser = async (req: Request, res: Response) => {
+  try {
+    const adminId = getTenantUserId(req);
+    const uid = String(req.params.uid || '');
+    if (!adminId || !uid) {
+      return res.status(400).json({ error: 'Agent id is required' });
+    }
+
+    const existing = await prisma.managedUser.findFirst({ where: { uid, adminId } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Agent account not found' });
+    }
+
+    await prisma.managedUser.delete({ where: { id: existing.id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('deleteManagedUser error:', error);
+    res.status(500).json({ error: 'Failed to delete managed user' });
   }
 };
 
@@ -652,10 +728,18 @@ export const createManagedUser = async (req: Request, res: Response) => {
 export const syncManagedUsers = async (req: Request, res: Response) => {
   try {
     const adminId = getTenantUserId(req);
-    const incoming: any[] = req.body.users ?? [];
+    if (!adminId) {
+      return res.status(401).json({ error: 'Not authorized' });
+    }
+
+    // Require an explicit array — a missing body must NOT wipe all agents.
+    if (!Array.isArray(req.body?.users)) {
+      return res.status(400).json({ error: 'users array is required' });
+    }
+    const incoming: any[] = req.body.users;
 
     const existing = await prisma.managedUser.findMany({ where: { adminId } });
-    const incomingUids = new Set(incoming.map(u => u.uid));
+    const incomingUids = new Set(incoming.map(u => u.uid).filter(Boolean));
 
     // Validate every email before writing anything — no two accounts (managed
     // or primary) may share one, and the incoming payload itself can't either.
@@ -701,7 +785,7 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
       }
 
       if (existingUser) {
-        await prisma.managedUser.update({ where: { uid: u.uid }, data });
+        await prisma.managedUser.update({ where: { id: existingUser.id }, data });
       } else {
         await prisma.managedUser.create({
           data: {
@@ -720,7 +804,7 @@ export const syncManagedUsers = async (req: Request, res: Response) => {
     });
     res.json(updated.map(serializeManagedUser));
   } catch (error) {
-    console.error(error);
+    console.error('syncManagedUsers error:', error);
     res.status(500).json({ error: 'Failed to sync managed users' });
   }
 };

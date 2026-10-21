@@ -8,6 +8,8 @@ import {
   completeOnboarding,
   getManagedUsers,
   createManagedUser,
+  updateManagedUser,
+  deleteManagedUser,
   syncManagedUsers,
   updateManagedUserPassword,
   sendEmailOtp,
@@ -39,9 +41,12 @@ router.post('/onboard', protect, completeOnboarding);
 
 // Managed users (sub-account configuration). :adminUid in the path is kept for
 // the frontend contract, but the authenticated user is the source of truth.
+// More specific paths before the bare :adminUid create route.
 router.get('/managed-users/:adminUid', protect, requirePermission('canManageUsers'), getManagedUsers);
-router.post('/managed-users/:adminUid', protect, requirePermission('canManageUsers'), createManagedUser);
 router.post('/managed-users/:adminUid/bulk', protect, requirePermission('canManageUsers'), syncManagedUsers);
 router.post('/managed-users/:adminUid/password', protect, requirePermission('canManageUsers'), updateManagedUserPassword);
+router.put('/managed-users/:adminUid/:uid', protect, requirePermission('canManageUsers'), updateManagedUser);
+router.delete('/managed-users/:adminUid/:uid', protect, requirePermission('canManageUsers'), deleteManagedUser);
+router.post('/managed-users/:adminUid', protect, requirePermission('canManageUsers'), createManagedUser);
 
 export default router;

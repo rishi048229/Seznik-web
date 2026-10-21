@@ -13,7 +13,14 @@ import { ADMIN_PERMISSIONS, AGENT_PERMISSIONS } from '@/types/auth.types'
 import { normalizePermissions } from '@/utils/permissions'
 import type { TranslationKey } from '@/i18n/translations'
 import { useAuth } from '@/contexts/AuthContext'
-import { getAllUsers, saveManagedUser, saveManagedUsers, updateManagedUserPasswordDirectly } from '@/services/authService'
+import {
+  getAdminAccountId,
+  getAllUsers,
+  saveManagedUser,
+  updateManagedUserProfile,
+  deleteManagedUser,
+  updateManagedUserPasswordDirectly,
+} from '@/services/authService'
 import { validatePassword } from '@/utils/password'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -60,25 +67,38 @@ export const PermissionsAndAccounts = () => {
 
   const isAdmin = userProfile?.role === 'admin'
   const canManageAccounts = isAdmin || permissions?.canManageUsers === true
+  const adminId = getAdminAccountId(user)
+
+  const reloadManagedUsers = async () => {
+    if (!adminId) {
+      setUsers([])
+      return
+    }
+    const managedUsers = await getAllUsers(adminId)
+    setUsers(managedUsers as ManagedUser[])
+  }
 
   useEffect(() => {
+    let cancelled = false
+
     const loadManagedUsers = async () => {
-      if (!user) {
+      if (!adminId) {
         setUsers([])
         return
       }
 
       try {
-        const managedUsers = await getAllUsers(user.uid)
-        setUsers(managedUsers as ManagedUser[])
+        const managedUsers = await getAllUsers(adminId)
+        if (!cancelled) setUsers(managedUsers as ManagedUser[])
       } catch (error) {
         console.error('Error loading managed users:', error)
-        toast.error(t('permissions.errLoadFailed'))
+        if (!cancelled) toast.error(t('permissions.errLoadFailed'))
       }
     }
 
     loadManagedUsers()
-  }, [user])
+    return () => { cancelled = true }
+  }, [adminId, t])
 
   const handleAddUser = async () => {
     if (!form.name || !form.email || !form.password) {
@@ -105,11 +125,14 @@ export const PermissionsAndAccounts = () => {
       return
     }
 
-    if (!user) return
+    if (!adminId) {
+      toast.error(t('permissions.errLoadFailed'))
+      return
+    }
 
     const newUser: ManagedUser = {
       uid: `user_${Date.now()}`,
-      displayName: form.name,
+      displayName: form.name.trim(),
       email: normalizedEmail,
       role: form.role,
       permissions: form.role === 'admin' ? ADMIN_PERMISSIONS : normalizePermissions(permissionsForm, 'agent'),
@@ -120,35 +143,43 @@ export const PermissionsAndAccounts = () => {
       createdAt: new Date().toISOString(),
     }
 
-    const updatedUsers = [...users, newUser]
-    setUsers(updatedUsers)
-    await saveManagedUsers(user.uid, updatedUsers)
-
-    toast.success(t('permissions.userAddedSuccess'))
-    setIsAddUserOpen(false)
-    setForm({ name: '', email: '', role: 'agent', password: '' })
-    setPermissionsForm({ ...AGENT_PERMISSIONS })
+    try {
+      const created = await saveManagedUser(adminId, newUser)
+      setUsers(prev => [...prev.filter(u => u.uid !== created.uid), created as ManagedUser])
+      await reloadManagedUsers()
+      toast.success(t('permissions.userAddedSuccess'))
+      setIsAddUserOpen(false)
+      setForm({ name: '', email: '', role: 'agent', password: '' })
+      setPermissionsForm({ ...AGENT_PERMISSIONS })
+    } catch (err: any) {
+      console.error('Add agent failed:', err)
+      toast.error(err?.message || t('permissions.errLoadFailed'))
+    }
   }
 
   const handleUpdatePermissions = async () => {
-    if (!selectedUser || !user) return
+    if (!selectedUser || !adminId) return
 
-    const updatedUser = {
-      ...selectedUser,
-      permissions: selectedUser.role === 'admin'
-        ? ADMIN_PERMISSIONS
-        : normalizePermissions(permissionsForm, 'agent'),
+    const nextPermissions = selectedUser.role === 'admin'
+      ? ADMIN_PERMISSIONS
+      : normalizePermissions(permissionsForm, 'agent')
+
+    try {
+      const updated = await updateManagedUserProfile(adminId, selectedUser.uid, {
+        permissions: nextPermissions,
+        role: selectedUser.role,
+      })
+      setUsers(prev => prev.map(u => u.uid === selectedUser.uid ? { ...u, ...updated } as ManagedUser : u))
+      toast.success(t('permissions.permissionsUpdated'))
+      setIsEditUserOpen(false)
+    } catch (err: any) {
+      console.error('Update permissions failed:', err)
+      toast.error(err?.message || t('permissions.errLoadFailed'))
     }
-    const updatedUsers = users.map(u => u.uid === selectedUser.uid ? updatedUser : u)
-    setUsers(updatedUsers)
-    await saveManagedUsers(user.uid, updatedUsers)
-
-    toast.success(t('permissions.permissionsUpdated'))
-    setIsEditUserOpen(false)
   }
 
   const handleUpdatePassword = async () => {
-    if (!selectedUser || !passwordForm.newPassword || !user) {
+    if (!selectedUser || !passwordForm.newPassword || !adminId) {
       toast.error(t('permissions.errEnterPassword'))
       return
     }
@@ -165,8 +196,7 @@ export const PermissionsAndAccounts = () => {
     }
 
     try {
-      const adminUid = user.uid || (user as any).id || ''
-      await updateManagedUserPasswordDirectly(adminUid, selectedUser.uid, passwordForm.newPassword)
+      await updateManagedUserPasswordDirectly(adminId, selectedUser.uid, passwordForm.newPassword)
       toast.success(t('permissions.passwordUpdated'))
       setIsPasswordOpen(false)
       setPasswordForm({ newPassword: '', confirmPassword: '' })
@@ -177,13 +207,12 @@ export const PermissionsAndAccounts = () => {
   }
 
   const handleResetPassword = async (targetUser?: ManagedUser) => {
-    if (!user) return
+    if (!adminId) return
     const userToReset = targetUser ?? selectedUser
     if (!userToReset) return
 
     try {
-      const adminUid = user.uid || (user as any).id || ''
-      await updateManagedUserPasswordDirectly(adminUid, userToReset.uid, 'password123')
+      await updateManagedUserPasswordDirectly(adminId, userToReset.uid, 'password123')
       toast.success(t('permissions.passwordResetDefault'))
     } catch (err: any) {
       console.error('Password reset failed:', err)
@@ -191,20 +220,29 @@ export const PermissionsAndAccounts = () => {
     }
   }
 
-  const handleResetPasswordUser = async (user: ManagedUser) => {
-    setSelectedUser(user)
-    await handleResetPassword(user)
+  const handleResetPasswordUser = async (target: ManagedUser) => {
+    setSelectedUser(target)
+    await handleResetPassword(target)
   }
 
   const handleDeleteUser = async (uid: string) => {
     if (!confirm(t('permissions.deleteUserConfirm'))) return
-
-    const updatedUsers = users.filter(u => u.uid !== uid)
-    setUsers(updatedUsers)
-    if (user) {
-      await saveManagedUsers(user.uid, updatedUsers)
+    if (!adminId) {
+      toast.error(t('permissions.errLoadFailed'))
+      return
     }
-    toast.success(t('permissions.userDeleted'))
+
+    const previous = users
+    setUsers(users.filter(u => u.uid !== uid))
+
+    try {
+      await deleteManagedUser(adminId, uid)
+      toast.success(t('permissions.userDeleted'))
+    } catch (err: any) {
+      console.error('Delete agent failed:', err)
+      setUsers(previous)
+      toast.error(err?.message || t('permissions.errLoadFailed'))
+    }
   }
 
   const openEditUser = (user: ManagedUser) => {

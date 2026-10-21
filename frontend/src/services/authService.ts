@@ -7,13 +7,26 @@ export interface AuthResponse {
   [key: string]: unknown
 }
 
+const withStableIds = (data: AuthResponse): AuthResponse => {
+  if (!data?.user) return data
+  const id = data.user.id || data.user.uid
+  return {
+    ...data,
+    user: {
+      ...data.user,
+      id,
+      uid: id,
+    },
+  }
+}
+
 export const loginUser = async (email: string, pass: string): Promise<AuthResponse> => {
   const data = await fetchApi('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password: pass }),
   })
   setAuthToken(data.token)
-  return data
+  return withStableIds(data)
 }
 
 export const registerUser = async (email: string, pass: string, firstName: string, lastName: string, phone: string): Promise<AuthResponse> => {
@@ -23,7 +36,7 @@ export const registerUser = async (email: string, pass: string, firstName: strin
     body: JSON.stringify({ email, password: pass, displayName, phone }),
   })
   setAuthToken(data.token)
-  return data
+  return withStableIds(data)
 }
 
 // Pre-signup email verification
@@ -70,14 +83,22 @@ export const signOutUser = async (): Promise<void> => {
 export const getUserProfile = async (): Promise<UserProfile | null> => {
   try {
     const user = await fetchApi('/auth/profile')
+    // Prefer the DB primary key for app identity. Spreading first then setting
+    // uid/id prevents a legacy Firebase `uid` field from overwriting it.
+    const id = user.id || user.uid
     return {
-      uid: user.id,
       ...user,
+      id,
+      uid: id,
     } as UserProfile
   } catch {
     return null
   }
 }
+
+/** Admin account id used for managed-user (agent) API paths. */
+export const getAdminAccountId = (user: { id?: string; uid?: string } | null | undefined): string =>
+  user?.id || user?.uid || ''
 
 
 export const setUserRoleAndProfile = async (
@@ -153,20 +174,43 @@ export const getAllUsers = async (adminUid: string): Promise<UserProfile[]> => {
 
 export const saveManagedUser = async (
   adminUid: string,
-  user: UserProfile
-): Promise<void> => {
-  await fetchApi(`/auth/managed-users/${adminUid}`, {
+  user: UserProfile & { password?: string }
+): Promise<UserProfile> => {
+  const created = await fetchApi(`/auth/managed-users/${adminUid}`, {
     method: 'POST',
     body: JSON.stringify(user),
+  })
+  return created as UserProfile
+}
+
+export const updateManagedUserProfile = async (
+  adminUid: string,
+  uid: string,
+  patch: Partial<UserProfile>
+): Promise<UserProfile> => {
+  const updated = await fetchApi(`/auth/managed-users/${adminUid}/${uid}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  })
+  return updated as UserProfile
+}
+
+export const deleteManagedUser = async (
+  adminUid: string,
+  uid: string
+): Promise<void> => {
+  await fetchApi(`/auth/managed-users/${adminUid}/${uid}`, {
+    method: 'DELETE',
   })
 }
 
 export const saveManagedUsers = async (
   adminUid: string,
   users: UserProfile[]
-): Promise<void> => {
-  await fetchApi(`/auth/managed-users/${adminUid}/bulk`, {
+): Promise<UserProfile[]> => {
+  const data = await fetchApi(`/auth/managed-users/${adminUid}/bulk`, {
     method: 'POST',
     body: JSON.stringify({ users }),
   })
+  return data as UserProfile[]
 }

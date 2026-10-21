@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Shield, Store, ArrowRight, Lock, BadgeCheck, History, AlertCircle } from 'lucide-react'
 import type { UserRole, UserProfile } from '@/types/auth.types'
-import { getAllUsers } from '@/services/authService'
+import { getAdminAccountId, getAllUsers } from '@/services/authService'
 import toast from 'react-hot-toast'
 import { toastError } from '@/utils/userMessage'
 import { ROUTES } from '@/constants/routes'
@@ -38,7 +38,7 @@ export const AccessSelectionPage = () => {
       }
 
       try {
-        const uid = user.uid || (user as any).id || ''
+        const uid = getAdminAccountId(user)
         const list = await getAllUsers(uid)
         if (isMounted) {
           const agentList = (list || []).filter(u => u.role === 'agent')
