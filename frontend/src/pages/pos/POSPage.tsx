@@ -149,7 +149,7 @@ export const POSPage = () => {
   const { data: categories } = useCategories()
   const { data: customers } = useCustomers()
   const { data: settings } = useSettings()
-  const { items, addItem, removeItem, updateQty, clearCart, totals, updateItemDetails } = useCart()
+  const { items, addItem, removeItem, updateQty, applyDiscount, clearCart, totals, updateItemDetails } = useCart()
   const { mutate: createSale, isPending: isCreating } = useCreateSale()
 
   const [search, setSearch] = useState('')
@@ -834,7 +834,7 @@ export const POSPage = () => {
 
                     {/* Product Info - Left */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 break-words line-clamp-2">
                         {item.productName}
                       </h4>
                       <p className="text-xs text-gray-400">
@@ -867,8 +867,8 @@ export const POSPage = () => {
                     </div>
                   </div>
 
-                  {/* Quantity Controls + Line Total - Separate Row */}
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-600">
+                  {/* Quantity + per-line discount + Line Total */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-600">
                     <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 px-1 py-0.5 gap-1">
                       <button
                         onClick={() => handleUpdateQty(item.productId, item.quantity - 1)}
@@ -885,9 +885,34 @@ export const POSPage = () => {
                         <Plus size={14} />
                       </button>
                     </div>
-                    <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                      {formatINR(lineGst.payable)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">Disc ₹</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        max={item.sellingPrice * item.quantity}
+                        value={item.discount || ''}
+                        onChange={(e) => {
+                          const raw = parseFloat(e.target.value)
+                          const maxDisc = item.sellingPrice * item.quantity
+                          const next = Number.isFinite(raw) ? Math.min(Math.max(0, raw), maxDisc) : 0
+                          applyDiscount(item.productId, next)
+                        }}
+                        placeholder="0"
+                        className="w-16 h-7 px-1.5 rounded-md border border-gray-200 dark:border-gray-500 bg-white dark:bg-gray-600 text-xs font-semibold text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      />
+                    </div>
+                    <div className="text-right ml-auto">
+                      {(item.discount || 0) > 0 && (
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium leading-none mb-0.5">
+                          −{formatINR(item.discount)}
+                        </p>
+                      )}
+                      <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                        {formatINR(lineGst.payable)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )
@@ -897,41 +922,49 @@ export const POSPage = () => {
 
         {/* Bottom Section: Discount + Totals + Complete & Print Button */}
         <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 sm:p-4 pb-20 sm:pb-4 space-y-2">
-          {/* Order Discount (Order-level only) */}
+          {/* Bill-level discount (in addition to per-item Disc ₹ above) */}
           {items.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder={t('pos.discount')}
-                value={orderDiscount || ''}
-                onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
-                className="flex-1 h-9 text-xs"
-              />
-              <div className="relative shrink-0">
-                <select
-                  value={orderDiscountType}
-                  onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
-                  className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="flat">₹</option>
-                  <option value="percent">%</option>
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  placeholder={`${t('pos.discount')} (bill)`}
+                  value={orderDiscount || ''}
+                  onChange={e => setOrderDiscount(parseFloat(e.target.value) || 0)}
+                  className="flex-1 h-9 text-xs"
+                />
+                <div className="relative shrink-0">
+                  <select
+                    value={orderDiscountType}
+                    onChange={e => setOrderDiscountType(e.target.value as 'flat' | 'percent')}
+                    className="h-9 px-2 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="flat">₹</option>
+                    <option value="percent">%</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 min-w-[7.5rem]">
+                  {taxAmount > 0 && Math.abs(shelfListTotal + taxAmount - orderDiscountAmount - finalTotal) < 0.05 && (
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+                      List {formatINR(shelfListTotal)}
+                      <span className="text-amber-700 dark:text-amber-400"> +GST {formatINR(taxAmount)}</span>
+                    </p>
+                  )}
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
+                  <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
                 </div>
               </div>
-              <div className="text-right shrink-0 min-w-[7.5rem]">
-                {taxAmount > 0 && Math.abs(shelfListTotal + taxAmount - orderDiscountAmount - finalTotal) < 0.05 && (
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
-                    List {formatINR(shelfListTotal)}
-                    <span className="text-amber-700 dark:text-amber-400"> +GST {formatINR(taxAmount)}</span>
-                  </p>
-                )}
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{t('common.total')} ({items.length})</p>
-                <p className="text-base font-bold text-[#0a0a2e] dark:text-white leading-tight">{formatINR(finalTotal)}</p>
-              </div>
+              {items.reduce((s, i) => s + (i.discount || 0), 0) > 0 && (
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                  Item discounts −{formatINR(items.reduce((s, i) => s + (i.discount || 0), 0))}
+                  {orderDiscountAmount > 0 ? ` · Bill −${formatINR(orderDiscountAmount)}` : ''}
+                </p>
+              )}
             </div>
           )}
 

@@ -980,7 +980,7 @@ export const POSLitePage = () => {
                         <Check size={16} />
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
                       <div>
                         <span className="text-[10px] text-gray-500 block">Unit Price (₹)</span>
                         <input
@@ -988,6 +988,23 @@ export const POSLitePage = () => {
                           step="0.01"
                           value={item.sellingPrice}
                           onChange={e => handleUpdateCartItem(item.id, { sellingPrice: parseFloat(e.target.value) || 0 })}
+                          className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Disc (₹)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={item.discount || ''}
+                          onChange={e => {
+                            const raw = parseFloat(e.target.value)
+                            const maxDisc = item.sellingPrice * item.quantity
+                            const next = Number.isFinite(raw) ? Math.min(Math.max(0, raw), maxDisc) : 0
+                            handleUpdateCartItem(item.id, { discount: next })
+                          }}
+                          placeholder="0"
                           className="w-full h-7 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-bold"
                         />
                       </div>
@@ -1003,12 +1020,17 @@ export const POSLitePage = () => {
                   <>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{item.productName}</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 break-words line-clamp-2">{item.productName}</p>
                         <p className="text-xs text-gray-400">
                           {formatINR(item.sellingPrice)} {item.taxRate > 0 && `(+${item.taxRate}% GST)`}
+                          {(item.discount || 0) > 0 && (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                              {' · '}Disc −{formatINR(item.discount)}
+                            </span>
+                          )}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{formatINR(item.total)}</p>
                         <button
                           type="button"

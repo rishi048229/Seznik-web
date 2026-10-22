@@ -527,6 +527,9 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
           { text: '', width: 26, align: 'L' }
         ], COLS))
       }
+      if ((item.discount || 0) > 0) {
+        lines.push(...wrapProse(`  Disc -${formatIndianNumber(item.discount || 0)}`, COLS, false))
+      }
       if (showTaxBreakdown && lineFig) {
         const hint = formatLineGstBreakdownHint(lineFig)
         if (hint) lines.push(...wrapProse(`  ${hint}`, COLS, false))
@@ -553,6 +556,9 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
         { text: gstStr, width: 4, align: 'R' },
         { text: formatIndianNumber(linePayable), width: 10, align: 'R' },
       ], COLS))
+      if ((item.discount || 0) > 0) {
+        lines.push(...wrapProse(`  Disc -${formatIndianNumber(item.discount || 0)}`, COLS, false))
+      }
       if (showTaxBreakdown && lineFig) {
         const hint = formatLineGstBreakdownHint(lineFig)
         if (hint) lines.push(...wrapProse(`  ${hint}`, COLS, false))
@@ -565,9 +571,13 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   // ── 4. TOTALS BLOCK ──
   if (showSubtotalDiscount) {
     lines.push(row('Sub Total', formatIndianNumber(totals.subTotal), COLS))
+    const itemDiscountTotal = items.reduce((s, i) => s + (i.discount || 0), 0)
+    if (itemDiscountTotal > 0) {
+      lines.push(row('Item Disc', `-${formatIndianNumber(itemDiscountTotal)}`, COLS))
+    }
     if (totals.orderDiscount > 0) {
-      lines.push(row('Discount', `-${formatIndianNumber(totals.orderDiscount)}`, COLS))
-    } else if (totals.totalDiscount > 0) {
+      lines.push(row('Bill Disc', `-${formatIndianNumber(totals.orderDiscount)}`, COLS))
+    } else if (totals.totalDiscount > 0 && itemDiscountTotal <= 0) {
       lines.push(row('Discount', `-${formatIndianNumber(totals.totalDiscount)}`, COLS))
     }
     lines.push(divider('-', COLS))

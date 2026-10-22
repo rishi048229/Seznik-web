@@ -226,13 +226,14 @@ export const CategoriesPage = () => {
           title={t('page.categories')}
           onWatchTutorial={pageTutorial.openTutorial}
           action={
-            <div className="flex items-center gap-3">
-              <Badge variant="info" className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+              <Badge variant="info" className="hidden sm:flex items-center gap-1">
                 <Info size={12} />
                 {topLevel.length} Categories · {all.length - topLevel.length} Subcategories
               </Badge>
               <Button data-tour="new-category-btn" leftIcon={<Plus size={16} />} onClick={() => openCreateModal()}>
-                New Category
+                <span className="sm:hidden">New</span>
+                <span className="hidden sm:inline">New Category</span>
               </Button>
             </div>
           }
@@ -257,8 +258,8 @@ export const CategoriesPage = () => {
         {/* Category Management Table - Left */}
         <div data-tour="categories-table" className="lg:col-span-8">
           <Card className="overflow-hidden">
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Management</h3>
+            <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">Category Management</h3>
               <Button
                 variant="outline"
                 size="sm"
@@ -304,66 +305,64 @@ export const CategoriesPage = () => {
 
                     return (
                       <div key={category.id}>
-                        {/* Parent row */}
-                        <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all">
-                          {/* Expand toggle + icon */}
-                          <div className="w-14 flex items-center gap-1 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => children.length > 0 && toggleExpanded(category.id)}
-                              className={`w-5 h-5 flex items-center justify-center text-gray-400 ${children.length === 0 ? 'invisible' : 'hover:text-gray-600'}`}
-                            >
-                              <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`} />
-                            </button>
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${ICON_COLORS[iconIndex]}`}>
-                              {CATEGORY_ICONS[iconIndex % CATEGORY_ICONS.length]}
+                        {/* Parent row — stacks on mobile so name/count stay readable */}
+                        <div className="px-3 sm:px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                            <div className="flex items-start gap-2 min-w-0 flex-1">
+                              <div className="w-14 flex items-center gap-1 flex-shrink-0 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => children.length > 0 && toggleExpanded(category.id)}
+                                  className={`w-5 h-5 flex items-center justify-center text-gray-400 ${children.length === 0 ? 'invisible' : 'hover:text-gray-600'}`}
+                                >
+                                  <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`} />
+                                </button>
+                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${ICON_COLORS[iconIndex]}`}>
+                                  {CATEGORY_ICONS[iconIndex % CATEGORY_ICONS.length]}
+                                </div>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 break-words line-clamp-2 sm:line-clamp-1">
+                                  {category.name}
+                                </span>
+                                <span className="text-xs text-gray-400 block mt-0.5">
+                                  {productCount} items{children.length > 0 ? ` · ${children.length} subcategor${children.length === 1 ? 'y' : 'ies'}` : ''}
+                                </span>
+                              </div>
                             </div>
-                          </div>
 
-                          {/* Name */}
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate block">
-                              {category.name}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {productCount} items{children.length > 0 ? ` · ${children.length} subcategor${children.length === 1 ? 'y' : 'ies'}` : ''}
-                            </span>
-                          </div>
-
-                          {/* Products count — desktop only */}
-                          <div className="hidden sm:block w-20 text-center text-sm text-gray-500 dark:text-gray-400 font-medium flex-shrink-0">
-                            {productCount} items
-                          </div>
-
-                          {/* Toggle */}
-                          <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
-                            {renderToggle(category)}
-                            <span className={`text-xs font-medium ${category.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
-                              {category.isActive !== false ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-1 w-24 justify-end flex-shrink-0">
-                            <button
-                              onClick={() => openCreateModal(category.id)}
-                              title="Add subcategory"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-                            >
-                              <FolderTree size={15} />
-                            </button>
-                            <button
-                              onClick={() => openEditModal(category)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                            >
-                              <Pencil size={15} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(category)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            <div className="flex items-center justify-between gap-2 pl-14 sm:pl-0 sm:justify-end sm:flex-shrink-0">
+                              <div className="hidden sm:block w-20 text-center text-sm text-gray-500 dark:text-gray-400 font-medium flex-shrink-0">
+                                {productCount} items
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0 sm:w-28">
+                                {renderToggle(category)}
+                                <span className={`hidden sm:inline text-xs font-medium ${category.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
+                                  {category.isActive !== false ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-0.5 sm:gap-1 justify-end flex-shrink-0">
+                                <button
+                                  onClick={() => openCreateModal(category.id)}
+                                  title="Add subcategory"
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                                >
+                                  <FolderTree size={15} />
+                                </button>
+                                <button
+                                  onClick={() => openEditModal(category)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                >
+                                  <Pencil size={15} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(category)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
@@ -375,35 +374,41 @@ export const CategoriesPage = () => {
                             return (
                               <div
                                 key={child.id}
-                                className="flex items-center gap-3 pl-14 pr-4 py-2.5 bg-gray-50/70 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-all border-t border-gray-100/70 dark:border-gray-800"
+                                className="px-3 sm:pl-14 sm:pr-4 py-2.5 bg-gray-50/70 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-all border-t border-gray-100/70 dark:border-gray-800"
                               >
-                                <CornerDownRight size={14} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm text-gray-700 dark:text-gray-300 truncate block">{child.name}</span>
-                                  <span className="text-xs text-gray-400 sm:hidden">{childCount} items</span>
-                                </div>
-                                <div className="hidden sm:block w-20 text-center text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                                  {childCount} items
-                                </div>
-                                <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
-                                  {renderToggle(child)}
-                                  <span className={`text-xs font-medium ${child.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
-                                    {child.isActive !== false ? 'Active' : 'Inactive'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1 w-24 justify-end flex-shrink-0">
-                                  <button
-                                    onClick={() => openEditModal(child)}
-                                    className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                  >
-                                    <Pencil size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(child)}
-                                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                                  <div className="flex items-start gap-2 min-w-0 flex-1">
+                                    <CornerDownRight size={14} className="text-gray-300 dark:text-gray-600 flex-shrink-0 mt-1" />
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-sm text-gray-700 dark:text-gray-300 break-words line-clamp-2 sm:line-clamp-1 block">{child.name}</span>
+                                      <span className="text-xs text-gray-400 mt-0.5 block sm:hidden">{childCount} items</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 pl-6 sm:pl-0 sm:justify-end sm:flex-shrink-0">
+                                    <div className="hidden sm:block w-20 text-center text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                                      {childCount} items
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0 sm:w-28">
+                                      {renderToggle(child)}
+                                      <span className={`hidden sm:inline text-xs font-medium ${child.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`}>
+                                        {child.isActive !== false ? 'Active' : 'Inactive'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-0.5 sm:gap-1 justify-end flex-shrink-0">
+                                      <button
+                                        onClick={() => openEditModal(child)}
+                                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                      >
+                                        <Pencil size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(child)}
+                                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             )
