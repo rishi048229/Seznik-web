@@ -380,13 +380,18 @@ export function calculateReceiptTotals(
   }
 }
 
-/** Short thermal hint under a line item (incl. vs excl. GST). */
+/**
+ * Short thermal hint under a line item for the *customer* receipt.
+ * Shows GST amount only — never "Base" (taxable) price; that is internal
+ * for store owners (cart / product screens). GST math / Taxable Value
+ * footer on tax invoices is unchanged.
+ */
 export function formatLineGstBreakdownHint(line: ReceiptLineBreakdown): string {
   if (line.taxRate <= 0 || line.tax <= 0) return ''
   if (line.priceIncludesGst) {
-    return `Incl.GST ${formatIndianNumber(line.tax)} (Base ${formatIndianNumber(line.taxable)})`
+    return `Incl.GST ${formatIndianNumber(line.tax)}`
   }
-  return `Base ${formatIndianNumber(line.taxable)} +GST ${formatIndianNumber(line.tax)}`
+  return `+GST ${formatIndianNumber(line.tax)}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
