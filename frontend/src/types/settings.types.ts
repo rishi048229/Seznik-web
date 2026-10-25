@@ -30,6 +30,8 @@ export interface ReceiptConfig {
   /** Print the sale clock time next to the date. Defaults on. */
   showPrintTime?: boolean
   showTaxBreakdown?: boolean
+  /** Under each item: "+GST 12.50" / "Incl.GST …". Off = only footer tax breakdown. Defaults on. */
+  showPerItemTaxLines?: boolean
   showSubtotalDiscount?: boolean
   showFooterMessage?: boolean
   showTerms?: boolean

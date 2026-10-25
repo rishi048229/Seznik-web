@@ -143,6 +143,7 @@ const defaultReceiptConfig: ReceiptConfig = {
   showInvoiceNoAndDate: true,
   showPrintTime: true,
   showTaxBreakdown: true,
+  showPerItemTaxLines: true,
   showSubtotalDiscount: true,
   showFooterMessage: true,
   showTerms: true,
@@ -999,6 +1000,7 @@ export const PrintersPage = () => {
                         showPrintTime: true,
                         showSubtotalDiscount: true,
                         showTaxBreakdown: true,
+                        showPerItemTaxLines: true,
                         showFooterMessage: true,
                         showTerms: true,
                         showBarcode: true,
@@ -1025,6 +1027,7 @@ export const PrintersPage = () => {
                         showPrintTime: true,
                         showSubtotalDiscount: false,
                         showTaxBreakdown: false,
+                        showPerItemTaxLines: false,
                         showFooterMessage: false,
                         showTerms: false,
                         showBarcode: false,
@@ -1135,6 +1138,11 @@ export const PrintersPage = () => {
                   checked={receiptConfig.showTaxBreakdown ?? true}
                   onChange={v => setReceiptConfig(prev => ({ ...prev, showTaxBreakdown: v }))}
                   label="SGST / CGST Tax breakdown lines"
+                />
+                <Switch
+                  checked={receiptConfig.showPerItemTaxLines ?? true}
+                  onChange={v => setReceiptConfig(prev => ({ ...prev, showPerItemTaxLines: v }))}
+                  label="Per-product GST lines (+GST under each item)"
                 />
                 <Switch
                   checked={receiptConfig.showFooterMessage ?? true}

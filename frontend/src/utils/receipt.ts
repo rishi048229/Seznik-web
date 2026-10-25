@@ -34,6 +34,7 @@ export const resolveEffectiveReceiptConfig = (
     showPrintTime: rConf?.showPrintTime ?? true,
     showSubtotalDiscount: rConf?.showSubtotalDiscount ?? true,
     showTaxBreakdown: rConf?.showTaxBreakdown ?? true,
+    showPerItemTaxLines: rConf?.showPerItemTaxLines ?? true,
     showFooterMessage: rConf?.showFooterMessage ?? true,
     showTerms: rConf?.showTerms ?? true,
     showBarcode: rConf?.showBarcode ?? true,

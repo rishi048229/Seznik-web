@@ -428,6 +428,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
   const showInvoiceNoAndDate = receiptConfig?.showInvoiceNoAndDate ?? true
   const showPrintTime = receiptConfig?.showPrintTime ?? true
   const showTaxBreakdown = receiptConfig?.showTaxBreakdown ?? true
+  const showPerItemTaxLines = receiptConfig?.showPerItemTaxLines ?? true
   const showSubtotalDiscount = receiptConfig?.showSubtotalDiscount ?? true
   const showFooterMessage = receiptConfig?.showFooterMessage ?? true
   const showTerms = receiptConfig?.showTerms ?? true
@@ -535,7 +536,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       if ((item.discount || 0) > 0) {
         lines.push(...wrapProse(`  Disc -${formatIndianNumber(item.discount || 0)}`, COLS, false))
       }
-      if (showTaxBreakdown && lineFig) {
+      if (showPerItemTaxLines && lineFig) {
         const hint = formatLineGstBreakdownHint(lineFig)
         if (hint) lines.push(...wrapProse(`  ${hint}`, COLS, false))
       }
@@ -564,7 +565,7 @@ export function compileReceiptTextLines(params: CompileReceiptParams): string[] 
       if ((item.discount || 0) > 0) {
         lines.push(...wrapProse(`  Disc -${formatIndianNumber(item.discount || 0)}`, COLS, false))
       }
-      if (showTaxBreakdown && lineFig) {
+      if (showPerItemTaxLines && lineFig) {
         const hint = formatLineGstBreakdownHint(lineFig)
         if (hint) lines.push(...wrapProse(`  ${hint}`, COLS, false))
       }
