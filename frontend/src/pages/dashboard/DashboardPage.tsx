@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   useDashboardStats,
   useRevenueTrend,
@@ -47,7 +48,14 @@ import {
   BluetoothConnected,
   Tag,
   ExternalLink,
+  Wrench,
+  X,
 } from 'lucide-react'
+
+/** Bump this id when you publish a new maintenance notice so it shows again. */
+const MAINTENANCE_BANNER_ID = 'maint-2026-10-26-20-22'
+const maintenanceDismissKey = (userId: string) =>
+  `seznik_dash_banner_dismissed_${MAINTENANCE_BANNER_ID}_${userId || 'guest'}`
 
 const PRINTER_STATUS_KEY: Record<string, TranslationKey> = {
   unsupported: 'dashboard.printerNotSupported',
@@ -217,6 +225,8 @@ const ProgressRow = ({ left, right, sub, percent, badge }: { left: string; right
 
 export const DashboardPage = () => {
   const pageTutorial = usePageTutorial('dashboard')
+  const { user } = useAuth()
+  const userId = user?.id || user?.uid || ''
   const { isLoading } = useDashboardStats()
   const { data: products } = useProducts()
 
@@ -226,6 +236,24 @@ export const DashboardPage = () => {
   const printer = useBlePrinter()
   const { t } = useLanguage()
   const [isConnectingPrinter, setIsConnectingPrinter] = useState(false)
+  const [showMaintenanceBanner, setShowMaintenanceBanner] = useState(true)
+
+  useEffect(() => {
+    try {
+      setShowMaintenanceBanner(localStorage.getItem(maintenanceDismissKey(userId)) !== '1')
+    } catch {
+      setShowMaintenanceBanner(true)
+    }
+  }, [userId])
+
+  const dismissMaintenanceBanner = () => {
+    try {
+      localStorage.setItem(maintenanceDismissKey(userId), '1')
+    } catch {
+      /* ignore quota / private mode */
+    }
+    setShowMaintenanceBanner(false)
+  }
 
   const handleConnectPrinter = async () => {
     setIsConnectingPrinter(true)
@@ -322,6 +350,36 @@ export const DashboardPage = () => {
           }
         />
       </div>
+
+      {showMaintenanceBanner && (
+        <div
+          role="status"
+          className="mb-4 sm:mb-5 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-3.5 py-3 sm:px-4 sm:py-3.5 flex gap-3 items-start shadow-sm"
+        >
+          <span className="mt-0.5 shrink-0 w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+            <Wrench size={18} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+              Scheduled maintenance tonight
+            </p>
+            <p className="text-xs sm:text-sm text-amber-900/90 dark:text-amber-200/90 mt-1 leading-relaxed">
+              We are rolling out an important update. The website may be unavailable for about{' '}
+              <strong>1–2 hours today from 8:00 PM to 10:00 PM</strong>. Billing and other features
+              might not work during this window. We apologise for the inconvenience and appreciate
+              your patience.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={dismissMaintenanceBanner}
+            aria-label="Dismiss maintenance notice"
+            className="shrink-0 p-1.5 rounded-lg text-amber-700/80 dark:text-amber-300/80 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Stats Cards — 2×2 on phone so the whole row fits in one view */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-4 sm:mb-6">
