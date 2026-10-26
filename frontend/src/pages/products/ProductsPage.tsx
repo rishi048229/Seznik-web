@@ -28,6 +28,7 @@ import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
 import { ImageUpload } from '@/components/forms/ImageUpload'
 import { AutoTranslatedText } from '@/components/common/AutoTranslatedText'
+import { ProductThumbnail } from '@/components/common/ProductThumbnail'
 import { Plus, Trash2, Search, Barcode, QrCode, Grid, List, ChevronLeft, ChevronRight, MoreHorizontal, TrendingUp, AlertTriangle, Layers, Package, CheckSquare, Square, Tag, Printer, Download, Wand2, X, Bluetooth, Keyboard, Upload } from 'lucide-react'
 
 import { formatINR } from '@/utils/currency'
@@ -1145,13 +1146,7 @@ export const ProductsPage = () => {
                                 : <Square size={16} />}
                             </button>
                             <div className="w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
-                              {product.imageURL ? (
-                                <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Package size={20} className="text-gray-400" />
-                                </div>
-                              )}
+                              <ProductThumbnail product={product} iconSize={20} />
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 break-words">
@@ -1235,13 +1230,7 @@ export const ProductsPage = () => {
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
-                                      {product.imageURL ? (
-                                        <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                          <Package size={20} className="text-gray-400" />
-                                        </div>
-                                      )}
+                                      <ProductThumbnail product={product} iconSize={20} />
                                     </div>
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -1331,13 +1320,7 @@ export const ProductsPage = () => {
                         <Card key={product.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between min-w-0" onClick={() => openDetail(product)}>
                           <div className="min-w-0">
                             <div className="w-full h-28 sm:h-40 rounded-lg bg-gray-100 dark:bg-gray-700 mb-2 sm:mb-3 overflow-hidden relative group">
-                              {product.imageURL ? (
-                                <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Package size={28} className="text-gray-300" />
-                                </div>
-                              )}
+                              <ProductThumbnail product={product} iconSize={28} />
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); handlePrintLabel(product) }}

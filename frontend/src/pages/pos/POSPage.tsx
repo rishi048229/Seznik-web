@@ -11,6 +11,7 @@ import { UpiQrPanel } from '@/components/common/UpiQrPanel'
 import { PageVideoTutorialModal } from '@/components/common/PageVideoTutorialModal'
 import { InteractivePageTour } from '@/components/common/InteractivePageTour'
 import { CustomerSelect } from '@/components/common/CustomerSelect'
+import { ProductThumbnail } from '@/components/common/ProductThumbnail'
 import { usePageTutorial } from '@/hooks/usePageTutorial'
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Wallet, Smartphone, UserPlus, Barcode, Filter, Printer, ScanLine, X, ArrowUpDown, Calendar, AlertTriangle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { RealisticReceiptModal } from '@/components/common/RealisticReceiptModal'
@@ -699,8 +700,8 @@ export const POSPage = () => {
                   }`}
                 >
                   <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                    {product.imageURL ? (
-                      <img src={product.imageURL} alt={product.name} className="w-full h-full object-cover" />
+                    {product.hasImage || product.imageURL ? (
+                      <ProductThumbnail product={product} iconSize={28} />
                     ) : (
                       <ShoppingCart size={28} className="text-gray-300" />
                     )}

@@ -10,12 +10,13 @@ const accountId = (user: { id?: string; uid?: string } | null | undefined) =>
 
 const productsKey = (userId: string) => [QUERY_KEYS.PRODUCTS, userId] as const
 
-/** Keep list cache free of multi‑MB base64 blobs. */
+/** Keep list cache free of multi‑MB base64 blobs; mark hasImage for lazy thumbs. */
 const slimCachedProduct = (p: Product): Product => {
-  if (p.imageURL?.startsWith('data:') && p.imageURL.length > 4096) {
-    return { ...p, imageURL: undefined }
+  const hasImage = p.hasImage === true || !!(p.imageURL && p.imageURL.length > 0)
+  if (p.imageURL?.startsWith('data:')) {
+    return { ...p, imageURL: undefined, hasImage }
   }
-  return p
+  return { ...p, hasImage }
 }
 
 export const useProducts = (opts?: { enabled?: boolean }) => {

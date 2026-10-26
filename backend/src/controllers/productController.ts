@@ -9,9 +9,9 @@ import {
 import { validateImagePayloads } from '../utils/mediaPayloadLimits';
 
 /**
- * Catalog list fields only. Intentionally omits `imageURL` and `description`
- * so Postgres never ships multi‑MB base64 blobs on every page load.
- * Use GET /products/:id when the edit form needs the full image.
+ * Catalog list fields — omits `imageURL` / `description` text so multi‑MB
+ * base64 blobs are never loaded from Postgres on every page open.
+ * Images load on demand via GET /products/:id/image when `hasImage` is true.
  */
 const PRODUCT_LIST_SELECT = {
   id: true,
@@ -35,28 +35,51 @@ const PRODUCT_LIST_SELECT = {
   updatedAt: true,
 } as const;
 
-function slimProductForList<T extends { imageURL?: string | null; description?: string | null }>(p: T) {
-  const imageURL =
+function slimProductForList<T extends { imageURL?: string | null; description?: string | null; id?: string }>(
+  p: T,
+  hasImage = false
+) {
+  const httpThumb =
     p.imageURL && !String(p.imageURL).startsWith('data:') && String(p.imageURL).length < 2048
       ? p.imageURL
       : null;
-  const { description: _d, ...rest } = p as T & { description?: string | null };
-  return { ...rest, imageURL };
+  const { description: _d, imageURL: _i, ...rest } = p as T & {
+    description?: string | null
+    imageURL?: string | null
+  };
+  return { ...rest, imageURL: httpThumb, hasImage: hasImage || !!httpThumb };
 }
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const userId = getTenantUserId(req);
+    // Return active + legacy rows (isActive null/undefined treated as active by UI).
+    // Soft-deleted (isActive: false) stay available for admin views via includeInactive=1.
     const includeInactive = String(req.query.includeInactive || '') === '1';
     const products = await prisma.product.findMany({
       where: {
         userId,
-        ...(includeInactive ? {} : { isActive: true }),
+        ...(includeInactive ? {} : { NOT: { isActive: false } }),
       },
       orderBy: { createdAt: 'desc' },
       select: PRODUCT_LIST_SELECT,
     });
-    res.json(products.map((p) => ({ ...p, imageURL: null })));
+
+    // IS NOT NULL does not detoast large imageURL values — cheap hasImage map.
+    const withImages = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "Product"
+      WHERE "userId" = ${userId}
+        AND "imageURL" IS NOT NULL
+    `;
+    const hasImageIds = new Set(withImages.map((r) => r.id));
+
+    res.json(
+      products.map((p) => ({
+        ...p,
+        imageURL: null as string | null,
+        hasImage: hasImageIds.has(p.id),
+      }))
+    );
   } catch (error) {
     console.error('getProducts error:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -71,10 +94,44 @@ export const getProductById = async (req: Request, res: Response) => {
       where: { id, userId },
     });
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    res.json(product);
+    res.json({ ...product, hasImage: !!product.imageURL });
   } catch (error) {
     console.error('getProductById error:', error);
     res.status(500).json({ error: 'Failed to fetch product' });
+  }
+};
+
+/** Serves one product image (auth required). Keeps list payloads small. */
+export const getProductImage = async (req: Request, res: Response) => {
+  try {
+    const userId = getTenantUserId(req);
+    const id = String(req.params.id || '');
+    const product = await prisma.product.findFirst({
+      where: { id, userId },
+      select: { imageURL: true },
+    });
+    if (!product?.imageURL) {
+      return res.status(404).json({ error: 'No image' });
+    }
+
+    const url = product.imageURL;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return res.redirect(302, url);
+    }
+
+    const match = url.match(/^data:([^;]+);base64,(.+)$/s);
+    if (!match) {
+      return res.status(404).json({ error: 'Unsupported image' });
+    }
+    const contentType = match[1] || 'image/jpeg';
+    const buffer = Buffer.from(match[2], 'base64');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('Content-Length', String(buffer.length));
+    return res.send(buffer);
+  } catch (error) {
+    console.error('getProductImage error:', error);
+    res.status(500).json({ error: 'Failed to load image' });
   }
 };
 
@@ -113,7 +170,7 @@ export const createProduct = async (req: Request, res: Response) => {
     const product = await prisma.product.create({
       data: { ...rest, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
     });
-    res.status(201).json(slimProductForList(product));
+    res.status(201).json(slimProductForList(product, !!product.imageURL));
   } catch (error: unknown) {
     const err = error as { statusCode?: number; message?: string };
     if (err?.statusCode === 429 || err?.statusCode === 400) {
@@ -162,7 +219,7 @@ export const updateProduct = async (req: Request, res: Response) => {
       data: rest,
     });
     // Return slim row so the client can patch React Query cache immediately.
-    res.json(slimProductForList(product));
+    res.json(slimProductForList(product, !!product.imageURL));
   } catch (error) {
     console.error('updateProduct error:', error);
     res.status(500).json({ error: 'Failed to update product' });

@@ -10,6 +10,8 @@ export interface Product {
   categoryId: string
   supplierId?: string
   imageURL?: string
+  /** True when DB has an image; list API omits base64 — load via /products/:id/image */
+  hasImage?: boolean
   costPrice: number
   sellingPrice: number
   taxRate: number
