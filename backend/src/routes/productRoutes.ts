@@ -1,6 +1,7 @@
 import express from 'express';
 import { 
-  getProducts, 
+  getProducts,
+  getProductById,
   createProduct, 
   updateProduct, 
   softDeleteProduct, 
@@ -40,6 +41,7 @@ router.put('/:productId/location-stock/:locationId', canChangeStock, upsertProdu
 router.post('/batch-stock-update', canChangeStock, batchBarcodeStockUpdate);
 router.post('/bulk-delete', canManageCatalog, bulkSoftDeleteProducts);
 router.get('/barcode/:barcode', canViewCatalog, getProductByBarcode);
+router.get('/:id', canViewCatalog, getProductById);
 router.put('/:id', canManageCatalog, updateProduct);
 router.delete('/:id', canManageCatalog, softDeleteProduct);
 router.post('/:id/stock', canChangeStock, adjustStock);

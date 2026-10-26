@@ -6,24 +6,28 @@ export const getProducts = async (_uid: string): Promise<Product[]> => {
   return await fetchApi('/products')
 }
 
+export const getProduct = async (_uid: string, productId: string): Promise<Product> => {
+  return await fetchApi(`/products/${productId}`)
+}
+
 export const createProduct = async (
   _uid: string,
   data: Omit<Product, 'id' | 'sku' | 'createdAt' | 'updatedAt'>
-): Promise<string> => {
+): Promise<Product> => {
   const sku = await generateSKU(_uid, data.categoryId)
   const product = await fetchApi('/products', {
     method: 'POST',
     body: JSON.stringify({ ...data, sku }),
   })
-  return product.id
+  return product as Product
 }
 
 export const updateProduct = async (
   _uid: string,
   productId: string,
   data: Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>
-): Promise<void> => {
-  await fetchApi(`/products/${productId}`, {
+): Promise<Product> => {
+  return await fetchApi(`/products/${productId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   })

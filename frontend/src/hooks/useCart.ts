@@ -12,7 +12,12 @@ export const useCart = () => {
   const { user } = useAuth()
   const userId = user?.id || user?.uid
   const { data: products, isFetched } = useProducts()
-  const ownedIds = useMemo(() => new Set((products ?? []).map(p => p.id)), [products])
+  // Stable fingerprint so optimistic product patches don't rehydrate the cart.
+  const ownedIdsKey = useMemo(
+    () => (products ?? []).map((p) => p.id).sort().join(','),
+    [products]
+  )
+  const ownedIds = useMemo(() => new Set(ownedIdsKey ? ownedIdsKey.split(',') : []), [ownedIdsKey])
   const hydratedFor = useRef<string | null>(null)
 
   const [items, setItems] = useState<CartItem[]>([])
@@ -24,9 +29,12 @@ export const useCart = () => {
       return
     }
     if (!isFetched) return
+    // Only rehydrate when account or owned-id set changes — not on every products refetch.
+    const stamp = `${userId}:${ownedIdsKey}`
+    if (hydratedFor.current === stamp) return
     setItems(adoptLegacyJson<CartItem>(CART_STORAGE_KEY, userId, ownedIds, []))
-    hydratedFor.current = userId
-  }, [userId, isFetched, ownedIds])
+    hydratedFor.current = stamp
+  }, [userId, isFetched, ownedIds, ownedIdsKey])
 
   useEffect(() => {
     if (!userId || hydratedFor.current !== userId) return

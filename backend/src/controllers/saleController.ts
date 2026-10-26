@@ -6,9 +6,12 @@ import { getTenantUserId } from '../utils/ownerUser';
 export const getSales = async (req: Request, res: Response) => {
   try {
     const userId = getTenantUserId(req);
+    const limitRaw = parseInt(String(req.query.limit || '500'), 10);
+    const take = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 50), 2000) : 500;
     const sales = await prisma.sale.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      take,
     });
     res.json(sales);
   } catch (error) {

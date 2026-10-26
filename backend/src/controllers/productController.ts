@@ -8,16 +8,73 @@ import {
 } from '../utils/dailyUsageLimits';
 import { validateImagePayloads } from '../utils/mediaPayloadLimits';
 
+/**
+ * Catalog list fields only. Intentionally omits `imageURL` and `description`
+ * so Postgres never ships multi‑MB base64 blobs on every page load.
+ * Use GET /products/:id when the edit form needs the full image.
+ */
+const PRODUCT_LIST_SELECT = {
+  id: true,
+  name: true,
+  sku: true,
+  barcode: true,
+  barcodeType: true,
+  categoryId: true,
+  supplierId: true,
+  costPrice: true,
+  sellingPrice: true,
+  taxRate: true,
+  priceIncludesGst: true,
+  currentStock: true,
+  lowStockThreshold: true,
+  unit: true,
+  isActive: true,
+  brand: true,
+  expiryDate: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+function slimProductForList<T extends { imageURL?: string | null; description?: string | null }>(p: T) {
+  const imageURL =
+    p.imageURL && !String(p.imageURL).startsWith('data:') && String(p.imageURL).length < 2048
+      ? p.imageURL
+      : null;
+  const { description: _d, ...rest } = p as T & { description?: string | null };
+  return { ...rest, imageURL };
+}
+
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const userId = getTenantUserId(req);
+    const includeInactive = String(req.query.includeInactive || '') === '1';
     const products = await prisma.product.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(includeInactive ? {} : { isActive: true }),
+      },
       orderBy: { createdAt: 'desc' },
+      select: PRODUCT_LIST_SELECT,
     });
-    res.json(products);
+    res.json(products.map((p) => ({ ...p, imageURL: null })));
   } catch (error) {
+    console.error('getProducts error:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
+  }
+};
+
+export const getProductById = async (req: Request, res: Response) => {
+  try {
+    const userId = getTenantUserId(req);
+    const id = String(req.params.id || '');
+    const product = await prisma.product.findFirst({
+      where: { id, userId },
+    });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.json(product);
+  } catch (error) {
+    console.error('getProductById error:', error);
+    res.status(500).json({ error: 'Failed to fetch product' });
   }
 };
 
@@ -25,6 +82,9 @@ export const createProduct = async (req: Request, res: Response) => {
   try {
     const userId = getTenantUserId(req);
     await assertCanCreateProducts(userId, 1);
+    const imageError = validateImagePayloads(req.body || {});
+    if (imageError) return res.status(400).json({ error: imageError });
+
     const { imageUrl, sku, categoryId, ...rest } = req.body;
 
     // Map frontend `imageUrl` → Prisma column `imageURL`
@@ -53,7 +113,7 @@ export const createProduct = async (req: Request, res: Response) => {
     const product = await prisma.product.create({
       data: { ...rest, sku: finalSku, categoryId: finalCategoryId, imageURL, userId },
     });
-    res.status(201).json(product);
+    res.status(201).json(slimProductForList(product));
   } catch (error: unknown) {
     const err = error as { statusCode?: number; message?: string };
     if (err?.statusCode === 429 || err?.statusCode === 400) {
@@ -68,6 +128,9 @@ export const updateProduct = async (req: Request, res: Response) => {
   try {
     const userId = getTenantUserId(req);
     const { id } = req.params;
+    const imageError = validateImagePayloads(req.body || {});
+    if (imageError) return res.status(400).json({ error: imageError });
+
     const { imageUrl, ...rest } = req.body;
 
     // Map frontend `imageUrl` → Prisma column `imageURL`
@@ -81,11 +144,25 @@ export const updateProduct = async (req: Request, res: Response) => {
     delete rest.updatedAt;
     delete rest.userId;
 
-    const product = await prisma.product.updateMany({
+    // Empty string from list/edit UI must not wipe an existing DB image.
+    if (rest.imageURL === '' || rest.imageURL === undefined) {
+      delete rest.imageURL;
+    }
+
+    const existing = await prisma.product.findFirst({
       where: { id: String(id), userId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const product = await prisma.product.update({
+      where: { id: existing.id },
       data: rest,
     });
-    res.json({ success: true, count: product.count });
+    // Return slim row so the client can patch React Query cache immediately.
+    res.json(slimProductForList(product));
   } catch (error) {
     console.error('updateProduct error:', error);
     res.status(500).json({ error: 'Failed to update product' });

@@ -3,14 +3,18 @@ import { useAuth } from '@/contexts/AuthContext'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import * as saleService from '@/services/saleService'
 
+const accountId = (user: { id?: string; uid?: string } | null | undefined) =>
+  user?.id || user?.uid || ''
+
 export const useSales = (opts?: { refetchInterval?: number | false }) => {
   const { user } = useAuth()
+  const userId = accountId(user)
   return useQuery({
-    queryKey: [QUERY_KEYS.SALES, user?.uid],
-    queryFn: () => saleService.getSales(user!.uid),
-    enabled: !!user,
-    staleTime: 0,
-    gcTime: 5 * 60 * 1000,
+    queryKey: [QUERY_KEYS.SALES, userId],
+    queryFn: () => saleService.getSales(userId),
+    enabled: !!userId,
+    staleTime: opts?.refetchInterval ? 0 : 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: Boolean(opts?.refetchInterval),
     refetchInterval: opts?.refetchInterval,
   })
@@ -18,19 +22,21 @@ export const useSales = (opts?: { refetchInterval?: number | false }) => {
 
 export const useSaleById = (saleId: string) => {
   const { user } = useAuth()
+  const userId = accountId(user)
   return useQuery({
-    queryKey: [QUERY_KEYS.SALES, user?.uid, saleId],
-    queryFn: () => saleService.getSaleById(user!.uid, saleId),
-    enabled: !!user && !!saleId,
+    queryKey: [QUERY_KEYS.SALES, userId, saleId],
+    queryFn: () => saleService.getSaleById(userId, saleId),
+    enabled: !!userId && !!saleId,
   })
 }
 
 export const useCreateSale = () => {
   const { user } = useAuth()
+  const userId = accountId(user)
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: Parameters<typeof saleService.createSale>[1]) =>
-      saleService.createSale(user!.uid, data),
+      saleService.createSale(userId, data),
     onSuccess: () => {
       void Promise.all([
         qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] }),
@@ -43,17 +49,17 @@ export const useCreateSale = () => {
     onError: (error) => {
       const msg = error instanceof Error ? error.message : 'Unknown error'
       console.error('createSale error:', msg)
-      throw error // Re-throw so the caller can handle it
+      throw error
     },
-
   })
 }
 
 export const useDeleteSale = () => {
   const { user } = useAuth()
+  const userId = accountId(user)
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (saleId: string) => saleService.deleteSale(user!.uid, saleId),
+    mutationFn: (saleId: string) => saleService.deleteSale(userId, saleId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
     },
@@ -62,9 +68,10 @@ export const useDeleteSale = () => {
 
 export const useBulkDeleteSales = () => {
   const { user } = useAuth()
+  const userId = accountId(user)
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (saleIds: string[]) => saleService.bulkDeleteSales(user!.uid, saleIds),
+    mutationFn: (saleIds: string[]) => saleService.bulkDeleteSales(userId, saleIds),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.SALES] })
     },

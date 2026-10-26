@@ -22,6 +22,7 @@ import {
   exportProductsToImage,
 } from '@/utils/exportEngine'
 import { useProducts, useCreateProduct, useUpdateProduct, useBarcodeProductLookup, useBulkDeleteProducts } from '@/hooks/useProducts'
+import * as productService from '@/services/productService'
 import { useCategories, useCreateCategory } from '@/hooks/useCategories'
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers'
 import { FieldInfo } from '@/components/ui/FieldInfo'
@@ -34,6 +35,7 @@ import { buildCategoryOptions } from '@/utils/categoryTree'
 import type { Product } from '@/types/product.types'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/hooks/useSettings'
 import { useBlePrinter } from '@/hooks/useBlePrinter'
 import {
@@ -212,6 +214,7 @@ function ProductActionTile({
 
 export const ProductsPage = () => {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const { data: products, isLoading } = useProducts()
 
   const { data: categories } = useCategories()
@@ -640,7 +643,10 @@ export const ProductsPage = () => {
     toast.success('Barcode image downloaded!')
   }
 
-  const openEdit = (row: Product) => {
+  const openEdit = async (row: Product) => {
+    setEditId(row.id)
+    setIsFormOpen(true)
+    // Prefill from list immediately; hydrate image/description from full record.
     setForm({
       name: row.name,
       categoryId: row.categoryId,
@@ -659,8 +665,30 @@ export const ProductsPage = () => {
       description: row.description ?? '',
       expiryDate: row.expiryDate ? new Date(row.expiryDate).toISOString().slice(0, 10) : '',
     })
-    setEditId(row.id)
-    setIsFormOpen(true)
+    try {
+      const uid = user?.id || user?.uid || ''
+      const full = await productService.getProduct(uid, row.id)
+      setForm({
+        name: full.name,
+        categoryId: full.categoryId,
+        supplierId: full.supplierId ?? '',
+        barcode: full.barcode ?? '',
+        barcodeType: full.barcodeType ?? 'CODE128',
+        costPrice: String(full.costPrice),
+        sellingPrice: String(full.sellingPrice),
+        taxRate: String(full.taxRate ?? 0),
+        priceIncludesGst: full.priceIncludesGst ?? false,
+        currentStock: String(full.currentStock),
+        lowStockThreshold: String(full.lowStockThreshold),
+        unit: full.unit,
+        imageURL: full.imageURL ?? '',
+        brand: full.brand ?? '',
+        description: full.description ?? '',
+        expiryDate: full.expiryDate ? new Date(full.expiryDate).toISOString().slice(0, 10) : '',
+      })
+    } catch {
+      // List row is enough to edit prices/stock if detail fetch fails.
+    }
   }
 
   const handleSave = async () => {
@@ -676,7 +704,7 @@ export const ProductsPage = () => {
     const taxRate = parseFloat(form.taxRate) || 0
     const enteredPrice = parseFloat(form.sellingPrice) || 0
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: form.name.trim(),
       categoryId: form.categoryId,
       supplierId: form.supplierId || undefined,
@@ -689,7 +717,6 @@ export const ProductsPage = () => {
       currentStock: parseInt(form.currentStock) || 0,
       lowStockThreshold: parseInt(form.lowStockThreshold) || 10,
       unit: form.unit,
-      imageURL: form.imageURL || '',
       isActive: true,
       // Optional details — sent as null (not omitted) when cleared, so
       // editing a product to remove a brand/description/expiry actually
@@ -698,10 +725,14 @@ export const ProductsPage = () => {
       description: form.description.trim() || null,
       expiryDate: form.expiryDate ? new Date(form.expiryDate).toISOString() : null,
     }
+    // Only send image when set — empty string must not wipe DB image after list omit.
+    if (form.imageURL) {
+      payload.imageURL = form.imageURL
+    }
 
     if (editId) {
       updateProduct(
-        { productId: editId, data: payload },
+        { productId: editId, data: payload as Partial<Product> },
         {
           onSuccess: () => {
             toast.success('Product updated')
@@ -712,7 +743,7 @@ export const ProductsPage = () => {
         }
       )
     } else {
-      createProduct(payload, {
+      createProduct(payload as Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'sku'>, {
         onSuccess: () => {
           toast.success('Product created')
           setIsFormOpen(false)
