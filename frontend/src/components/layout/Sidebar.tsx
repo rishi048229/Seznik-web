@@ -78,7 +78,14 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { data: products } = useProducts({ enabled: canSeeCatalog })
   const { data: settings } = useSettings()
   const { t } = useLanguage()
-  const lowStockCount = products?.filter(p => p.currentStock <= p.lowStockThreshold).length ?? 0
+  // Alert badge only — NOT total catalog size. Matches Products page:
+  // low stock (still in stock but at/under threshold) + fully out of stock.
+  const stockAlertCount =
+    products?.filter(
+      (p) =>
+        p.isActive !== false &&
+        (p.currentStock <= 0 || p.currentStock <= (p.lowStockThreshold ?? 0))
+    ).length ?? 0
 
   const displayName = settings?.businessName || userProfile?.businessName || userProfile?.displayName || user?.displayName || 'User'
   const logoUrl = settings?.businessLogoURL || user?.photoURL
@@ -198,21 +205,25 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   <span className={clsx('truncate whitespace-nowrap', collapsed && 'lg:hidden')}>
                     {t(item.labelKey)}
                   </span>
-                  {isProducts && lowStockCount > 0 && (
+                  {isProducts && stockAlertCount > 0 && (
                     <>
                       {/* Expanded / mobile: pill at the row end */}
                       <span
+                        title={`${stockAlertCount} low or out of stock (not total products)`}
                         className={clsx(
                           'ml-auto bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 text-xs font-medium px-2 py-0.5 rounded-full transition-transform duration-200 group-hover:scale-105',
                           collapsed && 'lg:hidden'
                         )}
                       >
-                        {lowStockCount}
+                        {stockAlertCount}
                       </span>
                       {/* Collapsed rail: mini count pinned to the icon corner */}
                       {collapsed && (
-                        <span className="hidden lg:flex absolute top-0.5 right-1 min-w-[16px] h-4 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none">
-                          {lowStockCount}
+                        <span
+                          title={`${stockAlertCount} low or out of stock`}
+                          className="hidden lg:flex absolute top-0.5 right-1 min-w-[16px] h-4 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none"
+                        >
+                          {stockAlertCount}
                         </span>
                       )}
                     </>
